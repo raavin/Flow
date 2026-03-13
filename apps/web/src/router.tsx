@@ -3,7 +3,7 @@ import { rootRoute, appRoute } from '@/components/layout'
 import { landingRoute } from '@/pages/landing'
 import { onboardingRoute } from '@/pages/onboarding'
 import { homeRoute } from '@/pages/home'
-import { coordinationRoute } from '@/pages/coordination'
+import { coordinationDetailRoute, coordinationRoute } from '@/pages/coordination'
 import { calendarRoute } from '@/pages/calendar'
 import { ganttRoute } from '@/pages/gantt'
 import { servicesMarketplaceRoute, templateMarketplaceRoute } from '@/pages/marketplace'
@@ -26,6 +26,7 @@ const routeTree = rootRoute.addChildren([
   appRoute.addChildren([
     homeRoute,
     coordinationRoute,
+    coordinationDetailRoute,
     calendarRoute,
     ganttRoute,
     templateMarketplaceRoute,

@@ -5,6 +5,7 @@ import type {
   CoordinationObjectIntent,
   CoordinationObjectKind,
   CoordinationParticipant,
+  CoordinationMessage,
   CoordinationObjectState,
   CoordinationTemplate,
   CoordinationTemplateBlock,
@@ -77,6 +78,18 @@ type CoordinationTemplateRow = {
   payload: {
     blocks?: CoordinationTemplateBlock[]
   } | null
+}
+
+type CoordinationMessageRow = {
+  id: string
+  coordination_object_id: string
+  author_id: string
+  body: string
+  visibility: 'private' | 'participants' | 'followers'
+  source_post_id: string | null
+  metadata: Record<string, unknown> | null
+  created_at: string
+  updated_at: string
 }
 
 type ManualCoordinationInput = {
@@ -179,6 +192,88 @@ export async function fetchCoordinationObjects(options: FetchCoordinationOptions
   if (error) throw error
 
   return (data as CoordinationObjectRow[]).map(mapCoordinationObject)
+}
+
+export async function fetchCoordinationObjectById(id: string) {
+  if (!supabase) return null
+
+  const { data, error } = await supabase
+    .from('coordination_objects')
+    .select(
+      'id, owner_id, source_table, source_id, kind, display_kind, title, summary, intent, state, starts_at, ends_at, due_at, is_all_day, flexibility, parent_id, linked_project_id, linked_listing_id, linked_job_id, metadata, created_at, updated_at, coordination_object_participants(id, coordination_object_id, profile_id, participant_name, role, state)',
+    )
+    .eq('id', id)
+    .maybeSingle()
+
+  if (error) throw error
+  if (!data) return null
+  return mapCoordinationObject(data as CoordinationObjectRow)
+}
+
+export async function fetchCoordinationMessages(coordinationObjectId: string) {
+  if (!supabase) return []
+
+  const { data, error } = await supabase
+    .from('coordination_messages')
+    .select('id, coordination_object_id, author_id, body, visibility, source_post_id, metadata, created_at, updated_at')
+    .eq('coordination_object_id', coordinationObjectId)
+    .order('created_at', { ascending: true })
+
+  if (error) throw error
+
+  const authorIds = [...new Set((data ?? []).map((row) => row.author_id))]
+  const { data: profiles, error: profileError } = authorIds.length
+    ? await supabase.from('social_profiles').select('id, handle, display_name').in('id', authorIds)
+    : { data: [], error: null }
+  if (profileError) throw profileError
+
+  const profileMap = new Map((profiles ?? []).map((profile) => [profile.id, profile]))
+
+  return (data as CoordinationMessageRow[]).map((row) => ({
+    id: row.id,
+    coordinationObjectId: row.coordination_object_id,
+    authorId: row.author_id,
+    body: row.body,
+    visibility: row.visibility,
+    sourcePostId: row.source_post_id,
+    metadata: row.metadata ?? {},
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    author: profileMap.has(row.author_id)
+      ? {
+          id: row.author_id,
+          handle: profileMap.get(row.author_id)?.handle ?? null,
+          displayName: profileMap.get(row.author_id)?.display_name ?? null,
+        }
+      : null,
+  } satisfies CoordinationMessage))
+}
+
+export async function createCoordinationMessage(input: {
+  coordinationObjectId: string
+  authorId: string
+  body: string
+  visibility?: 'private' | 'participants' | 'followers'
+  sourcePostId?: string | null
+  metadata?: Record<string, unknown>
+}) {
+  if (!supabase) throw new Error('Supabase is not configured.')
+
+  const { data, error } = await supabase
+    .from('coordination_messages')
+    .insert({
+      coordination_object_id: input.coordinationObjectId,
+      author_id: input.authorId,
+      body: input.body,
+      visibility: input.visibility ?? 'participants',
+      source_post_id: input.sourcePostId ?? null,
+      metadata: input.metadata ?? {},
+    })
+    .select('id')
+    .single()
+
+  if (error) throw error
+  return data.id as string
 }
 
 export async function createManualCoordinationObject(input: ManualCoordinationInput) {

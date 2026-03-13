@@ -214,14 +214,14 @@ function MessagesFeedPage() {
           source: 'message-feed',
         },
       }),
-    onSuccess: () => {
+    onSuccess: (coordinationId) => {
       setFlowDraft(null)
       setFlowTitle('')
       setFlowDate('')
       setFlowIntent('coordinate')
       setFlowError(null)
       void queryClient.invalidateQueries({ queryKey: ['coordination-objects'] })
-      void navigate({ to: '/app/coordination' })
+      void navigate({ to: '/app/coordination/$coordinationId', params: { coordinationId } })
     },
     onError: (error) => {
       setFlowError(describeError(error, 'Could not create a flow from this message.'))

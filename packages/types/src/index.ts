@@ -125,6 +125,23 @@ export type CoordinationTemplate = {
   blocks: CoordinationTemplateBlock[]
 }
 
+export type CoordinationMessage = {
+  id: string
+  coordinationObjectId: string
+  authorId: string
+  body: string
+  visibility: 'private' | 'participants' | 'followers'
+  sourcePostId?: string | null
+  metadata?: Record<string, unknown>
+  createdAt: string
+  updatedAt: string
+  author?: {
+    id: string
+    handle?: string | null
+    displayName?: string | null
+  } | null
+}
+
 export type UserProfile = {
   firstName: string
   lastName?: string

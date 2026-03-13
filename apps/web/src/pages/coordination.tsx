@@ -1,13 +1,16 @@
 import { useMemo, useState } from 'react'
 import { Link, createRoute } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import type { CoordinationDisplayKind, CoordinationObject, CoordinationObjectIntent, CoordinationObjectKind, CoordinationObjectState, CoordinationTemplateBlock } from '@superapp/types'
+import type { CoordinationDisplayKind, CoordinationMessage, CoordinationObject, CoordinationObjectIntent, CoordinationObjectKind, CoordinationObjectState, CoordinationTemplateBlock } from '@superapp/types'
 import { AppButton, AppCard, AppInput, AppPanel, AppPill, AppSelect, AppTextarea, FieldLabel, SectionHeading } from '@superapp/ui'
 import { appRoute } from '@/components/layout'
 import { useAppStore } from '@/hooks/useAppStore'
 import {
+  createCoordinationMessage,
   createCoordinationTemplate,
   createManualCoordinationObject,
+  fetchCoordinationMessages,
+  fetchCoordinationObjectById,
   fetchCoordinationObjects,
   fetchCoordinationTemplates,
   instantiateCoordinationTemplate,
@@ -15,6 +18,7 @@ import {
   updateCoordinationObjectState,
 } from '@/lib/coordination-objects'
 import { fetchProjects } from '@/lib/projects'
+import { fetchPostSummary } from '@/lib/social'
 
 const kindOptions: Array<{ value: CoordinationObjectKind; label: string }> = [
   { value: 'reminder', label: 'Reminder' },
@@ -428,6 +432,9 @@ function BoardSection({
                 {item.summary ? <p className="mt-1 text-sm text-ink/70">{item.summary}</p> : null}
               </div>
               <div className="flex flex-wrap gap-2">
+                <Link to="/app/coordination/$coordinationId" params={{ coordinationId: item.id }}>
+                  <AppButton variant="ghost">Open flow</AppButton>
+                </Link>
                 {item.state !== 'active' ? (
                   <AppButton variant="ghost" onClick={() => onStateChange(item.id, 'active')}>
                     Start
@@ -455,6 +462,134 @@ function BoardSection({
         {!items.length ? <AppPanel className="text-sm text-ink/60">Nothing in this lane yet.</AppPanel> : null}
       </div>
     </AppCard>
+  )
+}
+
+function CoordinationDetailPage() {
+  const { coordinationId } = coordinationDetailRoute.useParams()
+  const { session } = useAppStore()
+  const queryClient = useQueryClient()
+  const [body, setBody] = useState('')
+
+  const flowQuery = useQuery({
+    queryKey: ['coordination-object', coordinationId],
+    queryFn: () => fetchCoordinationObjectById(coordinationId),
+    enabled: Boolean(coordinationId),
+  })
+  const messagesQuery = useQuery({
+    queryKey: ['coordination-messages', coordinationId],
+    queryFn: () => fetchCoordinationMessages(coordinationId),
+    enabled: Boolean(coordinationId),
+  })
+
+  const sourcePostId =
+    flowQuery.data?.metadata &&
+    typeof flowQuery.data.metadata === 'object' &&
+    'sourcePostId' in flowQuery.data.metadata &&
+    typeof flowQuery.data.metadata.sourcePostId === 'string'
+      ? flowQuery.data.metadata.sourcePostId
+      : null
+
+  const sourcePostQuery = useQuery({
+    queryKey: ['coordination-source-post', sourcePostId],
+    queryFn: () => fetchPostSummary(sourcePostId!),
+    enabled: Boolean(sourcePostId),
+  })
+
+  const messageMutation = useMutation({
+    mutationFn: () =>
+      createCoordinationMessage({
+        coordinationObjectId: coordinationId,
+        authorId: session!.user.id,
+        body,
+        sourcePostId: sourcePostId ?? null,
+      }),
+    onSuccess: () => {
+      setBody('')
+      void queryClient.invalidateQueries({ queryKey: ['coordination-messages', coordinationId] })
+    },
+  })
+
+  return (
+    <div className="mx-auto max-w-4xl space-y-4">
+      <AppCard className="space-y-4">
+        <div className="flex items-center justify-between gap-3">
+          <SectionHeading eyebrow="Flow" title={flowQuery.data?.title ?? 'Flow detail'} />
+          <Link to="/app/coordination">
+            <AppButton variant="ghost">Back to flows</AppButton>
+          </Link>
+        </div>
+        {flowQuery.data?.summary ? <p className="text-sm text-ink/70">{flowQuery.data.summary}</p> : null}
+        <div className="flex flex-wrap gap-2 text-xs">
+          {flowQuery.data ? (
+            <>
+              <AppPill tone="butter">{flowQuery.data.displayKind}</AppPill>
+              <AppPill tone="teal">{flowQuery.data.intent}</AppPill>
+              <AppPill>{flowQuery.data.state}</AppPill>
+            </>
+          ) : null}
+        </div>
+      </AppCard>
+
+      {sourcePostQuery.data ? (
+        <AppCard className="space-y-3">
+          <SectionHeading eyebrow="Source message" title="Where this flow started" />
+          <div className="ui-panel ui-panel--surface space-y-2">
+            <div className="text-sm text-ink/55">
+              <span className="font-extrabold text-ink">{sourcePostQuery.data.author?.displayName || 'User'}</span>
+              <span className="ml-2">@{sourcePostQuery.data.author?.handle || 'user'}</span>
+              <span className="ml-2">· {sourcePostQuery.data.createdAt.slice(0, 10)}</span>
+            </div>
+            <p className="whitespace-pre-wrap text-[16px] leading-7 text-ink">{sourcePostQuery.data.body}</p>
+            <div className="flex flex-wrap gap-2">
+              <Link to="/app/messages/post/$postId" params={{ postId: sourcePostQuery.data.id }}>
+                <AppButton variant="ghost">Open original post</AppButton>
+              </Link>
+            </div>
+          </div>
+        </AppCard>
+      ) : null}
+
+      <AppCard className="space-y-4">
+        <SectionHeading eyebrow="Conversation" title="Messages around this flow" />
+        <p className="text-sm text-ink/70">
+          Keep the ongoing chatter attached to the flow so the plan and the conversation stay together.
+        </p>
+        <div className="space-y-3">
+          {(messagesQuery.data ?? []).map((message) => (
+            <FlowMessageCard key={message.id} message={message} />
+          ))}
+          {!messagesQuery.data?.length ? <AppPanel className="text-sm text-ink/60">No flow messages yet. Add the first follow-up here.</AppPanel> : null}
+        </div>
+        <div className="space-y-3">
+          <AppTextarea value={body} onChange={(event) => setBody(event.target.value)} className="min-h-24" placeholder="Add a message that belongs to this flow..." />
+          <div className="flex justify-end">
+            <AppButton disabled={!session || messageMutation.isPending || !body.trim()} onClick={() => messageMutation.mutate()}>
+              {messageMutation.isPending ? 'Sending…' : 'Send to flow'}
+            </AppButton>
+          </div>
+        </div>
+      </AppCard>
+    </div>
+  )
+}
+
+function FlowMessageCard({ message }: { message: CoordinationMessage }) {
+  return (
+    <div className="ui-feed-row rounded-[28px] border border-white/70 bg-white/90 shadow-[var(--shadow-card)]">
+      <div className="flex gap-3">
+        <div className="ui-avatar-badge">{(message.author?.displayName || message.author?.handle || 'U').slice(0, 1).toUpperCase()}</div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 text-sm text-ink/55">
+            <span className="font-extrabold text-ink">{message.author?.displayName || 'User'}</span>
+            <span>@{message.author?.handle || 'user'}</span>
+            <span>·</span>
+            <span>{message.createdAt.slice(0, 16).replace('T', ' ')}</span>
+          </div>
+          <p className="mt-2 whitespace-pre-wrap text-[16px] leading-7 text-ink">{message.body}</p>
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -523,4 +658,10 @@ export const coordinationRoute = createRoute({
   getParentRoute: () => appRoute,
   path: 'coordination',
   component: CoordinationPage,
+})
+
+export const coordinationDetailRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: 'coordination/$coordinationId',
+  component: CoordinationDetailPage,
 })

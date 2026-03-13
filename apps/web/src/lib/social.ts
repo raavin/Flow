@@ -314,6 +314,41 @@ export async function fetchPost(postId: string, userId: string) {
   }
 }
 
+export async function fetchPostSummary(postId: string) {
+  if (!supabase) return null
+
+  const { data: post, error } = await supabase
+    .from('posts')
+    .select('id, author_id, body, content_kind, metadata, created_at')
+    .eq('id', postId)
+    .maybeSingle()
+  if (error) throw error
+  if (!post) return null
+
+  const { data: author, error: authorError } = await supabase
+    .from('social_profiles')
+    .select('id, handle, display_name')
+    .eq('id', post.author_id)
+    .maybeSingle()
+  if (authorError) throw authorError
+
+  return {
+    id: post.id,
+    authorId: post.author_id,
+    body: post.body,
+    contentKind: post.content_kind as 'update' | 'product' | 'opinion' | 'claim',
+    metadata: (post.metadata ?? {}) as Record<string, unknown>,
+    createdAt: post.created_at,
+    author: author
+      ? {
+          id: author.id,
+          handle: author.handle,
+          displayName: author.display_name,
+        }
+      : null,
+  }
+}
+
 export async function togglePostEngagement(input: {
   postId: string
   userId: string
