@@ -1,0 +1,85 @@
+[
+  {
+    "id": "messages-basics",
+    "slug": "messages-basics",
+    "title": "Messages and feed basics",
+    "summary": "How the social feed, replies, reposts, follows, and DMs work together.",
+    "body": "Messages is the front door of the app. The main feed shows posts from people you follow, plus reposts from trusted connections. Replies stay attached to a post thread. DMs are private and separate from the public feed. Use the action row to reply, repost, like, bookmark, share, DM, or convert a post into a flow.",
+    "tags": ["messages", "feed", "reply", "repost", "dm"],
+    "keywords": ["feed", "following", "discover", "posts", "replies", "repost", "retweet", "direct message"],
+    "route": "/app/messages"
+  },
+  {
+    "id": "convert-post-to-flow",
+    "slug": "convert-post-to-flow",
+    "title": "Convert a post into a flow",
+    "summary": "Turn chatter into one coordination object with time, intent, and state.",
+    "body": "Each post can become a single coordination object. Use the water-like flow action on a message to prefill a flow. From there you can add a title, intent, timing, and project linkage. The flow then shows up in the Flows board, timeline, and any connected project views.",
+    "tags": ["flows", "coordination", "messages"],
+    "keywords": ["convert", "flow", "coordination object", "turn message into plan", "message to flow"],
+    "route": "/app/coordination"
+  },
+  {
+    "id": "calendar-timeline-link",
+    "slug": "calendar-timeline-link",
+    "title": "Calendar and timeline together",
+    "summary": "How calendar events and timed flows connect to the timeline.",
+    "body": "Calendar and Timeline are different views over scheduled coordination. Calendar is best for day, week, and month planning. Timeline is best for seeing sequences, dependencies, and stretchable time blocks. Timed flows can appear in both views so you do not lose context when moving between them.",
+    "tags": ["calendar", "timeline", "gantt", "planning"],
+    "keywords": ["calendar", "timeline", "gantt", "schedule", "timed flow", "planning"],
+    "route": "/app/calendar"
+  },
+  {
+    "id": "mentions-and-topics",
+    "slug": "mentions-and-topics",
+    "title": "Using @mentions and #topics",
+    "summary": "Autocomplete and linking for people and topics while writing.",
+    "body": "Type @ to search people and # to search topics while composing a post, reply, or DM. Choose from the live suggestion list with the keyboard or mouse. Mentions link to profiles and topics link to topic feeds once published.",
+    "shortcut": "/@",
+    "tags": ["messages", "mentions", "topics", "search"],
+    "keywords": ["@", "#", "mention", "hashtag", "autocomplete", "topics", "handles"],
+    "route": "/app/messages"
+  },
+  {
+    "id": "slash-help",
+    "slug": "slash-help",
+    "title": "Using slash help",
+    "summary": "Type / while writing to search support notes and product help.",
+    "body": "Slash search is for support and help. Type / to search product notes while composing. For example, /@ shows help about mentions, /# shows help about topics, and /support shows general help. This is different from @people and #topics, which insert real handles and topics into the message.",
+    "shortcut": "/support",
+    "tags": ["support", "slash", "messages"],
+    "keywords": ["/", "/@", "/#", "slash", "support", "help", "commands"],
+    "route": "/app/support"
+  },
+  {
+    "id": "templates-and-reusable-blocks",
+    "slug": "templates-and-reusable-blocks",
+    "title": "Templates as reusable flow blocks",
+    "summary": "Save repeatable sequences so you can reuse them later.",
+    "body": "Templates are stored as structured blocks that can be reapplied later. They work best for repeatable sequences like birthdays, appointments, moving, or release workflows. When applied, they create real coordination objects that can appear in the board and timeline.",
+    "tags": ["templates", "flows", "timeline"],
+    "keywords": ["template", "reusable", "block", "sequence", "json", "timeline block"],
+    "route": "/app/coordination"
+  },
+  {
+    "id": "feed-ranking-principles",
+    "slug": "feed-ranking-principles",
+    "title": "How feed ranking works",
+    "summary": "The feed favors trusted, relevant, and actionable posts over raw virality.",
+    "body": "The app uses a central feed ranking profile with editable weights. Following emphasizes people you follow, your own posts, trusted reposts, bookmarks, freshness, and coordination relevance. Discover is broader but still avoids pure popularity-first ranking. The goal is to promote useful, healthy communication rather than attention-seeking content.",
+    "tags": ["messages", "ranking", "safety"],
+    "keywords": ["algorithm", "ranking", "following", "discover", "repost", "promotion", "safety"],
+    "route": "/app/messages"
+  },
+  {
+    "id": "support-and-search",
+    "slug": "support-and-search",
+    "title": "Support and search",
+    "summary": "Use live search or slash commands to find help quickly.",
+    "body": "The Support area is a structured knowledge base for the current app. It is searchable directly from the support page and also through inline slash suggestions while composing messages. The support data is stored in a structured format so it can later be indexed or ingested by AI support tools.",
+    "shortcut": "/support",
+    "tags": ["support", "search", "ai"],
+    "keywords": ["support", "help", "search", "slash", "/", "knowledge base", "AI ingestion"],
+    "route": "/app/support"
+  }
+]

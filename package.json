@@ -1,0 +1,22 @@
+{
+  "name": "superapp",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace @superapp/web",
+    "build": "npm run build --workspace @superapp/web",
+    "lint": "npm run lint --workspace @superapp/web",
+    "test": "npm run test --workspace @superapp/web",
+    "typecheck": "npm run typecheck --workspace @superapp/web",
+    "supabase:start": "supabase start",
+    "supabase:stop": "supabase stop",
+    "supabase:status": "supabase status"
+  },
+  "devDependencies": {
+    "supabase": "^2.58.0"
+  }
+}

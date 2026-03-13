@@ -1,0 +1,249 @@
+@import url('https://fonts.googleapis.com/css2?family=Cabin+Sketch:wght@700&family=Nunito:wght@400;600;700;800&display=swap');
+
+@layer base {
+  :root {
+    --font-display: 'Cabin Sketch', 'Trebuchet MS', cursive;
+    --font-body: 'Nunito', 'Trebuchet MS', sans-serif;
+
+    --color-peach: 247 179 145;
+    --color-butter: 255 232 163;
+    --color-berry: 217 108 138;
+    --color-teal: 75 166 166;
+    --color-ink: 31 35 64;
+    --color-cloud: 255 250 242;
+    --color-surface: 255 255 255;
+    --color-page-top: 255 248 239;
+    --color-page-mid: 255 253 247;
+    --color-page-bottom: 243 255 252;
+
+    --radius-card: 28px;
+    --radius-panel: 24px;
+    --radius-control: 20px;
+    --radius-pill: 999px;
+
+    --shadow-card: 0 12px 30px rgba(31, 35, 64, 0.14);
+    --shadow-button: 0 8px 20px rgba(31, 35, 64, 0.25);
+
+    --page-background:
+      linear-gradient(
+        180deg,
+        rgb(var(--color-page-top)) 0%,
+        rgb(var(--color-page-mid)) 55%,
+        rgb(var(--color-page-bottom)) 100%
+      );
+    --shell-background:
+      radial-gradient(circle at top left, rgba(255, 232, 163, 0.7), transparent 30%),
+      radial-gradient(circle at top right, rgba(217, 108, 138, 0.15), transparent 24%),
+      linear-gradient(
+        180deg,
+        rgb(var(--color-page-top)) 0%,
+        rgb(var(--color-page-mid)) 58%,
+        rgb(var(--color-page-bottom)) 100%
+      );
+  }
+
+  body {
+    font-family: var(--font-body);
+    color: rgb(var(--color-ink));
+    background: var(--page-background);
+  }
+}
+
+@layer components {
+  .ui-card {
+    @apply rounded-[var(--radius-card)] border border-white/70 bg-white/90 p-5 shadow-[var(--shadow-card)] backdrop-blur;
+  }
+
+  .ui-shell-surface {
+    @apply rounded-[var(--radius-card)] border border-white/70 bg-white/80 p-4 shadow-[var(--shadow-card)] backdrop-blur;
+  }
+
+  .ui-scrollbar-hidden {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .ui-scrollbar-hidden::-webkit-scrollbar {
+    display: none;
+  }
+
+  .ui-nav-shell {
+    @apply rounded-[var(--radius-card)] border border-white/70 bg-white/90 p-2 shadow-[var(--shadow-card)] backdrop-blur;
+  }
+
+  .ui-nav-link {
+    @apply flex flex-col items-center gap-1 rounded-[var(--radius-control)] px-2 py-3 text-center text-[11px] font-bold text-ink/75 transition hover:bg-butter;
+  }
+
+  .ui-nav-link--active {
+    @apply bg-butter text-ink;
+  }
+
+  .ui-button {
+    @apply inline-flex items-center justify-center rounded-[var(--radius-pill)] px-4 py-3 text-sm font-bold transition-transform duration-200 hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .ui-button--primary {
+    @apply bg-ink text-white shadow-[var(--shadow-button)];
+  }
+
+  .ui-button--secondary {
+    @apply bg-butter text-ink;
+  }
+
+  .ui-button--ghost {
+    @apply bg-white/70 text-ink;
+  }
+
+  .ui-icon-button {
+    @apply inline-flex items-center justify-center rounded-[var(--radius-pill)] bg-cloud p-3 text-ink transition hover:-translate-y-0.5;
+  }
+
+  .ui-icon-button--butter {
+    @apply bg-butter;
+  }
+
+  .ui-icon-button--peach {
+    @apply bg-peach;
+  }
+
+  .ui-section-heading {
+    @apply flex items-end justify-between gap-4;
+  }
+
+  .ui-eyebrow {
+    @apply text-xs font-black uppercase tracking-[0.25em] text-berry/70;
+  }
+
+  .ui-section-title {
+    @apply font-display text-2xl text-ink;
+  }
+
+  .ui-input {
+    @apply w-full rounded-[var(--radius-control)] bg-cloud px-4 py-3 outline-none;
+  }
+
+  .ui-textarea {
+    @apply resize-none;
+  }
+
+  .ui-select {
+    @apply appearance-none;
+  }
+
+  .ui-field-label {
+    @apply block text-sm font-bold text-ink;
+  }
+
+  .ui-panel {
+    @apply rounded-[var(--radius-panel)] bg-cloud p-4;
+  }
+
+  .ui-panel--surface {
+    @apply bg-white/85;
+  }
+
+  .ui-panel--butter {
+    @apply bg-butter/40;
+  }
+
+  .ui-panel--peach {
+    @apply bg-peach/40;
+  }
+
+  .ui-panel--teal {
+    @apply bg-teal/10;
+  }
+
+  .ui-feed-shell {
+    @apply overflow-visible rounded-[var(--radius-card)] border border-white/70 bg-white/90 shadow-[var(--shadow-card)];
+  }
+
+  .ui-feed-row {
+    @apply relative z-0 border-b border-ink/10 px-5 py-4 last:border-b-0;
+  }
+
+  .ui-quote-card {
+    @apply rounded-[var(--radius-control)] border border-ink/10 bg-cloud/80 p-4;
+  }
+
+  .ui-media-frame {
+    @apply relative overflow-hidden rounded-[var(--radius-control)] bg-cloud;
+  }
+
+  .ui-upload-chip {
+    @apply rounded-[var(--radius-pill)] bg-cloud px-3 py-2 text-xs font-bold text-ink/70;
+  }
+
+  .ui-soft-icon-button {
+    @apply rounded-[var(--radius-pill)] bg-white/90 p-2 text-ink/60 transition hover:-translate-y-0.5;
+  }
+
+  .ui-action-button {
+    @apply flex items-center gap-2 rounded-[var(--radius-pill)] px-2 py-1 text-sm font-medium text-ink/70 transition hover:bg-cloud;
+  }
+
+  .ui-avatar-badge {
+    @apply flex h-12 w-12 shrink-0 items-center justify-center rounded-[var(--radius-pill)] bg-butter text-lg font-black text-ink;
+  }
+
+  .ui-timeline-shell {
+    @apply rounded-[var(--radius-panel)] border border-white/70 bg-cloud/85 p-3 shadow-[var(--shadow-card)];
+  }
+
+  .ui-timeline-label-header {
+    @apply flex h-[86px] items-start rounded-2xl bg-white/85 px-4 py-3 text-xs font-black uppercase tracking-[0.22em] text-berry/70;
+  }
+
+  .ui-timeline-label-row {
+    @apply flex h-11 items-center rounded-2xl bg-white px-4 shadow-sm;
+  }
+
+  .ui-timeline-month {
+    @apply rounded-xl bg-white/85 px-3 py-2 text-xs font-black text-ink;
+  }
+
+  .ui-timeline-day {
+    @apply rounded-xl px-1 py-2 text-center text-ink/70;
+  }
+
+  .ui-timeline-day--default {
+    @apply bg-white/80;
+  }
+
+  .ui-timeline-day--today {
+    @apply bg-berry text-white;
+  }
+
+  .ui-timeline-row {
+    @apply relative h-11 rounded-2xl bg-white/70 px-2;
+  }
+
+  .ui-pill {
+    @apply inline-flex rounded-[var(--radius-pill)] px-3 py-2 text-xs font-bold text-ink/70;
+  }
+
+  .ui-pill--butter {
+    @apply bg-butter text-ink;
+  }
+
+  .ui-pill--peach {
+    @apply bg-peach text-ink;
+  }
+
+  .ui-pill--teal {
+    @apply bg-teal/15 text-ink;
+  }
+
+  .ui-chip-toggle {
+    @apply rounded-[var(--radius-pill)] px-3 py-2 text-xs font-bold;
+  }
+
+  .ui-chip-toggle--active {
+    @apply bg-butter text-ink;
+  }
+
+  .ui-chip-toggle--inactive {
+    @apply bg-cloud text-ink/70;
+  }
+}

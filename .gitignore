@@ -1,0 +1,9 @@
+node_modules
+dist
+.tanstack
+.vite
+.DS_Store
+.env
+.env.local
+coverage
+supabase/.temp

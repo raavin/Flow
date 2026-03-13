@@ -1,0 +1,29 @@
+@import '../../../packages/ui/src/theme.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color: rgb(var(--color-ink));
+  background: var(--page-background);
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+.page-shell {
+  min-height: 100vh;
+  background-image: var(--shell-background);
+}
