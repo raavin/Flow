@@ -1228,6 +1228,7 @@
   background-color: #f5f5f5;
   border-bottom: 1px solid #e5e5e5;
   color: #999999;
+  height: 72px;
 }
 
 [data-theme="mono"] .ui-timeline-label-row {
@@ -1256,7 +1257,13 @@
 [data-theme="mono"] .ui-timeline-row {
   border-radius: 0;
   background-color: transparent;
-  border-bottom: 1px solid #f5f5f5;
+  border-bottom: 1px solid #ebebeb;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+[data-theme="mono"] .ui-timeline-label-row:nth-child(even) {
+  background-color: #fafafa;
 }
 
 /* ── Upload / icon / action / select / feed / media ─────────── */

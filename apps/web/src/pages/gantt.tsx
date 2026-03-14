@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { createRoute } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { X } from 'lucide-react'
@@ -29,10 +29,11 @@ type GanttItem = {
 type ZoomLevel = 'detail' | 'comfortable' | 'overview' | 'strategic'
 type TimelineMode = 'project' | 'coordination'
 
+type DragMode = 'move' | 'start' | 'end'
+
 type DragState = {
   itemId: string
-  mode: 'move' | 'start' | 'end'
-  startX: number
+  mode: DragMode
 }
 
 const zoomConfig: Record<ZoomLevel, { label: string; cellWidth: number; labelEvery: number }> = {
@@ -41,6 +42,21 @@ const zoomConfig: Record<ZoomLevel, { label: string; cellWidth: number; labelEve
   overview: { label: 'Overview', cellWidth: 22, labelEvery: 5 },
   strategic: { label: 'Strategic', cellWidth: 14, labelEvery: 10 },
 }
+
+const TRACK_COLORS = [
+  '#4A6FA5',
+  '#6B8E5E',
+  '#C45A3B',
+  '#9B7FA6',
+  '#C4883B',
+  '#5B8A8A',
+  '#A65B5B',
+  '#6B7B8A',
+]
+
+const LABEL_WIDTH = 240
+const ROW_HEIGHT = 44
+const HEADER_HEIGHT = 72
 
 export function GanttPage({ linkedProjectId }: { linkedProjectId?: string | null } = {}) {
   const queryClient = useQueryClient()
@@ -58,6 +74,7 @@ export function GanttPage({ linkedProjectId }: { linkedProjectId?: string | null
   const [taskDueOn, setTaskDueOn] = useState(defaultTimelineDay())
   const [addModal, setAddModal] = useState<null | 'milestone' | 'task'>(null)
   const scrollRef = useRef<HTMLDivElement | null>(null)
+  const [localOverrides, setLocalOverrides] = useState<Record<string, { startsOn: string; endsOn: string }>>({})
 
   useEffect(() => {
     if (linkedProjectId) {
@@ -106,7 +123,7 @@ export function GanttPage({ linkedProjectId }: { linkedProjectId?: string | null
           } satisfies GanttItem
         })
         .filter(Boolean)
-        .sort((left, right) => new Date(left!.startsOn).getTime() - new Date(right!.startsOn).getTime()) as GanttItem[]
+        .sort((left, right) => left!.lane.localeCompare(right!.lane) || left!.id.localeCompare(right!.id)) as GanttItem[]
     }
 
     const milestones = (detailQuery.data?.milestones ?? []).map((milestone) => ({
@@ -134,9 +151,18 @@ export function GanttPage({ linkedProjectId }: { linkedProjectId?: string | null
       }))
 
     return [...milestones, ...tasks].sort(
-      (left, right) => new Date(left.startsOn).getTime() - new Date(right.startsOn).getTime(),
+      (left, right) => left.lane.localeCompare(right.lane) || left.id.localeCompare(right.id),
     )
   }, [coordinationQuery.data, detailQuery.data, timelineMode])
+
+  // Clear optimistic overrides once items update from the server
+  const prevItemsRef = useRef(items)
+  useEffect(() => {
+    if (items !== prevItemsRef.current) {
+      prevItemsRef.current = items
+      setLocalOverrides({})
+    }
+  }, [items])
 
   const timeline = useMemo(() => buildTimeline(items, zoom), [items, zoom])
 
@@ -240,44 +266,61 @@ export function GanttPage({ linkedProjectId }: { linkedProjectId?: string | null
     },
   })
 
-  useEffect(() => {
-    if (!dragState) return
-    const activeDrag = dragState
-    const dayWidth = zoomConfig[zoom].cellWidth
+  // Keep a ref to items so the pointerup closure always sees the current list
+  const itemsRef = useRef(items)
+  itemsRef.current = items
 
-    function handlePointerMove(event: PointerEvent) {
-      setDragDays(Math.round((event.clientX - activeDrag.startX) / dayWidth))
+  // Attach window listeners synchronously inside pointerdown — no useEffect gap
+  function startDrag(event: React.PointerEvent<HTMLButtonElement>, item: GanttItem, mode: DragMode) {
+    event.preventDefault()
+    event.currentTarget.setPointerCapture(event.pointerId)
+
+    const startX = event.clientX
+    const cellWidth = zoomConfig[zoom].cellWidth
+    let liveDays = 0
+
+    setDragState({ itemId: item.id, mode })
+    setDragDays(0)
+
+    function onMove(e: PointerEvent) {
+      e.preventDefault()
+      liveDays = Math.round((e.clientX - startX) / cellWidth)
+      setDragDays(liveDays)
     }
 
-    function handlePointerUp() {
-      if (dragDays !== 0) {
-        const target = items.find((item) => item.id === activeDrag.itemId)
-        if (target?.source === 'coordination') {
-          moveCoordinationMutation.mutate({ item: target, mode: activeDrag.mode, days: dragDays })
-        } else if (target?.source === 'task') {
-          moveTaskMutation.mutate({ taskId: activeDrag.itemId, days: dragDays })
-        } else if (activeDrag.mode === 'move') {
-          shiftMutation.mutate({ milestoneId: activeDrag.itemId, days: dragDays })
-        } else {
-          resizeMutation.mutate({
-            milestoneId: activeDrag.itemId,
-            boundary: activeDrag.mode,
-            days: dragDays,
-          })
-        }
-      }
+    function onUp() {
+      window.removeEventListener('pointermove', onMove)
       setDragState(null)
       setDragDays(0)
+
+      if (liveDays !== 0) {
+        const target = itemsRef.current.find((i) => i.id === item.id)
+        if (target) {
+          setLocalOverrides((prev) => ({
+            ...prev,
+            [item.id]: {
+              startsOn: shiftIsoDay(target.startsOn, mode === 'end' ? 0 : liveDays),
+              endsOn: shiftIsoDay(target.endsOn, mode === 'start' ? 0 : liveDays),
+            },
+          }))
+          if (target.source === 'coordination') {
+            moveCoordinationMutation.mutate({ item: target, mode, days: liveDays })
+          } else if (target.source === 'task') {
+            moveTaskMutation.mutate({ taskId: item.id, days: liveDays })
+          } else if (mode === 'move') {
+            shiftMutation.mutate({ milestoneId: item.id, days: liveDays })
+          } else {
+            resizeMutation.mutate({ milestoneId: item.id, boundary: mode, days: liveDays })
+          }
+        }
+      }
     }
 
-    window.addEventListener('pointermove', handlePointerMove)
-    window.addEventListener('pointerup', handlePointerUp, { once: true })
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', onUp, { once: true })
+  }
 
-    return () => {
-      window.removeEventListener('pointermove', handlePointerMove)
-      window.removeEventListener('pointerup', handlePointerUp)
-    }
-  }, [dragDays, dragState, items, moveCoordinationMutation, moveTaskMutation, resizeMutation, shiftMutation, zoom])
+  const totalTrackWidth = timeline.days.length * timeline.cellWidth
 
   return (
     <div className="space-y-4">
@@ -299,9 +342,6 @@ export function GanttPage({ linkedProjectId }: { linkedProjectId?: string | null
             </div>
           }
         />
-        <p className="text-sm text-ink/65">
-          Zoom changes the timeline horizontally only. The full plan stays in view, and the left-side titles stay anchored while you scroll.
-        </p>
 
         <div className="flex flex-wrap items-center justify-between gap-3">
           {!linkedProjectId ? (
@@ -349,128 +389,173 @@ export function GanttPage({ linkedProjectId }: { linkedProjectId?: string | null
         ) : null}
 
         {items.length ? (
-          <div className="grid gap-3 lg:grid-cols-[280px_minmax(0,1fr)]">
-            <div className="ui-timeline-shell">
-              <div className="ui-timeline-label-header">
-                {timelineMode === 'coordination' ? 'Clips' : 'Tasks'}
-              </div>
-              <div className="mt-3 space-y-1.5">
-                {items.map((item) => (
-                  <div key={item.id} className="ui-timeline-label-row">
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-extrabold text-ink">{item.title}</p>
-                      <p className="truncate text-[11px] font-bold uppercase tracking-[0.16em] text-ink/45">{item.lane}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
+          /* Single unified scroll container — labels are sticky left so no two-panel sync needed */
+          <div
+            ref={scrollRef}
+            className="overflow-x-auto rounded-lg border border-ink/8"
+            style={{ cursor: dragState ? 'grabbing' : undefined, touchAction: dragState ? 'none' : undefined }}
+          >
+            <div style={{ minWidth: `${LABEL_WIDTH + totalTrackWidth}px` }}>
 
-            <div className="ui-timeline-shell">
-              <div ref={scrollRef} className="overflow-x-auto">
-                <div style={{ minWidth: `${timeline.days.length * timeline.cellWidth}px` }}>
-                  <div className="space-y-1 border-b border-white/80 pb-3">
+              {/* Header row */}
+              <div className="flex" style={{ height: HEADER_HEIGHT, borderBottom: '2px solid #e5e7eb' }}>
+                {/* Sticky label column header */}
+                <div
+                  className="sticky left-0 z-20 flex shrink-0 items-end bg-white pb-2 pl-4 pr-3"
+                  style={{ width: LABEL_WIDTH, borderRight: '1px solid #e5e7eb' }}
+                >
+                  <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-ink/40">
+                    {timelineMode === 'coordination' ? 'Clips' : 'Tasks'}
+                  </span>
+                </div>
+
+                {/* Timeline header — month + day rows */}
+                <div className="relative flex-1 overflow-hidden">
+                  {/* Month labels */}
+                  <div
+                    className="relative"
+                    style={{
+                      height: 28,
+                      display: 'grid',
+                      gridTemplateColumns: `repeat(${timeline.days.length}, ${timeline.cellWidth}px)`,
+                    }}
+                  >
+                    {timeline.months.map((month) => (
+                      <div
+                        key={`${month.label}-${month.startIndex}`}
+                        className="ui-timeline-month"
+                        style={{ gridColumn: `${month.startIndex + 1} / span ${month.span}` }}
+                      >
+                        {month.label}
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Day labels + today marker */}
+                  <div className="relative" style={{ height: 44 }}>
+                    {timeline.todayLeft !== null ? (
+                      <div
+                        className="pointer-events-none absolute z-10"
+                        style={{ top: 0, bottom: 0, left: timeline.todayLeft + timeline.cellWidth / 2, width: 2, backgroundColor: 'rgba(196,90,59,0.8)' }}
+                      >
+                        <div className="absolute -top-1 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-[#C45A3B] px-2 py-0.5 text-[9px] font-black text-white">
+                          Today
+                        </div>
+                      </div>
+                    ) : null}
                     <div
-                      className="relative grid gap-1"
-                      style={{ gridTemplateColumns: `repeat(${timeline.days.length}, ${timeline.cellWidth}px)` }}
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: `repeat(${timeline.days.length}, ${timeline.cellWidth}px)`,
+                        height: '100%',
+                      }}
                     >
-                      {timeline.months.map((month) => (
+                      {timeline.days.map((day, index) => (
                         <div
-                          key={`${month.label}-${month.startIndex}`}
-                          className="ui-timeline-month"
-                          style={{ gridColumn: `${month.startIndex + 1} / span ${month.span}` }}
+                          key={day.iso}
+                          className={`ui-timeline-day ${day.isToday ? 'ui-timeline-day--today' : 'ui-timeline-day--default'}`}
                         >
-                          {month.label}
+                          {shouldShowMinorLabel(index, timeline.labelEvery, day) ? (
+                            <>
+                              <div className="text-[11px] font-bold">{day.dayNumber}</div>
+                              <div className="text-[10px] font-semibold">{day.weekday}</div>
+                            </>
+                          ) : (
+                            <div className="text-[10px] font-semibold opacity-45">·</div>
+                          )}
                         </div>
                       ))}
                     </div>
-
-                    <div className="relative">
-                      <TodayMarker offsetLeft={timeline.todayLeft} />
-                      <div
-                        className="grid gap-1"
-                        style={{ gridTemplateColumns: `repeat(${timeline.days.length}, ${timeline.cellWidth}px)` }}
-                      >
-                        {timeline.days.map((day, index) => (
-                          <div
-                            key={day.iso}
-                            className={`ui-timeline-day ${day.isToday ? 'ui-timeline-day--today' : 'ui-timeline-day--default'}`}
-                          >
-                            {shouldShowMinorLabel(index, timeline.labelEvery, day) ? (
-                              <>
-                                <div className="text-[11px] font-bold">{day.dayNumber}</div>
-                                <div className="text-[10px] font-semibold">{day.weekday}</div>
-                              </>
-                            ) : (
-                              <div className="text-[10px] font-semibold opacity-45">·</div>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="mt-2 space-y-1.5">
-                    {items.map((item) => {
-                      const geometry = getItemGeometry(item, timeline, dragState?.itemId === item.id ? dragDays : 0, dragState?.mode)
-                      if (!geometry.visible) return null
-
-                      return (
-                        <div key={item.id} className="ui-timeline-row">
-                          <TodayMarker offsetLeft={timeline.todayLeft} compact />
-                          <div
-                            className="relative grid h-full items-center gap-1"
-                            style={{ gridTemplateColumns: `repeat(${timeline.days.length}, ${timeline.cellWidth}px)` }}
-                          >
-                            {timeline.days.map((day) => (
-                              <div
-                                key={`${item.id}-${day.iso}`}
-                                className={`h-8 rounded-md ${day.isToday ? 'bg-berry/10' : 'bg-ink/[0.04]'}`}
-                              />
-                            ))}
-
-                            <div
-                              className={`absolute top-1/2 flex h-6 -translate-y-1/2 items-center rounded-full shadow-floaty ${
-                                item.isTask ? 'bg-gradient-to-r from-teal to-butter text-ink' : 'bg-gradient-to-r from-peach to-berry text-white'
-                              } ${dragState?.itemId === item.id ? 'ring-2 ring-ink/20' : ''}`}
-                              style={{
-                                left: `${geometry.left + 4}px`,
-                                width: `${geometry.width}px`,
-                                minWidth: `${item.isTask ? 20 : 28}px`,
-                              }}
-                            >
-                              {!item.isTask ? (
-                                <Handle
-                                  side="start"
-                                  label={`Resize start for ${item.title}`}
-                                  onPointerDown={(event) => beginDrag(event, item.id, 'start', setDragState, setDragDays)}
-                                />
-                              ) : null}
-
-                              <button
-                                type="button"
-                                className="flex min-w-0 flex-1 cursor-grab items-center justify-center px-2 text-xs font-black active:cursor-grabbing"
-                                onPointerDown={(event) => beginDrag(event, item.id, 'move', setDragState, setDragDays)}
-                                aria-label={`Move ${item.title}`}
-                              >
-                                <span className="truncate">{item.title}</span>
-                              </button>
-
-                              {!item.isTask ? (
-                                <Handle
-                                  side="end"
-                                  label={`Resize end for ${item.title}`}
-                                  onPointerDown={(event) => beginDrag(event, item.id, 'end', setDragState, setDragDays)}
-                                />
-                              ) : null}
-                            </div>
-                          </div>
-                        </div>
-                      )
-                    })}
                   </div>
                 </div>
               </div>
+
+              {/* Data rows */}
+              {items.map((item, index) => {
+                const override = localOverrides[item.id]
+                const effectiveItem = override ? { ...item, ...override } : item
+                const geometry = getItemGeometry(effectiveItem, timeline, dragState?.itemId === item.id ? dragDays : 0, dragState?.mode)
+                const color = TRACK_COLORS[index % TRACK_COLORS.length]
+                const isDragging = dragState?.itemId === item.id
+
+                return (
+                  <div
+                    key={item.id}
+                    className="flex"
+                    style={{
+                      height: ROW_HEIGHT,
+                      borderBottom: '1px solid #f0f0f0',
+                      backgroundColor: index % 2 === 1 ? '#fafafa' : '#fff',
+                    }}
+                  >
+                    {/* Sticky label */}
+                    <div
+                      className="sticky left-0 z-10 flex shrink-0 flex-col justify-center pl-4 pr-3"
+                      style={{
+                        width: LABEL_WIDTH,
+                        borderRight: '1px solid #e5e7eb',
+                        backgroundColor: index % 2 === 1 ? '#fafafa' : '#fff',
+                      }}
+                    >
+                      <p className="truncate text-sm font-extrabold text-ink">{item.title}</p>
+                      <p className="truncate text-[10px] font-bold uppercase tracking-[0.16em] text-ink/40">{item.lane}</p>
+                    </div>
+
+                    {/* Track area */}
+                    <div className="relative flex-1" style={{ width: totalTrackWidth }}>
+                      {/* Today vertical line */}
+                      {timeline.todayLeft !== null ? (
+                        <div
+                          className="pointer-events-none absolute inset-y-0 z-10"
+                          style={{ left: timeline.todayLeft + timeline.cellWidth / 2, width: 1, backgroundColor: 'rgba(196,90,59,0.15)' }}
+                        />
+                      ) : null}
+
+                      {/* Clip / bar */}
+                      {geometry.visible ? (
+                        <div
+                          className="absolute flex items-stretch overflow-hidden"
+                          style={{
+                            top: 6,
+                            bottom: 6,
+                            left: `${geometry.left}px`,
+                            width: `${geometry.width}px`,
+                            backgroundColor: color,
+                            borderRadius: 3,
+                            outline: isDragging ? '2px solid rgba(0,0,0,0.35)' : undefined,
+                            boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
+                          }}
+                        >
+                          {!item.isTask ? (
+                            <Handle
+                              side="start"
+                              label={`Resize start for ${item.title}`}
+                              onPointerDown={(event) => startDrag(event, item, 'start')}
+                            />
+                          ) : null}
+
+                          <button
+                            type="button"
+                            className="flex min-w-0 flex-1 cursor-grab items-center px-2 active:cursor-grabbing"
+                            onPointerDown={(event) => startDrag(event, item, 'move')}
+                            aria-label={`Move ${item.title}`}
+                          >
+                            <span className="truncate text-[11px] font-bold text-white">{item.title}</span>
+                          </button>
+
+                          {!item.isTask ? (
+                            <Handle
+                              side="end"
+                              label={`Resize end for ${item.title}`}
+                              onPointerDown={(event) => startDrag(event, item, 'end')}
+                            />
+                          ) : null}
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+                )
+              })}
             </div>
           </div>
         ) : (
@@ -549,42 +634,15 @@ function Handle({
 }: {
   side: 'start' | 'end'
   label: string
-  onPointerDown: (event: ReactPointerEvent<HTMLButtonElement>) => void
+  onPointerDown: (event: React.PointerEvent<HTMLButtonElement>) => void
 }) {
   return (
     <button
       type="button"
-      className={`h-6 w-3 shrink-0 cursor-ew-resize bg-white/85 shadow ${side === 'start' ? 'rounded-l-full rounded-r-md' : 'rounded-r-full rounded-l-md'}`}
+      className={`h-full w-2.5 shrink-0 cursor-ew-resize bg-white/20 hover:bg-white/35 ${side === 'start' ? 'rounded-l-[3px]' : 'rounded-r-[3px]'}`}
       onPointerDown={onPointerDown}
       aria-label={label}
     />
-  )
-}
-
-function beginDrag(
-  event: ReactPointerEvent<HTMLButtonElement>,
-  itemId: string,
-  mode: 'move' | 'start' | 'end',
-  setDragState: (state: DragState | null) => void,
-  setDragDays: (days: number) => void,
-) {
-  event.preventDefault()
-  event.currentTarget.setPointerCapture(event.pointerId)
-  setDragState({ itemId, mode, startX: event.clientX })
-  setDragDays(0)
-}
-
-function TodayMarker({ offsetLeft, compact = false }: { offsetLeft: number | null; compact?: boolean }) {
-  if (offsetLeft === null) return null
-  return (
-    <div className="pointer-events-none absolute inset-y-0 z-10" style={{ left: `${offsetLeft}px` }}>
-      {!compact ? (
-        <div className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-berry px-2 py-1 text-[10px] font-black text-white">
-          Today
-        </div>
-      ) : null}
-      <div className="h-full w-[2px] rounded-full bg-berry/80" />
-    </div>
   )
 }
 
@@ -681,8 +739,10 @@ function jogTimeline(element: HTMLDivElement | null, direction: -1 | 1) {
 
 function centerToday(element: HTMLDivElement | null, todayLeft: number | null) {
   if (!element || todayLeft === null) return
+  // Account for the sticky label column so "today" centres in the visible track area
+  const trackVisibleWidth = element.clientWidth - LABEL_WIDTH
   element.scrollTo({
-    left: Math.max(0, todayLeft - element.clientWidth / 2),
+    left: Math.max(0, todayLeft - trackVisibleWidth / 2),
     behavior: 'smooth',
   })
 }

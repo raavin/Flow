@@ -719,7 +719,8 @@ function mapEvent(item: EventRow): CalendarEvent {
 }
 
 function shiftDate(input: string, days: number) {
-  const date = new Date(`${input}T00:00:00`)
-  date.setDate(date.getDate() + days)
+  // Use UTC throughout — local-time construction + toISOString() loses a day in UTC+ timezones
+  const date = new Date(`${input}T00:00:00.000Z`)
+  date.setUTCDate(date.getUTCDate() + days)
   return date.toISOString().slice(0, 10)
 }
