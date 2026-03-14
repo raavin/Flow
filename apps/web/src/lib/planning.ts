@@ -138,6 +138,7 @@ export async function createStructuredUpdate(input: {
     title: 'Project update posted',
     body: input.note || input.updateType,
     kind: 'projects',
+    linkUrl: `/app/projects/${input.projectId}/conversation`,
   })
 }
 

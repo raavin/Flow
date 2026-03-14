@@ -12,7 +12,8 @@ async function signUpAndOnboard(page: Page, email: string, firstName = 'Jason') 
   await expect(page).toHaveURL(/onboarding/)
   await page.getByLabel('First name').fill(firstName)
   await page.getByRole('button', { name: 'Save setup and open dashboard' }).click()
-  await expect(page).toHaveURL(/app\/home/)
+  await expect(page).toHaveURL(/app\/messages/)
+  await expect(page.getByRole('button', { name: 'Following' })).toBeVisible()
 }
 
 test('user can sign up, create a project, and add a task', async ({ page }) => {
@@ -22,30 +23,36 @@ test('user can sign up, create a project, and add a task', async ({ page }) => {
   await expect(page).toHaveURL(/app\/projects/)
 
   const projectTitle = `Move plan ${Date.now()}`
-  await page.getByLabel('Title').fill(projectTitle)
+  await page.getByPlaceholder('Move house, birthday prep, leave request...').fill(projectTitle)
   await page.getByRole('button', { name: 'Create project' }).click()
-  await expect(page).toHaveURL(/app\/projects\/.+/)
+  await expect(page).toHaveURL(/app\/projects\/.+\/conversation/)
   await expect(page.getByText(projectTitle)).toBeVisible()
-  await page.getByPlaceholder('Add a task').fill('Confirm helper arrivals')
+  await page.getByRole('main').getByRole('link', { name: 'Timeline', exact: true }).click()
+  await expect(page).toHaveURL(/app\/projects\/.+\/timeline/)
   await page.getByRole('button', { name: 'Add task' }).click()
+  await page.getByPlaceholder('Send invites, confirm transport...').fill('Confirm helper arrivals')
+  await page.getByRole('button', { name: 'Add task' }).nth(1).click()
 
-  await expect(page.getByText('Confirm helper arrivals')).toBeVisible()
+  await expect(page.getByText('Confirm helper arrivals').first()).toBeVisible()
 })
 
-test('user can add a marketplace listing to cart and confirm it', async ({ page }) => {
+test('user can add a marketplace listing to cart, keep shopping, and check out', async ({ page }) => {
   await signUpAndOnboard(page, uniqueEmail('cart-flow'))
 
   await page.getByRole('link', { name: 'Marketplace' }).click()
   await expect(page.getByText('Whisker-Smooth Move Planner')).toBeVisible()
-  await page.getByText('Whisker-Smooth Move Planner').click()
-  await page.getByRole('button', { name: 'Book / add to cart' }).click()
+  await page.getByRole('link', { name: 'View details' }).first().click()
+  await page.getByRole('button', { name: 'Add to cart' }).first().click()
+  await expect(page.getByRole('link', { name: /Cart \(1\)/ })).toBeVisible()
+  await page.getByRole('link', { name: /Cart \(1\)/ }).click()
 
-  await page.goBack()
-  await page.getByRole('link', { name: 'Cart review' }).first().click()
-  await expect(page.getByText('Cart and booking review')).toBeVisible()
-  await page.getByRole('button', { name: 'Confirm' }).first().click()
+  await expect(page.getByText('Review your draft order')).toBeVisible()
+  await page.getByRole('button', { name: 'Place order' }).click()
 
-  await expect(page.getByRole('button', { name: 'Confirmed' }).first()).toBeVisible()
+  await expect(page.getByText('Order placed')).toBeVisible()
+  await page.getByRole('link', { name: 'View transactions' }).click()
+  await expect(page).toHaveURL(/app\/wallet/)
+  await expect(page.getByText(/^ORD-/).first()).toBeVisible()
 })
 
 test('template import creates a real project plan', async ({ page }) => {
@@ -53,12 +60,13 @@ test('template import creates a real project plan', async ({ page }) => {
 
   await page.getByRole('link', { name: 'Marketplace' }).click()
   await expect(page.getByText('Whisker-Smooth Move Planner')).toBeVisible()
-  await page.getByText('Whisker-Smooth Move Planner').click()
+  await page.getByRole('link', { name: 'View details' }).first().click()
   await page.getByRole('button', { name: 'Import template' }).click()
 
-  await expect(page).toHaveURL(/app\/projects\//)
+  await expect(page).toHaveURL(/app\/projects\/.+\/conversation/)
   await expect(page.getByText('Whisker-Smooth Move Planner')).toBeVisible()
-  await expect(page.getByText('Confirm helpers')).toBeVisible()
+  await page.getByRole('main').getByRole('link', { name: 'Timeline', exact: true }).click()
+  await expect(page.getByText('Confirm helpers').first()).toBeVisible()
 })
 
 test('existing user can sign back in without being bounced to onboarding', async ({ page }) => {
@@ -73,8 +81,8 @@ test('existing user can sign back in without being bounced to onboarding', async
   await page.getByLabel('Password').fill('cozyplanning123')
   await page.getByRole('button', { name: 'Sign in' }).nth(1).click()
 
-  await expect(page).toHaveURL(/app\/home/)
-  await expect(page.getByText('Pick a path')).toBeVisible()
+  await expect(page).toHaveURL(/app\/messages/)
+  await expect(page.getByRole('button', { name: 'Following' })).toBeVisible()
 })
 
 test('user can follow someone, quote a post, and start a DM', async ({ browser }) => {
@@ -87,13 +95,13 @@ test('user can follow someone, quote a post, and start a DM', async ({ browser }
   const secondPage = await secondContext.newPage()
 
   await signUpAndOnboard(firstPage, firstEmail, firstName)
-  await firstPage.getByRole('link', { name: 'Messages' }).click()
-  await firstPage.getByPlaceholder("What's happening?").fill(`Hello from ${firstName} #general`)
+  await firstPage.getByRole('button', { name: "What's up?" }).click()
+  await firstPage.getByPlaceholder("What's happening? Try @, #, or /").fill(`Hello from ${firstName} #general`)
   await firstPage.getByRole('button', { name: 'Publish' }).click()
   await expect(firstPage.getByText(`Hello from ${firstName} #general`)).toBeVisible()
 
   await signUpAndOnboard(secondPage, secondEmail, 'Blake')
-  await secondPage.getByRole('link', { name: 'Messages' }).click()
+  await secondPage.getByPlaceholder('Search posts, people, or topics').fill(firstName)
   await secondPage.getByRole('link', { name: firstName }).click()
   await expect(secondPage.getByRole('button', { name: 'Follow' })).toBeVisible()
   await secondPage.getByRole('button', { name: 'Follow' }).click()
@@ -111,7 +119,7 @@ test('user can follow someone, quote a post, and start a DM', async ({ browser }
   await expect(secondPage.getByText(`Hello from ${firstName} #general`)).toBeVisible()
   await secondPage.getByRole('button', { name: 'Quote' }).click()
   await expect(secondPage.getByText('Quoting @')).toBeVisible()
-  await secondPage.getByPlaceholder("What's happening?").fill('Sharing this with the crew.')
+  await secondPage.getByPlaceholder("What's happening? Try @, #, or /").fill('Sharing this with the crew.')
   await secondPage.getByRole('button', { name: 'Publish' }).click()
   await expect(secondPage.getByText('Sharing this with the crew.')).toBeVisible()
 

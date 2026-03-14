@@ -7,11 +7,30 @@ import { Pill } from '@/components/page-primitives'
 import { createMarketplaceListing, fetchMarketplaceListings } from '@/lib/marketplace'
 import { useAppStore } from '@/hooks/useAppStore'
 import { useState } from 'react'
+import { addToCart, fetchCartCount } from '@/lib/cart'
 
 function TemplateMarketplacePage() {
+  const { session } = useAppStore()
+  const queryClient = useQueryClient()
   const { data } = useQuery({
     queryKey: ['marketplace', 'templates'],
     queryFn: () => fetchMarketplaceListings('template'),
+  })
+  const cartCountQuery = useQuery({
+    queryKey: ['cart-count'],
+    queryFn: fetchCartCount,
+    enabled: Boolean(session),
+  })
+  const addToCartMutation = useMutation({
+    mutationFn: (listingId: string) =>
+      addToCart({
+        ownerId: session!.user.id,
+        listingId,
+      }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['cart'] })
+      void queryClient.invalidateQueries({ queryKey: ['cart-count'] })
+    },
   })
   const listings = data ?? []
 
@@ -27,20 +46,26 @@ function TemplateMarketplacePage() {
             <AppButton variant="ghost">Events</AppButton>
           </Link>
           <Link to="/app/marketplace/cart">
-            <AppButton variant="secondary">Cart review</AppButton>
+            <AppButton variant="secondary">Cart{cartCountQuery.data ? ` (${cartCountQuery.data})` : ''}</AppButton>
           </Link>
         </div>
         <div className="grid gap-4 md:grid-cols-2">
           {listings.map((listing) => (
-            <Link key={listing.id} to="/app/marketplace/listings/$listingId" params={{ listingId: listing.id }}>
-              <AppCard className="bg-cloud">
-                <p className="text-xs font-black uppercase tracking-[0.2em] text-berry">{listing.category}</p>
-                <h3 className="mt-2 text-xl font-extrabold text-ink">{listing.title}</h3>
-                <p className="mt-2 text-sm text-ink/70">{listing.summary}</p>
-                <p className="mt-3 text-sm font-bold text-teal">{listing.priceLabel}</p>
-                <p className="mt-2 text-xs text-ink/55">{listing.whimsicalNote}</p>
-              </AppCard>
-            </Link>
+            <AppCard key={listing.id} className="bg-cloud">
+              <p className="text-xs font-black uppercase tracking-[0.2em] text-berry">{listing.category}</p>
+              <h3 className="mt-2 text-xl font-extrabold text-ink">{listing.title}</h3>
+              <p className="mt-2 text-sm text-ink/70">{listing.summary}</p>
+              <p className="mt-3 text-sm font-bold text-teal">{listing.priceLabel}</p>
+              <p className="mt-2 text-xs text-ink/55">{listing.whimsicalNote}</p>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <Link to="/app/marketplace/listings/$listingId" params={{ listingId: listing.id }}>
+                  <AppButton variant="ghost">View details</AppButton>
+                </Link>
+                <AppButton disabled={!session || addToCartMutation.isPending} onClick={() => addToCartMutation.mutate(listing.id)}>
+                  Add to cart
+                </AppButton>
+              </div>
+            </AppCard>
           ))}
         </div>
         {!listings.length ? (
@@ -66,6 +91,22 @@ function ServicesMarketplacePage() {
       const serviceData = await fetchMarketplaceListings('service')
       const productData = await fetchMarketplaceListings('product')
       return [...serviceData, ...productData]
+    },
+  })
+  const cartCountQuery = useQuery({
+    queryKey: ['cart-count'],
+    queryFn: fetchCartCount,
+    enabled: Boolean(session),
+  })
+  const addToCartMutation = useMutation({
+    mutationFn: (listingId: string) =>
+      addToCart({
+        ownerId: session!.user.id,
+        listingId,
+      }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['cart'] })
+      void queryClient.invalidateQueries({ queryKey: ['cart-count'] })
     },
   })
   const listings = data ?? []
@@ -100,7 +141,7 @@ function ServicesMarketplacePage() {
             <AppButton variant="ghost">Products</AppButton>
           </Link>
           <Link to="/app/marketplace/cart">
-            <AppButton variant="secondary">Cart review</AppButton>
+            <AppButton variant="secondary">Cart{cartCountQuery.data ? ` (${cartCountQuery.data})` : ''}</AppButton>
           </Link>
         </div>
         {profile?.active_mode === 'business' ? (
@@ -123,17 +164,23 @@ function ServicesMarketplacePage() {
         ) : null}
         <div className="grid gap-4 md:grid-cols-2">
           {listings.map((listing) => (
-            <Link key={listing.id} to="/app/marketplace/listings/$listingId" params={{ listingId: listing.id }}>
-              <AppCard className="bg-cloud">
-                <div className="flex items-center justify-between gap-3">
-                  <Pill tone="peach">{listing.kind}</Pill>
-                  <p className="text-sm font-bold text-teal">{listing.priceLabel}</p>
-                </div>
-                <h3 className="mt-3 text-xl font-extrabold text-ink">{listing.title}</h3>
-                <p className="mt-2 text-sm text-ink/70">{listing.summary}</p>
-                <p className="mt-3 text-xs text-ink/55">{listing.whimsicalNote}</p>
-              </AppCard>
-            </Link>
+            <AppCard key={listing.id} className="bg-cloud">
+              <div className="flex items-center justify-between gap-3">
+                <Pill tone="peach">{listing.kind}</Pill>
+                <p className="text-sm font-bold text-teal">{listing.priceLabel}</p>
+              </div>
+              <h3 className="mt-3 text-xl font-extrabold text-ink">{listing.title}</h3>
+              <p className="mt-2 text-sm text-ink/70">{listing.summary}</p>
+              <p className="mt-3 text-xs text-ink/55">{listing.whimsicalNote}</p>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <Link to="/app/marketplace/listings/$listingId" params={{ listingId: listing.id }}>
+                  <AppButton variant="ghost">View details</AppButton>
+                </Link>
+                <AppButton disabled={!session || addToCartMutation.isPending} onClick={() => addToCartMutation.mutate(listing.id)}>
+                  Add to cart
+                </AppButton>
+              </div>
+            </AppCard>
           ))}
         </div>
         {!listings.length ? (

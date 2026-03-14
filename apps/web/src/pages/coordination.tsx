@@ -1,11 +1,12 @@
 import { useMemo, useState } from 'react'
-import { Link, createRoute } from '@tanstack/react-router'
+import { Link, createRoute, useNavigate } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { CoordinationDisplayKind, CoordinationMessage, CoordinationObject, CoordinationObjectIntent, CoordinationObjectKind, CoordinationObjectState, CoordinationTemplateBlock } from '@superapp/types'
 import { AppButton, AppCard, AppInput, AppPanel, AppPill, AppSelect, AppTextarea, FieldLabel, SectionHeading } from '@superapp/ui'
 import { appRoute } from '@/components/layout'
 import { useAppStore } from '@/hooks/useAppStore'
 import {
+  addCoordinationParticipant,
   createCoordinationMessage,
   createCoordinationTemplate,
   createManualCoordinationObject,
@@ -16,9 +17,10 @@ import {
   instantiateCoordinationTemplate,
   seedStarterCoordinationTemplates,
   updateCoordinationObjectState,
+  updateCoordinationObjectProjectLink,
 } from '@/lib/coordination-objects'
-import { fetchProjects } from '@/lib/projects'
-import { fetchPostSummary } from '@/lib/social'
+import { createProject, fetchProjects } from '@/lib/projects'
+import { fetchPeopleDirectory, fetchPostSummary } from '@/lib/social'
 
 const kindOptions: Array<{ value: CoordinationObjectKind; label: string }> = [
   { value: 'reminder', label: 'Reminder' },
@@ -57,6 +59,7 @@ const intentOptions: Array<{ value: CoordinationObjectIntent; label: string }> =
 
 function CoordinationPage() {
   const { session } = useAppStore()
+  const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [title, setTitle] = useState('')
   const [summary, setSummary] = useState('')
@@ -172,8 +175,9 @@ function CoordinationPage() {
         anchorDate: templateAnchorDate,
       })
     },
-    onSuccess: () => {
+    onSuccess: (parentId) => {
       void queryClient.invalidateQueries({ queryKey: ['coordination-objects'] })
+      void navigate({ to: '/app/coordination/$coordinationId', params: { coordinationId: parentId } })
     },
   })
 
@@ -455,7 +459,11 @@ function BoardSection({
             <div className="flex flex-wrap gap-2 text-xs text-ink/60">
               <span>{formatTimeWindow(item)}</span>
               {getParticipantNames(item).length ? <span>Participants: {getParticipantNames(item).join(', ')}</span> : null}
-              {item.linkedProjectId ? <span>Linked project</span> : null}
+              {item.linkedProjectId ? (
+                <Link to="/app/projects/$projectId" params={{ projectId: item.linkedProjectId }} className="font-bold text-teal hover:underline">
+                  Linked project
+                </Link>
+              ) : null}
             </div>
           </AppPanel>
         ))}
@@ -470,6 +478,9 @@ function CoordinationDetailPage() {
   const { session } = useAppStore()
   const queryClient = useQueryClient()
   const [body, setBody] = useState('')
+  const [projectTitle, setProjectTitle] = useState('')
+  const [projectCategory, setProjectCategory] = useState('')
+  const [participantQuery, setParticipantQuery] = useState('@')
 
   const flowQuery = useQuery({
     queryKey: ['coordination-object', coordinationId],
@@ -480,6 +491,11 @@ function CoordinationDetailPage() {
     queryKey: ['coordination-messages', coordinationId],
     queryFn: () => fetchCoordinationMessages(coordinationId),
     enabled: Boolean(coordinationId),
+  })
+  const peopleQuery = useQuery({
+    queryKey: ['people-directory', session?.user.id],
+    queryFn: () => fetchPeopleDirectory(session!.user.id),
+    enabled: Boolean(session?.user.id),
   })
 
   const sourcePostId =
@@ -509,15 +525,62 @@ function CoordinationDetailPage() {
       void queryClient.invalidateQueries({ queryKey: ['coordination-messages', coordinationId] })
     },
   })
+  const createProjectMutation = useMutation({
+    mutationFn: async () => {
+      const project = await createProject({
+        ownerId: session!.user.id,
+        title: projectTitle.trim() || flowQuery.data?.title || 'Project from flow',
+        category: projectCategory.trim() || 'Coordination',
+        targetDate: normalizeDay(flowQuery.data?.time.startsAt) || todayDate(),
+      })
+      await updateCoordinationObjectProjectLink(coordinationId, project.id)
+      return project
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['coordination-object', coordinationId] })
+      void queryClient.invalidateQueries({ queryKey: ['coordination-objects'] })
+      void queryClient.invalidateQueries({ queryKey: ['projects'] })
+    },
+  })
+  const addParticipantMutation = useMutation({
+    mutationFn: ({ profileId, participantName }: { profileId: string; participantName: string }) =>
+      addCoordinationParticipant({
+        coordinationObjectId: coordinationId,
+        profileId,
+        participantName,
+      }),
+    onSuccess: () => {
+      setParticipantQuery('@')
+      void queryClient.invalidateQueries({ queryKey: ['coordination-object', coordinationId] })
+    },
+  })
+
+  const filteredPeople = (peopleQuery.data ?? []).filter((person) => {
+    const query = participantQuery.replace(/^@/, '').trim().toLowerCase()
+    if (!query) return true
+    return person.handle.toLowerCase().includes(query) || (person.display_name || '').toLowerCase().includes(query)
+  })
 
   return (
     <div className="mx-auto max-w-4xl space-y-4">
       <AppCard className="space-y-4">
         <div className="flex items-center justify-between gap-3">
           <SectionHeading eyebrow="Flow" title={flowQuery.data?.title ?? 'Flow detail'} />
-          <Link to="/app/coordination">
-            <AppButton variant="ghost">Back to flows</AppButton>
-          </Link>
+          <div className="flex flex-wrap gap-2">
+            {flowQuery.data?.linkedProjectId ? (
+              <>
+                <Link to="/app/projects/$projectId" params={{ projectId: flowQuery.data.linkedProjectId }}>
+                  <AppButton variant="secondary">Open project</AppButton>
+                </Link>
+                <Link to="/app/messages/project/$projectId" params={{ projectId: flowQuery.data.linkedProjectId }}>
+                  <AppButton variant="ghost">Project conversation</AppButton>
+                </Link>
+              </>
+            ) : null}
+            <Link to="/app/coordination">
+              <AppButton variant="ghost">Back to flows</AppButton>
+            </Link>
+          </div>
         </div>
         {flowQuery.data?.summary ? <p className="text-sm text-ink/70">{flowQuery.data.summary}</p> : null}
         <div className="flex flex-wrap gap-2 text-xs">
@@ -527,6 +590,75 @@ function CoordinationDetailPage() {
               <AppPill tone="teal">{flowQuery.data.intent}</AppPill>
               <AppPill>{flowQuery.data.state}</AppPill>
             </>
+          ) : null}
+        </div>
+      </AppCard>
+
+      {!flowQuery.data?.linkedProjectId ? (
+        <AppCard className="space-y-4">
+          <SectionHeading eyebrow="Project" title="Turn this flow into a project" />
+          <div className="grid gap-3 md:grid-cols-2">
+            <FieldLabel>
+              Project title
+              <AppInput
+                value={projectTitle}
+                onChange={(event) => setProjectTitle(event.target.value)}
+                className="mt-2"
+                placeholder={flowQuery.data?.title || 'Project title'}
+              />
+            </FieldLabel>
+            <FieldLabel>
+              Category
+              <AppInput
+                value={projectCategory}
+                onChange={(event) => setProjectCategory(event.target.value)}
+                className="mt-2"
+                placeholder="Move, health, event, work..."
+              />
+            </FieldLabel>
+          </div>
+          <AppButton disabled={!session || createProjectMutation.isPending} onClick={() => createProjectMutation.mutate()}>
+            {createProjectMutation.isPending ? 'Creating project…' : 'Create project from flow'}
+          </AppButton>
+        </AppCard>
+      ) : null}
+
+      <AppCard className="space-y-4">
+        <SectionHeading eyebrow="Participants" title="Add people to this flow" />
+        <div className="space-y-3">
+          <AppInput
+            value={participantQuery}
+            onChange={(event) => setParticipantQuery(event.target.value.startsWith('@') ? event.target.value : `@${event.target.value}`)}
+            placeholder="@name"
+          />
+          <div className="grid gap-2">
+            {filteredPeople.slice(0, 5).map((person) => (
+              <button
+                key={person.id}
+                type="button"
+                className="ui-panel flex items-center justify-between gap-3 text-left transition hover:-translate-y-0.5"
+                onClick={() =>
+                  addParticipantMutation.mutate({
+                    profileId: person.id,
+                    participantName: person.display_name || person.handle,
+                  })
+                }
+              >
+                <div className="min-w-0">
+                  <p className="truncate font-bold text-ink">{person.display_name || person.handle}</p>
+                  <p className="truncate text-sm text-ink/55">@{person.handle}</p>
+                </div>
+                <AppPill tone="butter">Add</AppPill>
+              </button>
+            ))}
+            {!filteredPeople.length ? <AppPanel className="text-sm text-ink/60">No matching people yet.</AppPanel> : null}
+          </div>
+          {getParticipantNames(flowQuery.data ?? null).length ? (
+            <div className="flex flex-wrap gap-2">
+              {getParticipantNames(flowQuery.data ?? null).map((name) => (
+                <AppPill key={name} tone="teal">{name}</AppPill>
+              ))}
+            </div>
           ) : null}
         </div>
       </AppCard>
@@ -553,7 +685,7 @@ function CoordinationDetailPage() {
       <AppCard className="space-y-4">
         <SectionHeading eyebrow="Conversation" title="Messages around this flow" />
         <p className="text-sm text-ink/70">
-          Keep the ongoing chatter attached to the flow so the plan and the conversation stay together.
+          Keep the ongoing chatter attached to the flow so the plan and the conversation stay together. It uses the same visual language as the main feed, just scoped to this flow.
         </p>
         <div className="space-y-3">
           {(messagesQuery.data ?? []).map((message) => (
@@ -625,8 +757,9 @@ function formatTimeWindow(item: CoordinationObject) {
   return 'Flexible timing'
 }
 
-function getParticipantNames(item: CoordinationObject) {
-  const participants = (item.metadata?.participants as Array<{ participantName: string; role: string }> | undefined) ?? []
+function getParticipantNames(item: CoordinationObject | null) {
+  if (!item) return []
+  const participants = item.participants ?? []
   return participants.filter((participant) => participant.role !== 'owner').map((participant) => participant.participantName)
 }
 

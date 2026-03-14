@@ -28,6 +28,7 @@ type AppStoreValue = {
     timeZone: string
     useCases: string[]
     integrations: string[]
+    handle?: string
     businessName?: string
     category?: string
     serviceArea?: string

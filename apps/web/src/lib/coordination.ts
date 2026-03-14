@@ -5,6 +5,7 @@ export async function createNotification(input: {
   title: string
   body: string
   kind: string
+  linkUrl?: string
 }) {
   if (!supabase) throw new Error('Supabase is not configured.')
   const { error } = await supabase.from('notifications').insert({
@@ -12,6 +13,7 @@ export async function createNotification(input: {
     title: input.title,
     body: input.body,
     kind: input.kind,
+    link_url: input.linkUrl ?? null,
   })
   if (error) throw error
 }
@@ -20,7 +22,7 @@ export async function fetchNotifications() {
   if (!supabase) return []
   const { data, error } = await supabase
     .from('notifications')
-    .select('id, title, body, kind, is_read, created_at')
+    .select('id, title, body, kind, is_read, link_url, created_at')
     .order('created_at', { ascending: false })
   if (error) throw error
   return data ?? []

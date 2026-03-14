@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, Outlet, createRootRoute, createRoute, useNavigate } from '@tanstack/react-router'
 import {
   Bell,
@@ -9,12 +9,48 @@ import {
   CircleUserRound,
   LayoutGrid,
   MessageCircleMore,
+  Palette,
   Search,
   ShoppingBag,
   Wallet,
 } from 'lucide-react'
 import { AppButton, AppCard } from '@superapp/ui'
 import { AppStoreProvider, useAppStore } from '@/hooks/useAppStore'
+
+type Theme = 'quirky' | 'clean' | 'flow' | 'mono'
+
+const THEMES: Theme[] = ['quirky', 'clean', 'flow', 'mono']
+const THEME_LABELS: Record<Theme, string> = {
+  quirky: 'Quirky',
+  clean:  'Clean',
+  flow:   'Flow',
+  mono:   'Mono',
+}
+
+function useTheme() {
+  const [theme, setThemeState] = useState<Theme>(() => {
+    return (localStorage.getItem('superapp-theme') as Theme) ?? 'quirky'
+  })
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme)
+    localStorage.setItem('superapp-theme', theme)
+  }, [theme])
+
+  useEffect(() => {
+    const saved = (localStorage.getItem('superapp-theme') as Theme) ?? 'quirky'
+    document.documentElement.setAttribute('data-theme', saved)
+  }, [])
+
+  function cycleTheme() {
+    setThemeState((current) => {
+      const idx = THEMES.indexOf(current)
+      return THEMES[(idx + 1) % THEMES.length]
+    })
+  }
+
+  return { theme, cycleTheme }
+}
 
 function RootComponent() {
   return (
@@ -29,6 +65,7 @@ function RootComponent() {
 function AppLayout() {
   const { session, profile, businessProfile, signOut, setActiveMode, loading } = useAppStore()
   const navigate = useNavigate()
+  const { theme, cycleTheme } = useTheme()
 
   useEffect(() => {
     if (!loading && !session) {
@@ -37,7 +74,7 @@ function AppLayout() {
   }, [loading, navigate, session])
 
   if (loading) {
-    return <div className="mx-auto max-w-5xl px-6 py-10 text-sm text-ink/70">Warming up your cozy control panel...</div>
+    return <div className="mx-auto max-w-5xl px-6 py-10 text-sm text-ink/70">Loading...</div>
   }
 
   if (!session) {
@@ -70,14 +107,13 @@ function AppLayout() {
     profile?.active_mode === 'business'
       ? [
           { to: '/app/messages', label: 'Messages', icon: MessageCircleMore },
-          { to: '/app/coordination', label: 'Flows', icon: LayoutGrid },
+          { to: '/app/projects', label: 'Projects', icon: BriefcaseBusiness },
+          { to: '/app/jobs', label: 'Jobs', icon: BriefcaseBusiness },
           { to: '/app/calendar', label: 'Calendar', icon: CalendarDays },
           { to: '/app/gantt', label: 'Timeline', icon: LayoutGrid },
-          { to: '/app/jobs', label: 'Jobs', icon: BriefcaseBusiness },
         ]
       : [
           { to: '/app/messages', label: 'Messages', icon: MessageCircleMore },
-          { to: '/app/coordination', label: 'Flows', icon: LayoutGrid },
           { to: '/app/calendar', label: 'Calendar', icon: CalendarDays },
           { to: '/app/gantt', label: 'Timeline', icon: LayoutGrid },
           { to: '/app/projects', label: 'Projects', icon: BriefcaseBusiness },
@@ -93,7 +129,6 @@ function AppLayout() {
           { to: '/app/wallet', label: 'Wallet', icon: Wallet },
         ]
   const utilityNavItems = [
-    { to: '/app/home', label: 'Overview', icon: Search },
     { to: '/app/search', label: 'Search', icon: Search },
     { to: '/app/support', label: 'Support', icon: CircleHelp },
     { to: '/app/notifications', label: 'Notifications', icon: Bell },
@@ -105,10 +140,19 @@ function AppLayout() {
     <div className="mx-auto flex min-h-screen max-w-7xl gap-3 px-3 py-3 sm:px-4">
       <aside className="ui-shell-surface ui-scrollbar-hidden sticky top-3 flex h-[calc(100vh-1.5rem)] w-[76px] shrink-0 flex-col overflow-y-auto px-2.5 py-4 sm:w-60 sm:px-3">
         <div className="mb-4">
-          <button type="button" className="flex items-center gap-3 text-left" onClick={() => void navigate({ to: '/app/messages' })}>
-            <span className="flex h-11 w-11 items-center justify-center rounded-full bg-butter text-lg font-black text-ink shadow-sm">F</span>
+          <button type="button" className={`text-left ${theme === 'mono' ? 'hidden w-full sm:block' : 'flex items-center gap-3'}`} onClick={() => void navigate({ to: '/app/messages' })}>
+            {theme === 'flow' ? (
+              <>
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center text-base font-bold" style={{ background: '#C45A3B', color: '#F5F2ED', fontFamily: "'Space Grotesk', system-ui, sans-serif" }}>F</span>
+                <span className="hidden text-base font-bold tracking-[0.18em] sm:block" style={{ color: '#F5F2ED', fontFamily: "'Space Grotesk', system-ui, sans-serif" }}>flow</span>
+              </>
+            ) : theme === 'mono' ? (
+              <img src="/logo-flow.png" alt="flow" className="w-full px-2" />
+            ) : (
+              <span className="flex h-11 w-11 items-center justify-center bg-butter text-lg font-black text-ink shadow-sm" style={{ borderRadius: 'var(--radius-control)' }}>F</span>
+            )}
           </button>
-          {businessProfile?.business_name ? <p className="mt-1 hidden text-sm font-bold text-ink/70 sm:block">{businessProfile.business_name}</p> : null}
+          {businessProfile?.business_name ? <p className="mt-1 hidden pl-3 text-sm font-bold text-ink/70 sm:block">{businessProfile.business_name}</p> : null}
         </div>
 
         {profile?.account_mode === 'both' ? (
@@ -132,7 +176,7 @@ function AppLayout() {
 
         <nav className="grid gap-4">
           <div className="grid gap-2">
-            <p className="hidden px-3 text-[11px] font-black uppercase tracking-[0.24em] text-ink/40 sm:block">Flow</p>
+            <p className={`hidden px-3 text-[10px] font-bold uppercase tracking-[0.18em] sm:block ${theme === 'flow' ? 'text-white/30' : 'text-ink/30'}`}>Flow</p>
             {coreNavItems.map(({ to, label, icon: Icon }) => (
               <Link
                 key={to}
@@ -148,7 +192,7 @@ function AppLayout() {
             ))}
           </div>
           <div className="grid gap-2">
-            <p className="hidden px-3 text-[11px] font-black uppercase tracking-[0.24em] text-ink/40 sm:block">Commerce</p>
+            <p className={`hidden px-3 text-[10px] font-bold uppercase tracking-[0.18em] sm:block ${theme === 'flow' ? 'text-white/30' : 'text-ink/30'}`}>Commerce</p>
             {commerceNavItems.map(({ to, label, icon: Icon }) => (
               <Link
                 key={to}
@@ -167,7 +211,7 @@ function AppLayout() {
 
         <div className="mt-auto grid gap-4">
           <div className="grid gap-2">
-            <p className="hidden px-3 text-[11px] font-black uppercase tracking-[0.24em] text-ink/40 sm:block">Profile & Support</p>
+            <p className={`hidden px-3 text-[10px] font-bold uppercase tracking-[0.18em] sm:block ${theme === 'flow' ? 'text-white/30' : 'text-ink/30'}`}>Profile & Support</p>
             {utilityNavItems.map(({ to, label, icon: Icon }) => (
               <Link
                 key={to}
@@ -182,6 +226,18 @@ function AppLayout() {
               </Link>
             ))}
           </div>
+
+          {/* Theme cycle */}
+          <button
+            type="button"
+            onClick={cycleTheme}
+            className="ui-nav-link !flex-row !justify-start !gap-3 !text-sm w-full text-left"
+            title={`Current: ${THEME_LABELS[theme]} — click to cycle`}
+          >
+            <Palette className="h-5 w-5 shrink-0" />
+            <span className="hidden sm:inline">{THEME_LABELS[theme]} theme</span>
+          </button>
+
           <AppButton
             variant="ghost"
             className="justify-start"

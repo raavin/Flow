@@ -1,10 +1,19 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import { createRoute } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { AppButton, AppCard, AppPanel, AppSelect, SectionHeading } from '@superapp/ui'
+import { X } from 'lucide-react'
+import { AppButton, AppCard, AppInput, AppPanel, AppSelect, SectionHeading } from '@superapp/ui'
 import { appRoute } from '@/components/layout'
 import { fetchCoordinationObjects, updateCoordinationObjectSchedule } from '@/lib/coordination-objects'
-import { fetchProjectDetail, fetchProjects, moveTaskDueDate, resizeMilestoneBoundary, shiftMilestone } from '@/lib/projects'
+import {
+  createMilestone,
+  createTask,
+  fetchProjectDetail,
+  fetchProjects,
+  moveTaskDueDate,
+  resizeMilestoneBoundary,
+  shiftMilestone,
+} from '@/lib/projects'
 
 type GanttItem = {
   id: string
@@ -33,21 +42,33 @@ const zoomConfig: Record<ZoomLevel, { label: string; cellWidth: number; labelEve
   strategic: { label: 'Strategic', cellWidth: 14, labelEvery: 10 },
 }
 
-function GanttPage() {
+export function GanttPage({ linkedProjectId }: { linkedProjectId?: string | null } = {}) {
   const queryClient = useQueryClient()
   const projectsQuery = useQuery({ queryKey: ['projects'], queryFn: fetchProjects })
-  const [selectedProjectId, setSelectedProjectId] = useState<string>('')
-  const [timelineMode, setTimelineMode] = useState<TimelineMode>('coordination')
+  const [selectedProjectId, setSelectedProjectId] = useState<string>(linkedProjectId ?? '')
+  const [timelineMode, setTimelineMode] = useState<TimelineMode>(linkedProjectId ? 'project' : 'coordination')
   const [zoom, setZoom] = useState<ZoomLevel>('comfortable')
   const [dragState, setDragState] = useState<DragState | null>(null)
   const [dragDays, setDragDays] = useState(0)
+  const [milestoneTitle, setMilestoneTitle] = useState('')
+  const [milestoneStart, setMilestoneStart] = useState(defaultTimelineDay())
+  const [milestoneEnd, setMilestoneEnd] = useState(defaultTimelineDay(1))
+  const [milestoneLane, setMilestoneLane] = useState('Planning')
+  const [taskTitle, setTaskTitle] = useState('')
+  const [taskDueOn, setTaskDueOn] = useState(defaultTimelineDay())
+  const [addModal, setAddModal] = useState<null | 'milestone' | 'task'>(null)
   const scrollRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
+    if (linkedProjectId) {
+      setSelectedProjectId(linkedProjectId)
+      setTimelineMode('project')
+      return
+    }
     if (!selectedProjectId && projectsQuery.data?.[0]?.id) {
       setSelectedProjectId(projectsQuery.data[0].id)
     }
-  }, [projectsQuery.data, selectedProjectId])
+  }, [linkedProjectId, projectsQuery.data, selectedProjectId])
 
   const detailQuery = useQuery({
     queryKey: ['project-detail', selectedProjectId],
@@ -185,6 +206,40 @@ function GanttPage() {
     onSuccess: invalidateTimeline,
   })
 
+  const createMilestoneMutation = useMutation({
+    mutationFn: () =>
+      createMilestone({
+        projectId: selectedProjectId,
+        title: milestoneTitle.trim(),
+        startsOn: milestoneStart,
+        endsOn: milestoneEnd,
+        lane: milestoneLane.trim() || 'Planning',
+      }),
+    onSuccess: () => {
+      setMilestoneTitle('')
+      setMilestoneLane('Planning')
+      setMilestoneStart(defaultTimelineDay())
+      setMilestoneEnd(defaultTimelineDay(1))
+      setAddModal(null)
+      invalidateTimeline()
+    },
+  })
+
+  const createTaskMutation = useMutation({
+    mutationFn: () =>
+      createTask({
+        projectId: selectedProjectId,
+        title: taskTitle.trim(),
+        dueOn: taskDueOn,
+      }),
+    onSuccess: () => {
+      setTaskTitle('')
+      setTaskDueOn(defaultTimelineDay())
+      setAddModal(null)
+      invalidateTimeline()
+    },
+  })
+
   useEffect(() => {
     if (!dragState) return
     const activeDrag = dragState
@@ -248,17 +303,29 @@ function GanttPage() {
           Zoom changes the timeline horizontally only. The full plan stays in view, and the left-side titles stay anchored while you scroll.
         </p>
 
-        <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
-          <div className="flex flex-wrap gap-2">
-            <AppButton variant={timelineMode === 'coordination' ? 'primary' : 'ghost'} onClick={() => setTimelineMode('coordination')}>
-              Coordination mode
-            </AppButton>
-            <AppButton variant={timelineMode === 'project' ? 'primary' : 'ghost'} onClick={() => setTimelineMode('project')}>
-              Project mode
-            </AppButton>
-          </div>
-          <div className="flex flex-wrap gap-2 lg:justify-end">
-            {timelineMode === 'project' && projectsQuery.data?.length ? (
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          {!linkedProjectId ? (
+            <div className="flex flex-wrap gap-2">
+              <AppButton variant={timelineMode === 'coordination' ? 'primary' : 'ghost'} onClick={() => setTimelineMode('coordination')}>
+                Coordination mode
+              </AppButton>
+              <AppButton variant={timelineMode === 'project' ? 'primary' : 'ghost'} onClick={() => setTimelineMode('project')}>
+                Project mode
+              </AppButton>
+            </div>
+          ) : <div />}
+          <div className="flex flex-wrap gap-2 justify-end">
+            {timelineMode === 'project' && Boolean(selectedProjectId) ? (
+              <>
+                <AppButton variant="secondary" onClick={() => setAddModal('milestone')}>
+                  Add block
+                </AppButton>
+                <AppButton variant="ghost" onClick={() => setAddModal('task')}>
+                  Add task
+                </AppButton>
+              </>
+            ) : null}
+            {timelineMode === 'project' && projectsQuery.data?.length && !linkedProjectId ? (
               <AppSelect value={selectedProjectId} onChange={(event) => setSelectedProjectId(event.target.value)} className="min-w-[220px]">
                 {projectsQuery.data.map((project) => (
                   <option key={project.id} value={project.id}>
@@ -274,12 +341,6 @@ function GanttPage() {
             ))}
           </div>
         </div>
-
-        {timelineMode === 'project' && detailQuery.data?.project ? (
-          <AppPanel tone="butter" className="rounded-control px-4 py-3 text-sm font-bold text-ink">
-            {detailQuery.data.project.title}
-          </AppPanel>
-        ) : null}
 
         {timelineMode === 'coordination' ? (
           <AppPanel tone="teal" className="rounded-control px-4 py-3 text-sm font-bold text-ink">
@@ -420,6 +481,63 @@ function GanttPage() {
           </AppPanel>
         )}
       </AppCard>
+
+      {addModal ? (
+        <div className="fixed inset-0 z-40 flex items-start justify-center bg-ink/35 px-4 py-10 backdrop-blur-sm">
+          <AppCard className="w-full max-w-md space-y-4">
+            <SectionHeading
+              eyebrow="Add inside project"
+              title={addModal === 'milestone' ? 'New timeline block' : 'New dated task'}
+              action={
+                <button type="button" className="ui-soft-icon-button" onClick={() => setAddModal(null)}>
+                  <X className="h-4 w-4" />
+                </button>
+              }
+            />
+            {addModal === 'milestone' ? (
+              <div className="grid gap-3">
+                <AppInput value={milestoneTitle} onChange={(event) => setMilestoneTitle(event.target.value)} placeholder="Packing sprint, venue hold..." />
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <AppInput type="date" value={milestoneStart} onChange={(event) => setMilestoneStart(event.target.value)} />
+                  <AppInput type="date" value={milestoneEnd} onChange={(event) => setMilestoneEnd(event.target.value)} />
+                </div>
+                <AppInput value={milestoneLane} onChange={(event) => setMilestoneLane(event.target.value)} placeholder="Lane" />
+                <div className="flex justify-end gap-2">
+                  <AppButton variant="ghost" onClick={() => setAddModal(null)}>
+                    Cancel
+                  </AppButton>
+                  <AppButton
+                    disabled={
+                      !selectedProjectId ||
+                      !milestoneTitle.trim() ||
+                      !milestoneStart ||
+                      !milestoneEnd ||
+                      new Date(milestoneStart).getTime() > new Date(milestoneEnd).getTime() ||
+                      createMilestoneMutation.isPending
+                    }
+                    onClick={() => createMilestoneMutation.mutate()}
+                  >
+                    {createMilestoneMutation.isPending ? 'Adding...' : 'Add block'}
+                  </AppButton>
+                </div>
+              </div>
+            ) : (
+              <div className="grid gap-3">
+                <AppInput value={taskTitle} onChange={(event) => setTaskTitle(event.target.value)} placeholder="Send invites, confirm transport..." />
+                <AppInput type="date" value={taskDueOn} onChange={(event) => setTaskDueOn(event.target.value)} />
+                <div className="flex justify-end gap-2">
+                  <AppButton variant="ghost" onClick={() => setAddModal(null)}>
+                    Cancel
+                  </AppButton>
+                  <AppButton disabled={!selectedProjectId || !taskTitle.trim() || !taskDueOn || createTaskMutation.isPending} onClick={() => createTaskMutation.mutate()}>
+                    {createTaskMutation.isPending ? 'Adding...' : 'Add task'}
+                  </AppButton>
+                </div>
+              </div>
+            )}
+          </AppCard>
+        </div>
+      ) : null}
     </div>
   )
 }
@@ -592,6 +710,12 @@ function toIsoDate(input: Date) {
 function shiftIsoDay(day: string, days: number) {
   const date = new Date(`${day}T00:00:00.000Z`)
   date.setUTCDate(date.getUTCDate() + days)
+  return date.toISOString().slice(0, 10)
+}
+
+function defaultTimelineDay(offset = 0) {
+  const date = new Date()
+  date.setDate(date.getDate() + offset)
   return date.toISOString().slice(0, 10)
 }
 

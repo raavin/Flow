@@ -44,6 +44,7 @@ export async function inviteParticipant(input: {
     title: 'Participant added',
     body: `${input.name} is now part of the project flow.`,
     kind: 'projects',
+    linkUrl: `/app/projects/${input.projectId}/people`,
   })
 }
 

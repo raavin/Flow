@@ -41,7 +41,15 @@ function JobsPage() {
   return (
     <div className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
       <AppCard className="space-y-4">
-        <SectionHeading eyebrow="Jobs" title="Create client work" />
+        <SectionHeading
+          eyebrow="Jobs"
+          title="Create client work"
+          action={
+            <Link to="/app/business/listings">
+              <AppButton variant="ghost">Manage listings</AppButton>
+            </Link>
+          }
+        />
         <AppInput value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Job title" />
         <AppInput value={customerName} onChange={(event) => setCustomerName(event.target.value)} placeholder="Customer name" />
         <AppSelect value={status} onChange={(event) => setStatus(event.target.value as typeof status)}>
@@ -106,6 +114,15 @@ function JobsPage() {
             </AppPanel>
           ))}
           {!jobsQuery.data?.length ? <p className="text-sm text-ink/60">No jobs yet. This is where business-side work becomes manageable.</p> : null}
+        </div>
+        <div className="border-t border-ink/10 pt-3">
+          <p className="text-xs text-ink/55">
+            Offer a repeatable service?{' '}
+            <Link to="/app/business/listings" className="font-bold text-teal hover:underline">
+              Create a listing
+            </Link>{' '}
+            and attach it to future jobs.
+          </p>
         </div>
       </AppCard>
     </div>

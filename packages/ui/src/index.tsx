@@ -83,9 +83,12 @@ export function IconButton({
   )
 }
 
-export function AppInput({ className, ...props }: InputHTMLAttributes<HTMLInputElement>) {
-  return <input className={clsx('ui-input', className)} {...props} />
-}
+export const AppInput = forwardRef(function AppInput(
+  { className, ...props }: InputHTMLAttributes<HTMLInputElement>,
+  ref: ForwardedRef<HTMLInputElement>,
+) {
+  return <input ref={ref} className={clsx('ui-input', className)} {...props} />
+})
 
 export const AppTextarea = forwardRef(function AppTextarea(
   { className, ...props }: TextareaHTMLAttributes<HTMLTextAreaElement>,
@@ -134,14 +137,14 @@ export function SectionHeading({
   title,
   action,
 }: {
-  eyebrow: string
+  eyebrow?: string
   title: string
   action?: ReactNode
 }) {
   return (
     <div className="ui-section-heading">
       <div>
-        <p className="ui-eyebrow">{eyebrow}</p>
+        {eyebrow ? <p className="ui-eyebrow">{eyebrow}</p> : null}
         <h2 className="ui-section-title">{title}</h2>
       </div>
       {action}

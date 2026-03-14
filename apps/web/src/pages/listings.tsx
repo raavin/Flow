@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { ChevronLeft } from 'lucide-react'
 import { Link, createRoute, useNavigate } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { AppButton, AppCard, AppInput, AppPanel, AppPill, AppSelect, AppTextarea, SectionHeading } from '@superapp/ui'
@@ -14,7 +15,7 @@ import {
   updateListing,
 } from '@/lib/marketplace'
 import { useAppStore } from '@/hooks/useAppStore'
-import { addToCart } from '@/lib/cart'
+import { addToCart, fetchCartCount } from '@/lib/cart'
 
 function ListingDetailPage() {
   const { listingId } = listingDetailRoute.useParams()
@@ -31,6 +32,11 @@ function ListingDetailPage() {
     enabled: Boolean(listingQuery.data?.owner_id),
   })
   const projectsQuery = useQuery({ queryKey: ['projects'], queryFn: fetchProjects })
+  const cartCountQuery = useQuery({
+    queryKey: ['cart-count'],
+    queryFn: fetchCartCount,
+    enabled: Boolean(session),
+  })
   const [projectId, setProjectId] = useState('')
   const addToCartMutation = useMutation({
     mutationFn: () =>
@@ -41,6 +47,7 @@ function ListingDetailPage() {
       }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['cart'] })
+      void queryClient.invalidateQueries({ queryKey: ['cart-count'] })
     },
   })
   const attachMutation = useMutation({
@@ -71,10 +78,16 @@ function ListingDetailPage() {
   if (!listing) return <AppCard>Loading listing...</AppCard>
 
   const provider = providerQuery.data
+  const backTo = listing.kind === 'template' ? '/app/marketplace/templates' : '/app/marketplace/services'
   const milestoneCount = listing.template_payload?.milestones?.length ?? 0
   const taskCount = listing.template_payload?.tasks?.length ?? 0
 
   return (
+    <div className="space-y-4">
+      <Link to={backTo as never} className="inline-flex items-center gap-1 text-sm font-bold text-ink/60 hover:text-ink">
+        <ChevronLeft className="h-4 w-4" />
+        Marketplace
+      </Link>
     <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
       <AppCard className="space-y-4">
         <SectionHeading eyebrow={listing.kind} title={listing.title} />
@@ -140,14 +153,33 @@ function ListingDetailPage() {
           </AppPanel>
         ) : null}
         {listing.owner_id ? (
-          <Link to="/app/business/$ownerId" params={{ ownerId: listing.owner_id }} className="inline-flex text-sm font-bold text-teal">
-            View business profile
-          </Link>
+          <div className="flex flex-wrap gap-3">
+            <Link to="/app/business/$ownerId" params={{ ownerId: listing.owner_id }} className="inline-flex text-sm font-bold text-teal">
+              View business profile
+            </Link>
+            {listing.workspace_project_id && session?.user.id === listing.owner_id ? (
+              <Link
+                to="/app/projects/$projectId/conversation"
+                params={{ projectId: listing.workspace_project_id }}
+                className="inline-flex text-sm font-bold text-ink"
+              >
+                Open workspace
+              </Link>
+            ) : null}
+          </div>
         ) : null}
       </AppCard>
 
       <AppCard className="space-y-4">
-        <SectionHeading eyebrow="Actions" title="Use this listing" />
+        <SectionHeading
+          eyebrow="Actions"
+          title="Use this listing"
+          action={
+            <Link to="/app/marketplace/cart">
+              <AppButton variant="ghost">Cart{cartCountQuery.data ? ` (${cartCountQuery.data})` : ''}</AppButton>
+            </Link>
+          }
+        />
         <AppSelect value={projectId} onChange={(event) => setProjectId(event.target.value)}>
           <option value="">Select a project to attach</option>
           {(projectsQuery.data ?? []).map((project) => (
@@ -164,15 +196,19 @@ function ListingDetailPage() {
             Import template
           </AppButton>
         ) : null}
-        <AppButton variant="secondary" disabled={!session} onClick={() => addToCartMutation.mutate()}>
-          Book / add to cart
+        <AppButton variant="secondary" disabled={!session || addToCartMutation.isPending} onClick={() => addToCartMutation.mutate()}>
+          {addToCartMutation.isPending ? 'Adding...' : 'Add to cart'}
         </AppButton>
+        <Link to="/app/marketplace/cart">
+          <AppButton variant="ghost">Go to cart</AppButton>
+        </Link>
         {listing.kind === 'template' ? (
           <p className="text-xs text-ink/60">Imported templates create real milestones and tasks in your project timeline.</p>
         ) : (
-          <p className="text-xs text-ink/60">Bookings stay connected to project budget, calendar, and activity once attached or confirmed.</p>
+          <p className="text-xs text-ink/60">Purchases stay connected to project budget, timeline, and your transactions once you check out.</p>
         )}
       </AppCard>
+    </div>
     </div>
   )
 }
@@ -241,16 +277,23 @@ function ListingsManagementPage() {
     queryFn: () => fetchBusinessListings(ownerId),
     enabled: Boolean(ownerId),
   })
+  const projectsQuery = useQuery({
+    queryKey: ['projects'],
+    queryFn: fetchProjects,
+    enabled: Boolean(ownerId),
+  })
   const [editingId, setEditingId] = useState<string | null>(null)
   const [kind, setKind] = useState<'template' | 'service' | 'product'>('service')
   const [newCategory, setNewCategory] = useState('')
   const [newTitle, setNewTitle] = useState('')
   const [newSummary, setNewSummary] = useState('')
   const [newPriceLabel, setNewPriceLabel] = useState('')
+  const [newWorkspaceProjectId, setNewWorkspaceProjectId] = useState('')
   const [newTemplatePayload, setNewTemplatePayload] = useState(JSON.stringify(defaultTemplatePayload, null, 2))
   const [title, setTitle] = useState('')
   const [summary, setSummary] = useState('')
   const [priceLabel, setPriceLabel] = useState('')
+  const [workspaceProjectId, setWorkspaceProjectId] = useState('')
   const [editingKind, setEditingKind] = useState<'template' | 'service' | 'product'>('service')
   const [templatePayloadText, setTemplatePayloadText] = useState(JSON.stringify(defaultTemplatePayload, null, 2))
   const createMutation = useMutation({
@@ -262,6 +305,7 @@ function ListingsManagementPage() {
         title: newTitle,
         summary: newSummary,
         priceLabel: newPriceLabel,
+        workspaceProjectId: newWorkspaceProjectId || null,
         whimsicalNote: 'Crafted from your business dashboard.',
         templatePayload: kind === 'template' ? parseTemplatePayload(newTemplatePayload) : undefined,
       }),
@@ -273,9 +317,11 @@ function ListingsManagementPage() {
     mutationFn: () =>
       updateListing({
         listingId: editingId!,
+        kind: editingKind,
         title,
         summary,
         priceLabel,
+        workspaceProjectId: workspaceProjectId || null,
         templatePayload: editingKind === 'template' ? parseTemplatePayload(templatePayloadText) : undefined,
       }),
     onSuccess: () => {
@@ -311,6 +357,14 @@ function ListingsManagementPage() {
           <AppInput value={newCategory} onChange={(event) => setNewCategory(event.target.value)} placeholder="Category" />
           <AppInput value={newTitle} onChange={(event) => setNewTitle(event.target.value)} placeholder="Title" />
           <AppInput value={newPriceLabel} onChange={(event) => setNewPriceLabel(event.target.value)} placeholder="Price" />
+          <AppSelect value={newWorkspaceProjectId} onChange={(event) => setNewWorkspaceProjectId(event.target.value)}>
+            <option value="">No workspace project</option>
+            {(projectsQuery.data ?? []).map((project) => (
+              <option key={project.id} value={project.id}>
+                {project.title}
+              </option>
+            ))}
+          </AppSelect>
           <AppTextarea value={newSummary} onChange={(event) => setNewSummary(event.target.value)} className="min-h-24 md:col-span-2" placeholder="Summary" />
           {kind === 'template' ? (
             <AppTextarea
@@ -333,6 +387,14 @@ function ListingsManagementPage() {
           <SectionHeading eyebrow="Edit" title="Update listing" />
           <AppInput value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Title" />
           <AppInput value={priceLabel} onChange={(event) => setPriceLabel(event.target.value)} placeholder="Price label" />
+          <AppSelect value={workspaceProjectId} onChange={(event) => setWorkspaceProjectId(event.target.value)}>
+            <option value="">No workspace project</option>
+            {(projectsQuery.data ?? []).map((project) => (
+              <option key={project.id} value={project.id}>
+                {project.title}
+              </option>
+            ))}
+          </AppSelect>
           <AppTextarea value={summary} onChange={(event) => setSummary(event.target.value)} className="min-h-28" placeholder="Summary" />
           {editingKind === 'template' ? (
             <AppTextarea
@@ -362,6 +424,9 @@ function ListingsManagementPage() {
                 <p className="text-sm text-ink/65">
                   {listing.kind} · {listing.category} · {listing.price_label}
                 </p>
+                {listing.workspace_project_id ? (
+                  <p className="text-xs text-ink/55">Workspace linked</p>
+                ) : null}
               </div>
               <AppPill tone={listing.is_published ? 'butter' : 'default'} className="py-1">
                 {listing.is_published ? 'Active' : 'Inactive'}
@@ -376,6 +441,7 @@ function ListingsManagementPage() {
                   setTitle(listing.title)
                   setSummary(listing.summary)
                   setPriceLabel(listing.price_label)
+                  setWorkspaceProjectId(listing.workspace_project_id ?? '')
                   setTemplatePayloadText(JSON.stringify(listing.template_payload ?? defaultTemplatePayload, null, 2))
                 }}
               >

@@ -1,4 +1,4 @@
-import { createRoute } from '@tanstack/react-router'
+import { Link, createRoute } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { AppButton, AppCard, AppPanel, SectionHeading } from '@superapp/ui'
 import { appRoute } from '@/components/layout'
@@ -21,10 +21,15 @@ function NotificationsPage() {
         {(notificationsQuery.data ?? []).map((item) => (
           <AppPanel key={item.id}>
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
+              <div className="min-w-0 flex-1">
                 <p className="font-extrabold text-ink">{item.title}</p>
                 <p className="text-sm text-ink/65">{item.body}</p>
                 <p className="mt-1 text-xs font-bold text-berry">{item.kind}</p>
+                {item.link_url ? (
+                  <Link to={item.link_url as never} className="mt-2 inline-flex text-xs font-bold text-teal hover:underline">
+                    View →
+                  </Link>
+                ) : null}
               </div>
               {!item.is_read ? (
                 <AppButton variant="secondary" onClick={() => mutation.mutate(item.id)}>

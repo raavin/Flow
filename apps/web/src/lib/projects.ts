@@ -13,6 +13,7 @@ type ProjectRow = {
   title: string
   category: string
   status: Project['status']
+  project_kind: NonNullable<Project['projectKind']>
   target_date: string | null
   budget_cents: number | null
 }
@@ -36,12 +37,21 @@ type EventRow = {
   notes: string | null
 }
 
+type ProjectNoteRow = {
+  id: string
+  project_id: string
+  title: string
+  body: string
+  created_at: string
+  updated_at: string
+}
+
 export async function fetchProjects() {
   if (!supabase) return []
 
   const { data, error } = await supabase
     .from('projects')
-    .select('id, title, category, status, target_date, budget_cents')
+    .select('id, title, category, status, project_kind, target_date, budget_cents')
     .order('created_at', { ascending: false })
 
   if (error) throw error
@@ -51,6 +61,7 @@ export async function fetchProjects() {
     title: project.title,
     category: project.category,
     status: project.status,
+    projectKind: project.project_kind,
     targetDate: project.target_date,
     budgetCents: project.budget_cents,
   }))
@@ -62,6 +73,7 @@ export async function createProject(input: {
   category: string
   targetDate: string
   budgetCents?: number | null
+  projectKind?: NonNullable<Project['projectKind']>
 }) {
   if (!supabase) throw new Error('Supabase is not configured.')
   const normalizedCategory = input.category.trim() || 'General'
@@ -73,10 +85,11 @@ export async function createProject(input: {
       owner_id: input.ownerId,
       title: input.title,
       category: normalizedCategory,
+      project_kind: input.projectKind ?? 'general',
       target_date: normalizedTargetDate,
       budget_cents: input.budgetCents ?? null,
     })
-    .select('id, title, category, status, target_date, budget_cents')
+    .select('id, title, category, status, project_kind, target_date, budget_cents')
     .single<ProjectRow>()
 
   if (error) throw error
@@ -108,6 +121,7 @@ export async function createProject(input: {
     title: 'Project created',
     body: `${project.title} is ready for planning.`,
     kind: 'projects',
+    linkUrl: `/app/projects/${project.id}`,
   })
 
   await syncProjectCoordinationObject({
@@ -124,6 +138,7 @@ export async function createProject(input: {
     title: project.title,
     category: project.category,
     status: project.status,
+    projectKind: project.project_kind,
     targetDate: project.target_date,
     budgetCents: project.budget_cents,
   } satisfies Project
@@ -162,9 +177,10 @@ export async function createProjectFromTemplate(input: {
       owner_id: input.ownerId,
       title: input.title,
       category: input.category,
+      project_kind: 'general',
       target_date: targetDate,
     })
-    .select('id, title, category, status, target_date, budget_cents')
+    .select('id, title, category, status, project_kind, target_date, budget_cents')
     .single<ProjectRow>()
 
   if (error) throw error
@@ -195,6 +211,7 @@ export async function createProjectFromTemplate(input: {
     title: 'Template imported',
     body: `${input.title} is ready in your project board.`,
     kind: 'projects',
+    linkUrl: `/app/projects/${project.id}`,
   })
 
   await syncProjectCoordinationObject({
@@ -211,6 +228,7 @@ export async function createProjectFromTemplate(input: {
     title: project.title,
     category: project.category,
     status: project.status,
+    projectKind: project.project_kind,
     targetDate: project.target_date,
     budgetCents: project.budget_cents,
   } satisfies Project
@@ -227,7 +245,7 @@ export async function fetchProjectDetail(projectId: string) {
     { data: tasks, error: tasksError },
   ] =
     await Promise.all([
-      supabase.from('projects').select('id, title, category, status, target_date, budget_cents').eq('id', projectId).single<ProjectRow>(),
+      supabase.from('projects').select('id, title, category, status, project_kind, target_date, budget_cents').eq('id', projectId).single<ProjectRow>(),
       supabase.from('milestones').select('id, project_id, title, starts_on, ends_on, lane, progress').eq('project_id', projectId).order('starts_on', { ascending: true }),
       supabase.from('calendar_events').select('id, project_id, title, starts_at, ends_at, notes').eq('project_id', projectId).order('starts_at', { ascending: true }),
       supabase.from('project_listing_links').select('id, listing_id, marketplace_listings(title, kind, price_label)').eq('project_id', projectId),
@@ -246,6 +264,7 @@ export async function fetchProjectDetail(projectId: string) {
       title: project.title,
       category: project.category,
       status: project.status,
+      projectKind: project.project_kind,
       targetDate: project.target_date,
       budgetCents: project.budget_cents,
     } satisfies Project,
@@ -254,6 +273,12 @@ export async function fetchProjectDetail(projectId: string) {
     attachments: links ?? [],
     tasks: tasks ?? [],
   }
+}
+
+export async function setProjectKind(projectId: string, projectKind: NonNullable<Project['projectKind']>) {
+  if (!supabase) throw new Error('Supabase is not configured.')
+  const { error } = await supabase.from('projects').update({ project_kind: projectKind }).eq('id', projectId)
+  if (error) throw error
 }
 
 export async function shiftMilestone(milestoneId: string, days: number) {
@@ -276,13 +301,16 @@ export async function shiftMilestone(milestoneId: string, days: number) {
 
   if (updateError) throw updateError
 
-  await createActivity({
-    ownerId: (await currentUserId())!,
-    projectId: data.project_id,
-    activityType: 'milestone_shifted',
-    title: 'Milestone moved',
-    detail: `${data.title} shifted by ${days} day${Math.abs(days) === 1 ? '' : 's'}.`,
-  })
+  const shiftOwnerId = await currentUserId()
+  if (shiftOwnerId) {
+    await createActivity({
+      ownerId: shiftOwnerId,
+      projectId: data.project_id,
+      activityType: 'milestone_shifted',
+      title: 'Milestone moved',
+      detail: `${data.title} shifted by ${days} day${Math.abs(days) === 1 ? '' : 's'}.`,
+    })
+  }
 }
 
 export async function resizeMilestoneBoundary(
@@ -313,16 +341,19 @@ export async function resizeMilestoneBoundary(
 
   if (updateError) throw updateError
 
-  await createActivity({
-    ownerId: (await currentUserId())!,
-    projectId: data.project_id,
-    activityType: 'milestone_resized',
-    title: 'Milestone resized',
-    detail:
-      boundary === 'start'
-        ? `${data.title} now starts on ${nextStartsOn}.`
-        : `${data.title} now ends on ${nextEndsOn}.`,
-  })
+  const resizeOwnerId = await currentUserId()
+  if (resizeOwnerId) {
+    await createActivity({
+      ownerId: resizeOwnerId,
+      projectId: data.project_id,
+      activityType: 'milestone_resized',
+      title: 'Milestone resized',
+      detail:
+        boundary === 'start'
+          ? `${data.title} now starts on ${nextStartsOn}.`
+          : `${data.title} now ends on ${nextEndsOn}.`,
+    })
+  }
 }
 
 export async function createCalendarEvent(input: {
@@ -352,6 +383,7 @@ export async function createCalendarEvent(input: {
     title: 'Event added',
     body: input.title,
     kind: 'projects',
+    linkUrl: input.projectId ? `/app/projects/${input.projectId}/calendar` : '/app/calendar',
   })
   if (input.projectId) {
     await createActivity({
@@ -491,6 +523,42 @@ export async function createTask(input: {
   })
 }
 
+export async function createMilestone(input: {
+  projectId: string
+  title: string
+  startsOn: string
+  endsOn: string
+  lane?: string
+}) {
+  if (!supabase) throw new Error('Supabase is not configured.')
+  const userId = await currentUserId()
+  if (!userId) throw new Error('You need to be signed in.')
+
+  const { data, error } = await supabase
+    .from('milestones')
+    .insert({
+      project_id: input.projectId,
+      title: input.title,
+      starts_on: input.startsOn,
+      ends_on: input.endsOn,
+      lane: input.lane ?? 'Planning',
+      progress: 0,
+    })
+    .select('id, project_id, title, starts_on, ends_on, lane, progress')
+    .single<MilestoneRow>()
+  if (error) throw error
+
+  await createActivity({
+    ownerId: userId,
+    projectId: input.projectId,
+    activityType: 'milestone_created',
+    title: 'Milestone added',
+    detail: input.title,
+  })
+
+  return mapMilestone(data)
+}
+
 export async function updateTaskStatus(taskId: string, status: 'todo' | 'doing' | 'done') {
   if (!supabase) throw new Error('Supabase is not configured.')
   const { data, error } = await supabase.from('tasks').select('project_id, title').eq('id', taskId).single()
@@ -507,6 +575,64 @@ export async function updateTaskStatus(taskId: string, status: 'todo' | 'doing' 
       detail: `${data.title} moved to ${status}.`,
     })
   }
+}
+
+export async function fetchProjectNotes(projectId: string) {
+  if (!supabase) return []
+  const { data, error } = await supabase
+    .from('project_notes')
+    .select('id, project_id, title, body, created_at, updated_at')
+    .eq('project_id', projectId)
+    .order('updated_at', { ascending: false })
+  if (error) throw error
+  return (data as ProjectNoteRow[]) ?? []
+}
+
+export async function createProjectNote(input: {
+  ownerId: string
+  projectId: string
+  title: string
+  body: string
+}) {
+  if (!supabase) throw new Error('Supabase is not configured.')
+  const { data, error } = await supabase
+    .from('project_notes')
+    .insert({
+      owner_id: input.ownerId,
+      project_id: input.projectId,
+      title: input.title.trim() || 'Note',
+      body: input.body,
+    })
+    .select('id, project_id, title, body, created_at, updated_at')
+    .single<ProjectNoteRow>()
+  if (error) throw error
+  await createActivity({
+    ownerId: input.ownerId,
+    projectId: input.projectId,
+    activityType: 'note_created',
+    title: 'Note added',
+    detail: input.title.trim() || 'Note',
+  })
+  return data
+}
+
+export async function updateProjectNote(input: {
+  noteId: string
+  title: string
+  body: string
+}) {
+  if (!supabase) throw new Error('Supabase is not configured.')
+  const { data, error } = await supabase
+    .from('project_notes')
+    .update({
+      title: input.title.trim() || 'Note',
+      body: input.body,
+    })
+    .eq('id', input.noteId)
+    .select('id, project_id, title, body, created_at, updated_at')
+    .single<ProjectNoteRow>()
+  if (error) throw error
+  return data
 }
 
 export async function moveTaskDueDate(taskId: string, days: number) {

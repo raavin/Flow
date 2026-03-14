@@ -15,6 +15,8 @@ function OnboardingPage() {
   const [mode, setMode] = useState<AccountMode>('both')
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
+  const [handle, setHandle] = useState('')
+  const [handleTouched, setHandleTouched] = useState(false)
   const [location, setLocation] = useState('')
   const [timeZone, setTimeZone] = useState('')
   const [useCases, setUseCases] = useState<string[]>(['moving house'])
@@ -59,10 +61,13 @@ function OnboardingPage() {
   async function submit() {
     setError(null)
     try {
+      const handleError = validateHandle(handle)
+      if (handleError) { setError(handleError); return }
       await saveOnboarding({
         accountMode: mode,
         firstName,
         lastName,
+        handle: handle.trim() || undefined,
         location,
         timeZone,
         useCases,
@@ -111,6 +116,30 @@ function OnboardingPage() {
           <FieldLabel>
             Last name
             <AppInput value={lastName} onChange={(event) => setLastName(event.target.value)} className="mt-2" />
+          </FieldLabel>
+          <FieldLabel>
+            Handle
+            <div className="relative mt-2">
+              <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-ink/40">@</span>
+              <AppInput
+                value={handle}
+                onChange={(event) => {
+                  setHandleTouched(true)
+                  setHandle(slugifyHandle(event.target.value))
+                }}
+                onFocus={() => {
+                  if (!handleTouched && !handle) setHandle(suggestHandle(firstName, lastName))
+                }}
+                className="mt-0"
+                style={{ paddingLeft: '1.75rem' }}
+                placeholder={suggestHandle(firstName, lastName) || 'yourhandle'}
+              />
+            </div>
+            {handle && validateHandle(handle) ? (
+              <p className="mt-1 text-xs text-berry">{validateHandle(handle)}</p>
+            ) : handle ? (
+              <p className="mt-1 text-xs text-ink/50">@{handle}</p>
+            ) : null}
           </FieldLabel>
           <FieldLabel>
             Location
@@ -190,6 +219,22 @@ function OnboardingPage() {
 
 function toggleItem(items: string[], value: string) {
   return items.includes(value) ? items.filter((item) => item !== value) : [...items, value]
+}
+
+function slugifyHandle(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9_.-]/g, '').slice(0, 30)
+}
+
+function suggestHandle(firstName: string, lastName: string) {
+  return slugifyHandle((firstName + lastName).replace(/\s/g, ''))
+}
+
+function validateHandle(handle: string) {
+  if (!handle) return null
+  if (handle.length < 3) return 'Handle must be at least 3 characters.'
+  if (handle.length > 30) return 'Handle must be 30 characters or fewer.'
+  if (!/^[a-z0-9][a-z0-9_.-]*$/.test(handle)) return 'Only lowercase letters, numbers, underscores, hyphens and dots.'
+  return null
 }
 
 export const onboardingRoute = createRoute({

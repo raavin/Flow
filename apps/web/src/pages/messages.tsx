@@ -2,10 +2,9 @@ import { useMemo, useRef, useState, type KeyboardEvent, type ReactNode, type Ref
 import { Link, createRoute, useNavigate } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Bookmark, Heart, ImagePlus, MessageCircle, Pencil, Repeat2, Search, Send, Share2, Sparkles, Waves, X } from 'lucide-react'
-import { AppButton, AppCard, AppInput, AppPanel, AppSelect, AppTextarea, SectionHeading } from '@superapp/ui'
+import { AppButton, AppCard, AppInput, AppPanel, AppPill, AppSelect, AppTextarea, SectionHeading } from '@superapp/ui'
 import { appRoute } from '@/components/layout'
 import { useAppStore } from '@/hooks/useAppStore'
-import { createManualCoordinationObject, fetchCoordinationObjects } from '@/lib/coordination-objects'
 import { getSignedDmImageUrls, getSignedPostImageUrls, uploadDmImages, uploadPostImages } from '@/lib/message-media'
 import { createDmThread, fetchDmMessages, fetchDmThreads, sendDmMessage } from '@/lib/dm'
 import {
@@ -17,6 +16,7 @@ import {
   fetchSocialProfile,
   fetchTopicFeed,
   fetchTopics,
+  linkPostToProject,
   toggleFollow,
   flagPostLabel,
   togglePostEngagement,
@@ -24,7 +24,7 @@ import {
   updateOwnPostLabel,
   updateOwnPost,
 } from '@/lib/social'
-import { fetchProjects } from '@/lib/projects'
+import { createProject, fetchProjects } from '@/lib/projects'
 import { searchSupportEntries } from '@/lib/support'
 
 type FeedMode = 'following' | 'discover' | 'bookmarks'
@@ -44,7 +44,7 @@ type AutocompleteState = {
   end: number
 }
 
-function MessagesFeedPage() {
+export function MessagesFeedPage({ linkedProjectId }: { linkedProjectId?: string | null } = {}) {
   const { session, profile } = useAppStore()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -70,7 +70,6 @@ function MessagesFeedPage() {
     peerReasons?: string[]
   } | null>(null)
   const [flowTitle, setFlowTitle] = useState('')
-  const [flowIntent, setFlowIntent] = useState<'coordinate' | 'ask' | 'book' | 'remind' | 'attend'>('coordinate')
   const [flowDate, setFlowDate] = useState('')
   const [flowError, setFlowError] = useState<string | null>(null)
   const [composerError, setComposerError] = useState<string | null>(null)
@@ -95,15 +94,9 @@ function MessagesFeedPage() {
     queryFn: () => fetchPeopleDirectory(session!.user.id),
     enabled: Boolean(session?.user.id),
   })
-  const coordinationQuery = useQuery({
-    queryKey: ['coordination-objects', 'messages', session?.user.id],
-    queryFn: () => fetchCoordinationObjects({ includeArchived: true }),
-    enabled: Boolean(session?.user.id),
-  })
-
   const feedQuery = useQuery({
-    queryKey: ['social-feed', session?.user.id, mode],
-    queryFn: () => fetchFeed(session!.user.id, mode),
+    queryKey: ['social-feed', session?.user.id, mode, linkedProjectId ?? 'all'],
+    queryFn: () => fetchFeed(session!.user.id, mode, { linkedProjectId }),
     enabled: Boolean(session?.user.id),
   })
 
@@ -126,7 +119,7 @@ function MessagesFeedPage() {
         authorId: session!.user.id,
         body,
         contentKind,
-        linkedProjectId: projectId || null,
+        linkedProjectId: projectId || linkedProjectId || null,
         mediaPaths,
         supportingLinks,
         quotePostId: quoteTarget?.id ?? null,
@@ -149,7 +142,7 @@ function MessagesFeedPage() {
         userId: session!.user.id,
         body,
         contentKind,
-        linkedProjectId: projectId || null,
+        linkedProjectId: projectId || linkedProjectId || null,
         supportingLinks: parseSupportingLinks(claimLinksText),
       }),
     onSuccess: () => {
@@ -195,36 +188,32 @@ function MessagesFeedPage() {
 
   const createFlowMutation = useMutation({
     mutationFn: () =>
-      createManualCoordinationObject({
+      createProject({
         ownerId: session!.user.id,
-        title: flowTitle.trim() || (flowDraft ? flowDraft.body.slice(0, 60) : 'New flow'),
-        summary: flowDraft?.body ?? null,
-        kind: 'plan',
-        displayKind: 'plan',
-        intent: flowIntent,
-        state: flowDate ? 'scheduled' : 'draft',
-        startsAt: flowDate ? `${flowDate}T00:00:00.000Z` : null,
-        endsAt: flowDate ? `${flowDate}T23:59:59.000Z` : null,
-        dueAt: flowDate ? `${flowDate}T17:00:00.000Z` : null,
-        isAllDay: true,
-        flexibility: 'shiftable',
-        linkedProjectId: flowDraft?.projectId ?? null,
-        metadata: {
-          sourcePostId: flowDraft?.postId ?? null,
-          source: 'message-feed',
-        },
+        title: flowTitle.trim() || (flowDraft ? flowDraft.body.slice(0, 60) : 'New project'),
+        category: '',
+        targetDate: flowDate || '',
+      }).then(async (project) => {
+        if (flowDraft?.postId) {
+          await linkPostToProject({
+            postId: flowDraft.postId,
+            userId: session!.user.id,
+            projectId: project.id,
+          })
+        }
+        return project
       }),
-    onSuccess: (coordinationId) => {
+    onSuccess: (project) => {
       setFlowDraft(null)
       setFlowTitle('')
       setFlowDate('')
-      setFlowIntent('coordinate')
       setFlowError(null)
-      void queryClient.invalidateQueries({ queryKey: ['coordination-objects'] })
-      void navigate({ to: '/app/coordination/$coordinationId', params: { coordinationId } })
+      void queryClient.invalidateQueries({ queryKey: ['projects'] })
+      void queryClient.invalidateQueries({ queryKey: ['social-feed'] })
+      void navigate({ to: '/app/projects/$projectId/conversation', params: { projectId: project.id } })
     },
     onError: (error) => {
-      setFlowError(describeError(error, 'Could not create a flow from this message.'))
+      setFlowError(describeError(error, 'Could not create a project from this message.'))
     },
   })
 
@@ -249,19 +238,6 @@ function MessagesFeedPage() {
       (post.topics ?? []).some((topic: { label: string }) => topic.label.toLowerCase().includes(query))
     )
   })
-
-  const flowCountByPostId = useMemo(() => {
-    const counts = new Map<string, number>()
-    for (const item of coordinationQuery.data ?? []) {
-      const sourcePostId =
-        item.metadata && typeof item.metadata === 'object' && 'sourcePostId' in item.metadata && typeof item.metadata.sourcePostId === 'string'
-          ? item.metadata.sourcePostId
-          : null
-      if (!sourcePostId) continue
-      counts.set(sourcePostId, (counts.get(sourcePostId) ?? 0) + 1)
-    }
-    return counts
-  }, [coordinationQuery.data])
 
   const autocompleteOptions = useMemo(() => {
     if (!autocomplete) return []
@@ -322,7 +298,7 @@ function MessagesFeedPage() {
 
   function resetComposer() {
     setBody('')
-    setProjectId('')
+    setProjectId(linkedProjectId ?? '')
     setContentKind('update')
     setClaimLinksText('')
     setComposerError(null)
@@ -338,13 +314,22 @@ function MessagesFeedPage() {
         <div className="relative z-20 min-w-0 space-y-3">
           <AppCard className="space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="flex flex-wrap gap-2">
-                {(['following', 'discover', 'bookmarks'] as FeedMode[]).map((item) => (
-                  <AppButton key={item} variant={mode === item ? 'primary' : 'ghost'} onClick={() => setMode(item)}>
-                    {item === 'following' ? 'Following' : item === 'discover' ? 'Discover' : 'Saved'}
-                  </AppButton>
-                ))}
-              </div>
+              {linkedProjectId ? (
+                <div className="flex flex-wrap items-center gap-2">
+                  <AppPill tone="teal">Project view</AppPill>
+                  <Link to="/app/projects/$projectId" params={{ projectId: linkedProjectId }}>
+                    <AppButton variant="ghost">Open project</AppButton>
+                  </Link>
+                </div>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {(['following', 'discover', 'bookmarks'] as FeedMode[]).map((item) => (
+                    <AppButton key={item} variant={mode === item ? 'primary' : 'ghost'} onClick={() => setMode(item)}>
+                      {item === 'following' ? 'Following' : item === 'discover' ? 'Discover' : 'Saved'}
+                    </AppButton>
+                  ))}
+                </div>
+              )}
               <Link to="/app/messages/dm"><AppButton variant="secondary">DMs</AppButton></Link>
             </div>
             <button
@@ -411,6 +396,17 @@ function MessagesFeedPage() {
                         </span>
                       ) : null}
                     </div>
+                    {post.linked_project_id && post.linkedProjectTitle ? (
+                      <div className="mt-2 flex items-center gap-2">
+                        <Link
+                          to="/app/projects/$projectId/conversation"
+                          params={{ projectId: post.linked_project_id }}
+                          className="ui-pill ui-pill--teal text-xs font-black uppercase tracking-[0.18em]"
+                        >
+                          Project · {post.linkedProjectTitle}
+                        </Link>
+                      </div>
+                    ) : null}
                     <div className="mt-2 pr-12 space-y-3">
                       <div className="mt-2 text-[17px] leading-8 text-ink">
                         <RichPostText body={post.body} mentionMap={post.mentionMap} />
@@ -494,14 +490,17 @@ function MessagesFeedPage() {
                     ) : null}
                       <ActionButton
                         icon={<Waves className="h-5 w-5" />}
-                        label="Convert to flow"
-                        count={flowCountByPostId.get(post.id) ?? 0}
+                        label={post.linked_project_id ? 'Open project' : 'Create project'}
+                        count={post.linked_project_id ? 1 : 0}
                         onClick={() => {
+                          if (post.linked_project_id) {
+                            void navigate({ to: '/app/projects/$projectId/conversation', params: { projectId: post.linked_project_id } })
+                            return
+                          }
                           setFlowError(null)
                           setFlowDraft({ postId: post.id, body: post.body, projectId: post.linked_project_id ?? null })
                           setFlowTitle(post.body.slice(0, 60))
                           setFlowDate(post.created_at.slice(0, 10))
-                          setFlowIntent(post.linked_project_id ? 'coordinate' : 'ask')
                         }}
                       />
                       <ActionButton
@@ -529,13 +528,14 @@ function MessagesFeedPage() {
                       <button
                         type="button"
                         className="group relative ui-action-button text-xs font-bold"
-                        onClick={() =>
+                        onClick={() => {
                           setQuoteTarget({
                             id: post.id,
                             body: post.body,
                             author: post.author?.handle || 'user',
                           })
-                        }
+                          setComposerOpen(true)
+                        }}
                       >
                         Quote
                         <span className="pointer-events-none absolute left-1/2 top-[calc(100%+0.55rem)] z-[70] w-max -translate-x-1/2 rounded-[16px] border border-ink/10 bg-white px-3 py-2 text-xs font-medium text-ink/80 opacity-0 shadow-xl transition-all duration-150 ease-out delay-500 group-hover:translate-y-1 group-hover:opacity-100 group-hover:delay-500">
@@ -548,7 +548,7 @@ function MessagesFeedPage() {
                 </div>
               </article>
             ))}
-            {!filteredFeed.length ? <div className="px-5 py-6 text-sm text-ink/60">No posts match that search yet.</div> : null}
+            {!filteredFeed.length ? <div className="px-5 py-6 text-sm text-ink/60">{linkedProjectId ? 'No project conversation yet.' : 'No posts match that search yet.'}</div> : null}
           </div>
         </div>
 
@@ -556,11 +556,11 @@ function MessagesFeedPage() {
           <AppCard className="space-y-3">
             <div className="relative">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink/40" />
-              <AppInput value={rightSearch} onChange={(event) => setRightSearch(event.target.value)} className="pl-10" placeholder="Search posts, people, or topics" />
+              <AppInput value={rightSearch} onChange={(event) => setRightSearch(event.target.value)} className="pl-10" style={{ paddingLeft: '2.5rem' }} placeholder="Search posts, people, or topics" />
             </div>
           </AppCard>
           <AppCard className="space-y-3">
-            <SectionHeading eyebrow="Topics" title="Feeds" />
+            <SectionHeading title="Feeds" />
             <div className="grid gap-2">
               {sidebarTopics.slice(0, 6).map((topic) => (
                 <Link key={topic.id} to="/app/messages/topics/$slug" params={{ slug: topic.slug }}>
@@ -571,7 +571,7 @@ function MessagesFeedPage() {
             </div>
           </AppCard>
           <AppCard className="space-y-3">
-            <SectionHeading eyebrow="People" title="Suggested follows" />
+            <SectionHeading title="Suggested follows" />
             {filteredPeople.slice(0, 5).map((person) => (
               <div key={person.id} className="ui-panel flex items-center justify-between gap-3">
                 <div className="min-w-0">
@@ -769,19 +769,10 @@ function MessagesFeedPage() {
       {flowDraft ? (
         <div className="fixed inset-0 z-40 flex items-start justify-center bg-ink/35 px-4 py-10 backdrop-blur-sm">
           <AppCard className="w-full max-w-xl space-y-4">
-            <SectionHeading eyebrow="Convert to flow" title="Create one coordination object" action={<button type="button" className="ui-soft-icon-button" onClick={() => setFlowDraft(null)}><X className="h-4 w-4" /></button>} />
+            <SectionHeading eyebrow="Create project" title="Turn this message into a project" action={<button type="button" className="ui-soft-icon-button" onClick={() => setFlowDraft(null)}><X className="h-4 w-4" /></button>} />
             <AppPanel tone="butter" className="text-sm text-ink/70">{flowDraft.body}</AppPanel>
-            <AppInput value={flowTitle} onChange={(event) => setFlowTitle(event.target.value)} placeholder="Flow title" />
-            <div className="grid gap-3 md:grid-cols-2">
-              <AppSelect value={flowIntent} onChange={(event) => setFlowIntent(event.target.value as typeof flowIntent)}>
-                <option value="coordinate">Coordinate</option>
-                <option value="ask">Ask</option>
-                <option value="book">Book</option>
-                <option value="remind">Remind</option>
-                <option value="attend">Attend</option>
-              </AppSelect>
-              <AppInput type="date" value={flowDate} onChange={(event) => setFlowDate(event.target.value)} />
-            </div>
+            <AppInput value={flowTitle} onChange={(event) => setFlowTitle(event.target.value)} placeholder="Project title" />
+            <AppInput type="date" value={flowDate} onChange={(event) => setFlowDate(event.target.value)} />
             {flowError ? <AppPanel tone="peach" className="text-sm">{flowError}</AppPanel> : null}
             <div className="flex justify-end gap-2">
               <AppButton variant="ghost" onClick={() => {
@@ -789,7 +780,7 @@ function MessagesFeedPage() {
                 setFlowError(null)
               }}>Cancel</AppButton>
               <AppButton disabled={!session || createFlowMutation.isPending} onClick={() => createFlowMutation.mutate()}>
-                {createFlowMutation.isPending ? 'Creating…' : 'Create flow'}
+                {createFlowMutation.isPending ? 'Creating…' : 'Create project'}
               </AppButton>
             </div>
           </AppCard>
@@ -877,6 +868,11 @@ function MessagesFeedPage() {
       ) : null}
     </>
   )
+}
+
+function ProjectMessagesPage() {
+  const { projectId } = projectMessagesRoute.useParams()
+  return <MessagesFeedPage linkedProjectId={projectId} />
 }
 
 function PostDetailPage() {
@@ -1051,6 +1047,9 @@ function SocialProfilePage() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-4">
+      <Link to="/app/messages" className="inline-flex items-center gap-1 text-sm font-bold text-ink/60 hover:text-ink">
+        ← Messages
+      </Link>
       <AppCard className="space-y-4">
         <div className="flex items-start justify-between gap-3">
           <div className="flex gap-3">
@@ -1759,6 +1758,12 @@ export const messagesRoute = createRoute({
   getParentRoute: () => appRoute,
   path: 'messages',
   component: MessagesFeedPage,
+})
+
+export const projectMessagesRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: 'messages/project/$projectId',
+  component: ProjectMessagesPage,
 })
 
 export const postRoute = createRoute({

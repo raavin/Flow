@@ -2,14 +2,14 @@ import { supabase } from './supabase'
 import { syncPostCoordinationObject } from './coordination-objects'
 import { rankFeedItems, type FeedMode } from './feed-ranking'
 
-export async function ensureSocialProfile(userId: string, firstName?: string | null) {
+export async function ensureSocialProfile(userId: string, firstName?: string | null, handle?: string | null) {
   if (!supabase) throw new Error('Supabase is not configured.')
-  const handle = `user-${userId.replaceAll('-', '').slice(0, 12)}`
+  const resolvedHandle = handle?.trim() || `user-${userId.replaceAll('-', '').slice(0, 12)}`
   const { error } = await supabase.from('social_profiles').upsert({
     id: userId,
-    handle,
+    handle: resolvedHandle,
     display_name: firstName ?? '',
-  })
+  }, { onConflict: 'id', ignoreDuplicates: false })
   if (error) throw error
 }
 
@@ -30,7 +30,7 @@ export async function updateSocialProfile(input: {
   if (error) throw error
 }
 
-export async function fetchFeed(userId: string, mode: FeedMode = 'following') {
+export async function fetchFeed(userId: string, mode: FeedMode = 'following', options?: { linkedProjectId?: string | null }) {
   if (!supabase) return []
   const { data: posts, error: postsError } = await supabase
     .from('posts')
@@ -43,6 +43,7 @@ export async function fetchFeed(userId: string, mode: FeedMode = 'following') {
   const quotedIds = [...new Set(rootPosts.map((post) => post.quote_post_id).filter(Boolean))]
   const authorIds = [...new Set(posts.map((post) => post.author_id))]
   const postIds = posts.map((post) => post.id)
+  const linkedProjectIds = [...new Set(posts.map((post) => post.linked_project_id).filter(Boolean))]
   const mentionedHandles = extractMentions(posts.map((post) => post.body).join('\n'))
   const [
     { data: profiles, error: profilesError },
@@ -52,6 +53,7 @@ export async function fetchFeed(userId: string, mode: FeedMode = 'following') {
     { data: postTopics, error: postTopicsError },
     { data: mentionedProfiles, error: mentionedProfilesError },
     { data: labelFlags, error: labelFlagsError },
+    { data: projects, error: projectsError },
   ] =
     await Promise.all([
       supabase.from('social_profiles').select('id, handle, display_name, bio').in('id', authorIds),
@@ -63,6 +65,9 @@ export async function fetchFeed(userId: string, mode: FeedMode = 'following') {
         ? supabase.from('social_profiles').select('id, handle, display_name, bio').in('handle', mentionedHandles)
         : Promise.resolve({ data: [], error: null }),
       supabase.from('post_label_flags').select('post_id, user_id, suggested_kind, reason').in('post_id', postIds),
+      linkedProjectIds.length
+        ? supabase.from('projects').select('id, title').in('id', linkedProjectIds)
+        : Promise.resolve({ data: [], error: null }),
     ])
   if (profilesError) throw profilesError
   if (mediaError) throw mediaError
@@ -71,6 +76,7 @@ export async function fetchFeed(userId: string, mode: FeedMode = 'following') {
   if (postTopicsError) throw postTopicsError
   if (mentionedProfilesError) throw mentionedProfilesError
   if (labelFlagsError) throw labelFlagsError
+  if (projectsError) throw projectsError
 
   const followedIds = new Set((follows ?? []).map((row) => row.followee_id))
   const extraProfileIds = [...new Set((engagements ?? []).map((engagement) => engagement.user_id).filter((id) => !authorIds.includes(id)))]
@@ -81,11 +87,17 @@ export async function fetchFeed(userId: string, mode: FeedMode = 'following') {
 
   const profileMap = new Map([...(profiles ?? []), ...(extraProfiles ?? [])].map((profile) => [profile.id, profile]))
   const mentionProfileMap = new Map((mentionedProfiles ?? []).map((profile) => [profile.handle.toLowerCase(), profile]))
+  const projectMap = new Map((projects ?? []).map((project) => [project.id, project.title]))
 
   const filteredPosts =
-    mode === 'following'
+    options?.linkedProjectId
+      ? rootPosts.filter((post) => post.linked_project_id === options.linkedProjectId)
+      : mode === 'following'
       ? rootPosts.filter((post) => {
-          const visibleDirectly = post.author_id === userId || followedIds.has(post.author_id)
+          const visibleDirectly =
+            post.author_id === userId ||
+            followedIds.has(post.author_id) ||
+            Boolean(post.linked_project_id)
           const visibleViaRepost = (engagements ?? []).some(
             (engagement) => engagement.post_id === post.id && engagement.reposted && (engagement.user_id === userId || followedIds.has(engagement.user_id)),
           )
@@ -156,6 +168,7 @@ export async function fetchFeed(userId: string, mode: FeedMode = 'following') {
         repostedBy,
         repostedById: repostedBy?.id ?? null,
         feedSortAt: latestRepost ? latestRepost.created_at : post.created_at,
+        linkedProjectTitle: post.linked_project_id ? projectMap.get(post.linked_project_id) ?? null : null,
       }
     })
 
@@ -180,7 +193,7 @@ export async function createPost(input: {
   authorId: string
   body: string
   contentKind?: 'update' | 'product' | 'opinion' | 'claim'
-  visibility?: 'public' | 'followers' | 'private'
+  visibility?: 'public' | 'followers' | 'private' | 'project'
   replyToPostId?: string | null
   quotePostId?: string | null
   linkedProjectId?: string | null
@@ -203,7 +216,7 @@ export async function createPost(input: {
       author_id: input.authorId,
       body: input.body,
       content_kind: input.contentKind ?? 'update',
-      visibility: input.visibility ?? 'followers',
+      visibility: input.visibility ?? (input.linkedProjectId ? 'project' : 'followers'),
       reply_to_post_id: input.replyToPostId ?? null,
       quote_post_id: input.quotePostId ?? null,
       linked_project_id: input.linkedProjectId ?? null,
@@ -526,6 +539,7 @@ export async function updateOwnPost(input: {
       body: trimmedBody,
       content_kind: input.contentKind,
       linked_project_id: input.linkedProjectId ?? null,
+      visibility: input.linkedProjectId ? 'project' : 'followers',
       metadata: nextMetadata,
     })
     .eq('id', input.postId)
@@ -549,6 +563,22 @@ export async function updateOwnPost(input: {
       if (linkError) throw linkError
     }
   }
+}
+
+export async function linkPostToProject(input: {
+  postId: string
+  userId: string
+  projectId: string | null
+}) {
+  if (!supabase) throw new Error('Supabase is not configured.')
+
+  const { error } = await supabase
+    .from('posts')
+    .update({ linked_project_id: input.projectId, visibility: input.projectId ? 'project' : 'followers' })
+    .eq('id', input.postId)
+    .eq('author_id', input.userId)
+
+  if (error) throw error
 }
 
 export async function fetchSocialProfile(profileId: string, viewerId: string) {

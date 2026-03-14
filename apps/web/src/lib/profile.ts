@@ -30,6 +30,7 @@ export async function upsertOnboarding(payload: {
   timeZone: string
   useCases: string[]
   integrations: string[]
+  handle?: string
   businessName?: string
   category?: string
   serviceArea?: string
@@ -57,10 +58,11 @@ export async function upsertOnboarding(payload: {
   if (profileError) throw profileError
 
   const displayName = [payload.firstName, payload.lastName].filter(Boolean).join(' ').trim() || payload.firstName
-  await ensureSocialProfile(payload.userId, displayName)
+  await ensureSocialProfile(payload.userId, displayName, payload.handle)
   await updateSocialProfile({
     userId: payload.userId,
     displayName,
+    handle: payload.handle,
   })
 
   if (payload.accountMode === 'business' || payload.accountMode === 'both') {
@@ -93,6 +95,7 @@ export async function updateProfileSettings(input: {
   timeZone: string
   integrations: string[]
   bio?: string
+  handle?: string
 }) {
   if (!supabase) throw new Error('Supabase is not configured.')
   const { error } = await supabase
@@ -108,10 +111,11 @@ export async function updateProfileSettings(input: {
   if (error) throw error
 
   const displayName = [input.firstName, input.lastName].filter(Boolean).join(' ').trim() || input.firstName
-  await ensureSocialProfile(input.userId, displayName)
+  await ensureSocialProfile(input.userId, displayName, input.handle)
   await updateSocialProfile({
     userId: input.userId,
     displayName,
     bio: input.bio,
+    handle: input.handle,
   })
 }

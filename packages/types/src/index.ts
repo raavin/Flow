@@ -89,6 +89,7 @@ export type CoordinationObject = {
   linkedProjectId?: string | null
   linkedListingId?: string | null
   linkedJobId?: string | null
+  participants?: CoordinationParticipant[]
   metadata?: Record<string, unknown>
   createdAt: string
   updatedAt: string
@@ -216,6 +217,7 @@ export type Project = {
   title: string
   category: string
   status: 'active' | 'upcoming' | 'completed'
+  projectKind?: 'general' | 'product_workspace' | 'service_workspace' | 'template_workspace'
   targetDate: string | null
   budgetCents: number | null
   attachedListingsCount?: number
@@ -263,10 +265,138 @@ export type MarketplaceListing = {
   kind: MarketplaceKind
   category: string
   priceLabel: string
+  priceCents?: number
+  currencyCode?: string
+  sku?: string | null
+  taxRateBasisPoints?: number
+  workspaceProjectId?: string | null
+  fulfillmentNotes?: string
   whimsicalNote: string
   ownerId?: string
   isPublished?: boolean
   templatePayload?: TemplatePayload
+}
+
+export type CartItem = {
+  id: string
+  listingId: string
+  linkedProjectId: string | null
+  orderId?: string | null
+  quantity: number
+  bookingNote: string | null
+  bookingDate: string | null
+  splitWith: string[]
+  status: 'draft' | 'ordered' | 'removed'
+  listing: {
+    id: string
+    ownerId: string | null
+    title: string
+    kind: MarketplaceKind
+    category: string
+    priceLabel: string
+    priceCents: number
+    currencyCode: string
+    sku?: string | null
+    taxRateBasisPoints: number
+    workspaceProjectId?: string | null
+  } | null
+}
+
+export type CheckoutSummary = {
+  currencyCode: string
+  subtotalCents: number
+  taxCents: number
+  totalCents: number
+}
+
+export type CommerceOrder = {
+  id: string
+  orderNumber: string
+  buyerProfileId: string
+  sellerProfileId: string
+  linkedProjectId?: string | null
+  currencyCode: string
+  status: 'placed' | 'paid' | 'fulfilled' | 'cancelled' | 'refunded'
+  paymentStatus: 'pending' | 'paid' | 'refunded'
+  payoutStatus: 'not_applicable' | 'pending' | 'paid'
+  subtotalCents: number
+  taxCents: number
+  platformFeeCents: number
+  totalCents: number
+  sellerNetCents: number
+  createdAt: string
+}
+
+export type OrderItem = {
+  id: string
+  orderId: string
+  listingId: string | null
+  linkedProjectId?: string | null
+  workspaceProjectId?: string | null
+  title: string
+  kind: MarketplaceKind
+  category: string
+  sku?: string | null
+  quantity: number
+  unitPriceCents: number
+  subtotalCents: number
+  taxCents: number
+  platformFeeCents: number
+  totalCents: number
+  sellerNetCents: number
+}
+
+export type FinancialTransaction = {
+  id: string
+  profileId: string
+  counterpartyProfileId?: string | null
+  orderId?: string | null
+  linkedProjectId?: string | null
+  linkedListingId?: string | null
+  transactionRole: 'buyer' | 'seller' | 'manual'
+  transactionType: 'transfer' | 'purchase' | 'sale' | 'request' | 'refund' | 'payout'
+  sourceKind: 'manual' | 'marketplace' | 'peer' | 'project'
+  direction: 'in' | 'out'
+  description: string
+  counterpartyLabel: string
+  counterpartyHandle?: string | null
+  referenceNumber?: string | null
+  currencyCode: string
+  subtotalCents: number
+  taxCents: number
+  platformFeeCents: number
+  totalCents: number
+  sellerNetCents: number
+  status: 'pending' | 'placed' | 'paid' | 'fulfilled' | 'cancelled' | 'refunded' | 'settled'
+  payoutStatus: 'not_applicable' | 'pending' | 'paid'
+  occurredAt: string
+  createdAt: string
+}
+
+export type SalesLedgerRow = {
+  orderId: string
+  orderNumber: string
+  transactionId: string | null
+  orderItemId: string
+  orderDate: string
+  customerProfileId: string
+  customerDisplayName: string
+  customerHandle?: string | null
+  productTitle: string
+  listingId: string | null
+  listingCode?: string | null
+  linkedProjectId?: string | null
+  linkedProjectTitle?: string | null
+  workspaceProjectId?: string | null
+  workspaceProjectTitle?: string | null
+  subtotalCents: number
+  taxCents: number
+  platformFeeCents: number
+  totalCents: number
+  sellerNetCents: number
+  paymentStatus: 'pending' | 'paid' | 'refunded'
+  payoutStatus: 'not_applicable' | 'pending' | 'paid'
+  currencyCode: string
 }
 
 export type AppUser = {

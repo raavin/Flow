@@ -77,6 +77,7 @@ export async function createJob(input: {
     title: 'Job created',
     body: `${input.customerName} · ${input.title}`,
     kind: 'bookings',
+    linkUrl: createdJob?.id ? `/app/jobs/${createdJob.id}` : '/app/jobs',
   })
 }
 
@@ -139,5 +140,6 @@ export async function requestJobPayment(input: {
     title: 'Payment requested',
     body: `${input.customerName} · ${input.reason}`,
     kind: 'wallet',
+    linkUrl: '/app/wallet',
   })
 }

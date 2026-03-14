@@ -141,6 +141,7 @@ export async function sendMessage(input: {
       title: 'Message sent',
       body: input.body,
       kind: 'messages',
+      linkUrl: `/app/projects/${input.linkedProjectId}/conversation`,
     })
   }
 }

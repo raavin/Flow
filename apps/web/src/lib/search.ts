@@ -22,10 +22,12 @@ export async function universalSearch(query: string, userId?: string) {
     ...posts.map((item) => ({
       id: item.id,
       title: item.body || 'Untitled post',
+      kind: 'post' as const,
     })),
     ...dmThreads.map((item) => ({
       id: item.id,
       title: item.title || 'Direct message',
+      kind: 'dm' as const,
     })),
   ]
   const support = searchSupportEntries(needle).map((item) => ({
@@ -34,26 +36,34 @@ export async function universalSearch(query: string, userId?: string) {
     summary: item.summary,
   }))
 
+  const allListings = [...(templates ?? []), ...services]
+
   if (!needle) {
     return {
-      projects: projects.slice(0, 5),
-      listings: [...(templates ?? []), ...services].slice(0, 6),
+      projects: projects.slice(0, 5).map((item) => ({ ...item, kind: 'project' as const })),
+      listings: allListings.slice(0, 6).map((item) => ({ ...item, kind: 'listing' as const })),
       messages: messages.slice(0, 5),
-      jobs: jobs.slice(0, 5),
+      jobs: jobs.slice(0, 5).map((item) => ({ ...item, kind: 'job' as const })),
       support: support.slice(0, 5),
     }
   }
 
   return {
-    projects: projects.filter((item) => item.title.toLowerCase().includes(needle) || item.category.toLowerCase().includes(needle)),
-    listings: [...(templates ?? []), ...services].filter(
-      (item) =>
-        item.title.toLowerCase().includes(needle) ||
-        item.category.toLowerCase().includes(needle) ||
-        item.summary.toLowerCase().includes(needle),
-    ),
+    projects: projects
+      .filter((item) => item.title.toLowerCase().includes(needle) || item.category.toLowerCase().includes(needle))
+      .map((item) => ({ ...item, kind: 'project' as const })),
+    listings: allListings
+      .filter(
+        (item) =>
+          item.title.toLowerCase().includes(needle) ||
+          item.category.toLowerCase().includes(needle) ||
+          item.summary.toLowerCase().includes(needle),
+      )
+      .map((item) => ({ ...item, kind: 'listing' as const })),
     messages: messages.filter((item) => item.title.toLowerCase().includes(needle)),
-    jobs: jobs.filter((item) => item.title.toLowerCase().includes(needle) || item.customer_name.toLowerCase().includes(needle)),
+    jobs: jobs
+      .filter((item) => item.title.toLowerCase().includes(needle) || item.customer_name.toLowerCase().includes(needle))
+      .map((item) => ({ ...item, kind: 'job' as const })),
     support,
   }
 }

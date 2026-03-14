@@ -355,6 +355,35 @@ export async function updateCoordinationObjectSchedule(input: {
   if (error) throw error
 }
 
+export async function updateCoordinationObjectProjectLink(id: string, linkedProjectId: string | null) {
+  if (!supabase) throw new Error('Supabase is not configured.')
+
+  const { error } = await supabase.from('coordination_objects').update({ linked_project_id: linkedProjectId }).eq('id', id)
+  if (error) throw error
+}
+
+export async function addCoordinationParticipant(input: {
+  coordinationObjectId: string
+  profileId: string
+  participantName: string
+  role?: CoordinationParticipant['role']
+}) {
+  if (!supabase) throw new Error('Supabase is not configured.')
+
+  const { error } = await supabase.from('coordination_object_participants').upsert(
+    {
+      coordination_object_id: input.coordinationObjectId,
+      profile_id: input.profileId,
+      participant_name: input.participantName,
+      role: input.role ?? 'participant',
+      state: 'active',
+    },
+    { onConflict: 'coordination_object_id,profile_id' },
+  )
+
+  if (error) throw error
+}
+
 export async function archiveCoordinationObjectBySource(sourceTable: string, sourceId: string) {
   if (!supabase) throw new Error('Supabase is not configured.')
 
@@ -658,10 +687,8 @@ function mapCoordinationObject(row: CoordinationObjectRow) {
     linkedProjectId: row.linked_project_id,
     linkedListingId: row.linked_listing_id,
     linkedJobId: row.linked_job_id,
-    metadata: {
-      ...(row.metadata ?? {}),
-      participants: (row.coordination_object_participants ?? []).map(mapParticipant),
-    },
+    participants: (row.coordination_object_participants ?? []).map(mapParticipant),
+    metadata: row.metadata ?? {},
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   } satisfies CoordinationObject
