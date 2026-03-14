@@ -29,7 +29,7 @@ const THEME_LABELS: Record<Theme, string> = {
 
 function useTheme() {
   const [theme, setThemeState] = useState<Theme>(() => {
-    return (localStorage.getItem('superapp-theme') as Theme) ?? 'quirky'
+    return (localStorage.getItem('superapp-theme') as Theme) ?? 'mono'
   })
 
   useEffect(() => {
@@ -38,7 +38,7 @@ function useTheme() {
   }, [theme])
 
   useEffect(() => {
-    const saved = (localStorage.getItem('superapp-theme') as Theme) ?? 'quirky'
+    const saved = (localStorage.getItem('superapp-theme') as Theme) ?? 'mono'
     document.documentElement.setAttribute('data-theme', saved)
   }, [])
 
