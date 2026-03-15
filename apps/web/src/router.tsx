@@ -27,6 +27,7 @@ import { cartRoute, categoryBrowseRoute, searchRoute, settingsRoute } from '@/pa
 import { jobDetailRoute } from '@/pages/business'
 import { aiRoute } from '@/pages/ai'
 import { supportRoute } from '@/pages/support'
+import { integrationsRoute } from '@/pages/integrations'
 
 const routeTree = rootRoute.addChildren([
   landingRoute,
@@ -72,6 +73,7 @@ const routeTree = rootRoute.addChildren([
     searchRoute,
     supportRoute,
     settingsRoute,
+    integrationsRoute,
     aiRoute,
   ]),
 ])

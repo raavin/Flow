@@ -270,6 +270,22 @@ export async function createWalletEntry(input: {
   })
 }
 
+export async function updateWalletEntry(entryId: string, input: { description?: string; amountCents?: number; direction?: 'in' | 'out' }) {
+  if (!supabase) throw new Error('Supabase is not configured.')
+  const payload: Record<string, unknown> = {}
+  if (input.description !== undefined) payload.description = input.description.trim()
+  if (input.amountCents !== undefined) payload.amount_cents = input.amountCents
+  if (input.direction !== undefined) payload.direction = input.direction
+  const { error } = await supabase.from('financial_transactions').update(payload).eq('id', entryId).eq('transaction_type', 'manual')
+  if (error) throw error
+}
+
+export async function deleteWalletEntry(entryId: string) {
+  if (!supabase) throw new Error('Supabase is not configured.')
+  const { error } = await supabase.from('financial_transactions').delete().eq('id', entryId)
+  if (error) throw error
+}
+
 export async function settleWalletEntry(entryId: string) {
   if (!supabase) throw new Error('Supabase is not configured.')
   const { error } = await supabase.from('financial_transactions').update({ status: 'settled' }).eq('id', entryId)

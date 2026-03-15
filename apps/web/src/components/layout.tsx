@@ -10,6 +10,7 @@ import {
   LayoutGrid,
   MessageCircleMore,
   Palette,
+  Plug,
   Search,
   ShoppingBag,
   Wallet,
@@ -133,6 +134,7 @@ function AppLayout() {
     { to: '/app/support', label: 'Support', icon: CircleHelp },
     { to: '/app/notifications', label: 'Notifications', icon: Bell },
     { to: '/app/settings', label: profile?.active_mode === 'business' ? 'Profile & Admin' : 'Profile', icon: CircleUserRound },
+    { to: '/app/integrations', label: 'Integrations', icon: Plug },
     { to: '/app/ai', label: 'AI assistant', icon: Bot },
   ] as const
 

@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState, type KeyboardEvent, type ReactNode, type RefObject } from 'react'
 import { Link, createRoute, useNavigate } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Bookmark, Heart, ImagePlus, MessageCircle, Pencil, Repeat2, Search, Send, Share2, Sparkles, Star, Waves, X } from 'lucide-react'
+import { Bookmark, Heart, ImagePlus, MessageCircle, Pencil, Repeat2, Search, Send, Share2, Sparkles, Star, Trash2, Waves, X } from 'lucide-react'
 import { AppButton, AppCard, AppInput, AppPanel, AppPill, AppSelect, AppTextarea, SectionHeading } from '@superapp/ui'
 import { appRoute } from '@/components/layout'
 import { useAppStore } from '@/hooks/useAppStore'
@@ -23,6 +23,7 @@ import {
   toggleTopicSubscription,
   updateOwnPostLabel,
   updateOwnPost,
+  deletePost,
 } from '@/lib/social'
 import { createProject, fetchProjects } from '@/lib/projects'
 import { searchSupportEntries } from '@/lib/support'
@@ -154,6 +155,15 @@ export function MessagesFeedPage({ linkedProjectId }: { linkedProjectId?: string
     },
     onError: (error) => {
       setComposerError(describeError(error, 'Could not update this post.'))
+    },
+  })
+
+  const [deleteConfirmPostId, setDeleteConfirmPostId] = useState<string | null>(null)
+  const deletePostMutation = useMutation({
+    mutationFn: (postId: string) => deletePost(postId, session!.user.id),
+    onSuccess: () => {
+      setDeleteConfirmPostId(null)
+      void queryClient.invalidateQueries({ queryKey: ['social-feed'] })
     },
   })
 
@@ -545,21 +555,45 @@ export function MessagesFeedPage({ linkedProjectId }: { linkedProjectId?: string
                         onClick={() => navigator.clipboard.writeText(`${window.location.origin}/app/messages/post/${post.id}`)}
                       />
                       {post.author_id === session?.user.id ? (
-                        <ActionButton
-                          icon={<Pencil className="h-5 w-5" />}
-                          label="Edit post"
-                          onClick={() => {
-                            setEditingPost({ id: post.id, mediaPaths: post.mediaPaths ?? [] })
-                            setBody(post.body)
-                            setProjectId(post.linked_project_id ?? '')
-                            setContentKind(post.content_kind)
-                            setClaimLinksText(extractSupportingLinks(post.metadata).join('\n'))
-                            setSelectedImages([])
-                            setQuoteTarget(null)
-                            setComposerError(null)
-                            setComposerOpen(true)
-                          }}
-                        />
+                        <>
+                          <ActionButton
+                            icon={<Pencil className="h-5 w-5" />}
+                            label="Edit post"
+                            onClick={() => {
+                              setEditingPost({ id: post.id, mediaPaths: post.mediaPaths ?? [] })
+                              setBody(post.body)
+                              setProjectId(post.linked_project_id ?? '')
+                              setContentKind(post.content_kind)
+                              setClaimLinksText(extractSupportingLinks(post.metadata).join('\n'))
+                              setSelectedImages([])
+                              setQuoteTarget(null)
+                              setComposerError(null)
+                              setComposerOpen(true)
+                            }}
+                          />
+                          {deleteConfirmPostId === post.id ? (
+                            <span className="flex items-center gap-1">
+                              <span className="text-xs font-bold text-berry">Delete?</span>
+                              <button
+                                type="button"
+                                className="text-xs font-bold text-berry hover:underline"
+                                onClick={() => deletePostMutation.mutate(post.id)}
+                                disabled={deletePostMutation.isPending}
+                              >Yes</button>
+                              <button
+                                type="button"
+                                className="text-xs text-ink/60 hover:underline"
+                                onClick={() => setDeleteConfirmPostId(null)}
+                              >No</button>
+                            </span>
+                          ) : (
+                            <ActionButton
+                              icon={<Trash2 className="h-5 w-5" />}
+                              label="Delete post"
+                              onClick={() => setDeleteConfirmPostId(post.id)}
+                            />
+                          )}
+                        </>
                       ) : null}
                       <button
                         type="button"

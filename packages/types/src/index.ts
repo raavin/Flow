@@ -469,3 +469,76 @@ export type AppUser = {
   businessProfile: BusinessProfile
   onboarding: OnboardingState
 }
+
+// ---------------------------------------------------------------------------
+// Integrations
+// ---------------------------------------------------------------------------
+
+export type IntegrationProvider =
+  | 'stripe'
+  | 'paypal'
+  | 'openwallex'
+  | 'direct_banking'
+  | 'xero'
+  | 'myob'
+  | 'shiftly'
+  | 'generic'
+
+export type IntegrationStatus = 'active' | 'disconnected' | 'error' | 'pending_oauth'
+
+export type ConnectedIntegration = {
+  id: string
+  profileId: string
+  provider: IntegrationProvider
+  status: IntegrationStatus
+  oauthTokenExpiresAt: string | null
+  oauthScope: string | null
+  providerAccountId: string | null
+  providerAccountLabel: string | null
+  metadata: Record<string, unknown>
+  createdAt: string
+  updatedAt: string
+}
+
+export type IntegrationApiKey = {
+  id: string
+  profileId: string
+  name: string
+  keyPrefix: string
+  scopes: string[]
+  lastUsedAt: string | null
+  expiresAt: string | null
+  isActive: boolean
+  createdAt: string
+}
+
+export type WebhookEndpoint = {
+  id: string
+  profileId: string
+  url: string
+  description: string
+  eventTypes: string[]
+  isActive: boolean
+  failureCount: number
+  lastSuccessAt: string | null
+  lastFailureAt: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export type WebhookDeliveryStatus = 'pending' | 'delivered' | 'failed' | 'abandoned'
+
+export type WebhookDelivery = {
+  id: string
+  endpointId: string
+  eventType: string
+  eventId: string
+  payload: Record<string, unknown>
+  attemptCount: number
+  nextRetryAt: string | null
+  status: WebhookDeliveryStatus
+  lastResponseStatus: number | null
+  lastResponseBody: string | null
+  createdAt: string
+  deliveredAt: string | null
+}

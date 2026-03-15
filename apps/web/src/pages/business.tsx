@@ -1,9 +1,11 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { createRoute } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Pencil } from 'lucide-react'
 import { AppButton, AppCard, AppInput, AppPanel, AppTextarea, SectionHeading } from '@superapp/ui'
 import { appRoute } from '@/components/layout'
 import {
+  deleteWorkflowStep,
   fetchJobDetail,
   requestJobPayment,
   updateJobBooking,
@@ -69,7 +71,7 @@ function JobDetailPage() {
     },
   })
   const stepMutation = useMutation({
-    mutationFn: (input: { stepId: string; status?: 'todo' | 'doing' | 'done'; customerVisible?: boolean }) =>
+    mutationFn: (input: { stepId: string; title?: string; status?: 'todo' | 'doing' | 'done'; customerVisible?: boolean }) =>
       updateWorkflowStep(input),
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['job-detail', jobId] }),
   })
@@ -87,6 +89,36 @@ function JobDetailPage() {
       void queryClient.invalidateQueries({ queryKey: ['notifications'] })
     },
   })
+
+  const deleteStepMutation = useMutation({
+    mutationFn: (stepId: string) => deleteWorkflowStep(stepId),
+    onSuccess: () => {
+      setDeleteConfirmStepId(null)
+      void queryClient.invalidateQueries({ queryKey: ['job-detail', jobId] })
+    },
+  })
+
+  const [editingStepId, setEditingStepId] = useState<string | null>(null)
+  const [editStepValue, setEditStepValue] = useState('')
+  const [deleteConfirmStepId, setDeleteConfirmStepId] = useState<string | null>(null)
+  const stepEditRef = useRef<HTMLInputElement>(null)
+
+  function beginStepEdit(stepId: string, currentTitle: string) {
+    setEditingStepId(stepId)
+    setEditStepValue(currentTitle)
+    setTimeout(() => stepEditRef.current?.select(), 0)
+  }
+
+  function commitStepEdit(stepId: string) {
+    if (!editStepValue.trim()) { cancelStepEdit(); return }
+    stepMutation.mutate({ stepId, title: editStepValue.trim() })
+    cancelStepEdit()
+  }
+
+  function cancelStepEdit() {
+    setEditingStepId(null)
+    setEditStepValue('')
+  }
 
   const detail = detailQuery.data
   if (!detail) return <AppCard>Loading job...</AppCard>
@@ -142,10 +174,28 @@ function JobDetailPage() {
           <div className="grid gap-3">
             {detail.steps.map((step) => (
               <AppPanel key={step.id}>
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <p className="font-extrabold text-ink">{step.title}</p>
-                    <p className="text-sm text-ink/65">{step.customer_visible ? 'Customer-visible' : 'Internal only'}</p>
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    {editingStepId === step.id ? (
+                      <input
+                        ref={stepEditRef}
+                        value={editStepValue}
+                        onChange={(e) => setEditStepValue(e.target.value)}
+                        onBlur={() => commitStepEdit(step.id)}
+                        onKeyDown={(e) => { if (e.key === 'Enter') commitStepEdit(step.id); if (e.key === 'Escape') cancelStepEdit() }}
+                        className="w-full bg-transparent font-extrabold text-ink outline-none border-b-2 border-ink/40 focus:border-ink"
+                      />
+                    ) : (
+                      <p
+                        className="font-extrabold text-ink cursor-text group/step flex items-center gap-1.5"
+                        onDoubleClick={() => beginStepEdit(step.id, step.title)}
+                        title="Double-click to rename"
+                      >
+                        <span>{step.title}</span>
+                        <Pencil className="h-3 w-3 shrink-0 text-ink/30 opacity-0 group-hover/step:opacity-100 transition-opacity" />
+                      </p>
+                    )}
+                    <p className="mt-0.5 text-sm text-ink/65">{step.customer_visible ? 'Customer-visible' : 'Internal only'}</p>
                   </div>
                   <div className="flex flex-wrap gap-2">
                     {(['todo', 'doing', 'done'] as const).map((status) => (
@@ -156,6 +206,15 @@ function JobDetailPage() {
                     <AppButton variant="secondary" onClick={() => stepMutation.mutate({ stepId: step.id, customerVisible: !step.customer_visible })}>
                       {step.customer_visible ? 'Hide' : 'Expose'}
                     </AppButton>
+                    {deleteConfirmStepId === step.id ? (
+                      <>
+                        <span className="flex items-center text-xs font-bold text-berry">Delete?</span>
+                        <AppButton variant="secondary" onClick={() => deleteStepMutation.mutate(step.id)} disabled={deleteStepMutation.isPending}>Yes</AppButton>
+                        <AppButton variant="ghost" onClick={() => setDeleteConfirmStepId(null)}>No</AppButton>
+                      </>
+                    ) : (
+                      <AppButton variant="ghost" onClick={() => setDeleteConfirmStepId(step.id)}>Delete</AppButton>
+                    )}
                   </div>
                 </div>
               </AppPanel>

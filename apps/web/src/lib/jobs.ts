@@ -81,6 +81,21 @@ export async function createJob(input: {
   })
 }
 
+export async function updateJob(jobId: string, input: { title?: string; customerName?: string }) {
+  if (!supabase) throw new Error('Supabase is not configured.')
+  const payload: Record<string, unknown> = {}
+  if (input.title !== undefined) payload.title = input.title.trim()
+  if (input.customerName !== undefined) payload.customer_name = input.customerName.trim()
+  const { error } = await supabase.from('jobs').update(payload).eq('id', jobId)
+  if (error) throw error
+}
+
+export async function deleteJob(jobId: string) {
+  if (!supabase) throw new Error('Supabase is not configured.')
+  const { error } = await supabase.from('jobs').delete().eq('id', jobId)
+  if (error) throw error
+}
+
 export async function updateJobStatus(jobId: string, status: 'today' | 'upcoming' | 'waiting' | 'delayed' | 'completed') {
   if (!supabase) throw new Error('Supabase is not configured.')
   const { error } = await supabase.from('jobs').update({ status }).eq('id', jobId)
@@ -107,14 +122,22 @@ export async function updateJobNotes(jobId: string, notes: string) {
 
 export async function updateWorkflowStep(input: {
   stepId: string
+  title?: string
   status?: 'todo' | 'doing' | 'done'
   customerVisible?: boolean
 }) {
   if (!supabase) throw new Error('Supabase is not configured.')
   const payload: Record<string, unknown> = {}
+  if (input.title !== undefined) payload.title = input.title.trim() || 'Untitled step'
   if (input.status) payload.status = input.status
   if (typeof input.customerVisible === 'boolean') payload.customer_visible = input.customerVisible
   const { error } = await supabase.from('job_workflow_steps').update(payload).eq('id', input.stepId)
+  if (error) throw error
+}
+
+export async function deleteWorkflowStep(stepId: string) {
+  if (!supabase) throw new Error('Supabase is not configured.')
+  const { error } = await supabase.from('job_workflow_steps').delete().eq('id', stepId)
   if (error) throw error
 }
 

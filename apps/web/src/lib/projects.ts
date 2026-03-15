@@ -660,6 +660,41 @@ export async function updateProjectNote(input: {
   return data
 }
 
+export async function deleteProjectNote(noteId: string) {
+  if (!supabase) throw new Error('Supabase is not configured.')
+  const { error } = await supabase.from('project_notes').delete().eq('id', noteId)
+  if (error) throw error
+}
+
+export async function updateMilestone(milestoneId: string, input: { title?: string; lane?: string }) {
+  if (!supabase) throw new Error('Supabase is not configured.')
+  const payload: Record<string, unknown> = {}
+  if (input.title !== undefined) payload.title = input.title.trim() || 'Milestone'
+  if (input.lane !== undefined) payload.lane = input.lane.trim() || 'Planning'
+  const { error } = await supabase.from('milestones').update(payload).eq('id', milestoneId)
+  if (error) throw error
+}
+
+export async function deleteMilestone(milestoneId: string) {
+  if (!supabase) throw new Error('Supabase is not configured.')
+  const { error } = await supabase.from('milestones').delete().eq('id', milestoneId)
+  if (error) throw error
+}
+
+export async function updateTask(taskId: string, input: { title?: string }) {
+  if (!supabase) throw new Error('Supabase is not configured.')
+  const payload: Record<string, unknown> = {}
+  if (input.title !== undefined) payload.title = input.title.trim() || 'Task'
+  const { error } = await supabase.from('tasks').update(payload).eq('id', taskId)
+  if (error) throw error
+}
+
+export async function deleteTask(taskId: string) {
+  if (!supabase) throw new Error('Supabase is not configured.')
+  const { error } = await supabase.from('tasks').delete().eq('id', taskId)
+  if (error) throw error
+}
+
 export async function moveTaskDueDate(taskId: string, days: number) {
   if (!supabase) throw new Error('Supabase is not configured.')
   const { data, error } = await supabase.from('tasks').select('project_id, title, due_on').eq('id', taskId).single()

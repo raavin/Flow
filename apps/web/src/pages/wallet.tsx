@@ -8,7 +8,7 @@ import { useAppStore } from '@/hooks/useAppStore'
 import { formatCurrency } from '@/lib/commerce'
 import { fetchProjects } from '@/lib/projects'
 import { fetchPeopleDirectory } from '@/lib/social'
-import { createWalletEntry, fetchWalletEntries, settleWalletEntry } from '@/lib/wallet'
+import { createWalletEntry, deleteWalletEntry, fetchWalletEntries, settleWalletEntry, updateWalletEntry } from '@/lib/wallet'
 
 type DraftKind = 'transfer' | 'request' | 'manual'
 type LedgerFilter = 'all' | 'pending' | 'marketplace' | 'project' | 'sales'
@@ -62,9 +62,18 @@ function WalletPage() {
 
   const settleMutation = useMutation({
     mutationFn: (entryId: string) => settleWalletEntry(entryId),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['wallet'] })
-    },
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['wallet'] }),
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: (entryId: string) => deleteWalletEntry(entryId),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['wallet'] }),
+  })
+
+  const editMutation = useMutation({
+    mutationFn: ({ entryId, input }: { entryId: string; input: Parameters<typeof updateWalletEntry>[1] }) =>
+      updateWalletEntry(entryId, input),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['wallet'] }),
   })
 
   const entries = entriesQuery.data ?? []
@@ -186,6 +195,8 @@ function WalletPage() {
         <TransactionLedgerTable
           entries={filteredEntries}
           onSettle={(entryId) => settleMutation.mutate(entryId)}
+          onDelete={(entryId) => deleteMutation.mutate(entryId)}
+          onEdit={(entryId, input) => editMutation.mutate({ entryId, input })}
           highlightOrderId={highlight}
           emptyMessage="No transactions match this filter yet. Marketplace orders and manual transfers will show here."
         />
@@ -302,14 +313,37 @@ type WalletEntry = Awaited<ReturnType<typeof fetchWalletEntries>>[number]
 function TransactionLedgerTable({
   entries,
   onSettle,
+  onDelete,
+  onEdit,
   highlightOrderId,
   emptyMessage,
 }: {
   entries: WalletEntry[]
   onSettle?: (entryId: string) => void
+  onDelete?: (entryId: string) => void
+  onEdit?: (entryId: string, input: { description?: string; amountCents?: number }) => void
   highlightOrderId?: string
   emptyMessage: string
 }) {
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
+  const [editingEntryId, setEditingEntryId] = useState<string | null>(null)
+  const [editDesc, setEditDesc] = useState('')
+  const [editAmount, setEditAmount] = useState('')
+
+  function beginEdit(entry: WalletEntry) {
+    setEditingEntryId(entry.id)
+    setEditDesc(entry.description)
+    setEditAmount(String(entry.totalCents / 100))
+  }
+
+  function commitEdit(entryId: string) {
+    if (!onEdit) return
+    onEdit(entryId, {
+      description: editDesc.trim() || undefined,
+      amountCents: editAmount ? Math.round(Number(editAmount) * 100) : undefined,
+    })
+    setEditingEntryId(null)
+  }
   return (
     <div className="ui-ledger-shell">
       <table className="ui-ledger-table min-w-[1180px]">
@@ -343,7 +377,17 @@ function TransactionLedgerTable({
                 </p>
               </td>
               <td className="ui-ledger-cell">
-                <p className="font-bold text-ink">{entry.description}</p>
+                {editingEntryId === entry.id ? (
+                  <input
+                    value={editDesc}
+                    onChange={(e) => setEditDesc(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') commitEdit(entry.id); if (e.key === 'Escape') setEditingEntryId(null) }}
+                    className="w-full bg-transparent font-bold text-ink outline-none border-b border-ink/40 focus:border-ink"
+                    autoFocus
+                  />
+                ) : (
+                  <p className="font-bold text-ink">{entry.description}</p>
+                )}
                 <p className="ui-ledger-meta">{entry.direction === 'in' ? 'Incoming' : 'Outgoing'} movement</p>
               </td>
               <td className="ui-ledger-cell">
@@ -400,13 +444,51 @@ function TransactionLedgerTable({
               </td>
               <td className="ui-ledger-cell text-ink/65">{entry.referenceNumber ?? entry.orderId ?? '-'}</td>
               <td className="ui-ledger-cell">
-                {onSettle && entry.status === 'pending' ? (
-                  <AppButton variant="ghost" className="px-3 py-2 text-xs" onClick={() => onSettle(entry.id)}>
-                    Mark settled
-                  </AppButton>
-                ) : (
-                  <span className="text-ink/45">-</span>
-                )}
+                <div className="flex flex-col gap-1">
+                  {onSettle && entry.status === 'pending' ? (
+                    <AppButton variant="ghost" className="px-3 py-2 text-xs" onClick={() => onSettle(entry.id)}>
+                      Mark settled
+                    </AppButton>
+                  ) : null}
+                  {onEdit && entry.transactionRole === 'manual' ? (
+                    editingEntryId === entry.id ? (
+                      <div className="space-y-1">
+                        <input
+                          value={editAmount}
+                          onChange={(e) => setEditAmount(e.target.value)}
+                          onKeyDown={(e) => { if (e.key === 'Enter') commitEdit(entry.id); if (e.key === 'Escape') setEditingEntryId(null) }}
+                          className="w-full bg-transparent text-xs font-bold text-ink outline-none border-b border-ink/40 focus:border-ink"
+                          placeholder="Amount"
+                        />
+                        <div className="flex gap-1">
+                          <AppButton variant="secondary" className="px-2 py-1 text-xs" onClick={() => commitEdit(entry.id)}>Save</AppButton>
+                          <AppButton variant="ghost" className="px-2 py-1 text-xs" onClick={() => setEditingEntryId(null)}>Cancel</AppButton>
+                        </div>
+                      </div>
+                    ) : (
+                      <AppButton variant="ghost" className="px-3 py-2 text-xs" onClick={() => beginEdit(entry)}>
+                        Edit
+                      </AppButton>
+                    )
+                  ) : null}
+                  {onDelete && entry.transactionRole === 'manual' ? (
+                    deleteConfirmId === entry.id ? (
+                      <div className="flex gap-1">
+                        <AppButton variant="secondary" className="px-2 py-1 text-xs" onClick={() => { onDelete(entry.id); setDeleteConfirmId(null) }}>
+                          Yes
+                        </AppButton>
+                        <AppButton variant="ghost" className="px-2 py-1 text-xs" onClick={() => setDeleteConfirmId(null)}>
+                          No
+                        </AppButton>
+                      </div>
+                    ) : (
+                      <AppButton variant="ghost" className="px-3 py-2 text-xs" onClick={() => setDeleteConfirmId(entry.id)}>
+                        Delete
+                      </AppButton>
+                    )
+                  ) : null}
+                  {!onSettle && !(onEdit && entry.transactionRole === 'manual') && !(onDelete && entry.transactionRole === 'manual') ? <span className="text-ink/45">-</span> : null}
+                </div>
               </td>
             </tr>
             )

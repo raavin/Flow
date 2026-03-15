@@ -50,6 +50,7 @@ export async function inviteParticipant(input: {
 
 export async function updateParticipant(input: {
   participantId: string
+  name?: string
   role?: 'owner' | 'collaborator' | 'helper' | 'guest' | 'provider' | 'viewer'
   status?: 'invited' | 'active' | 'declined'
   availabilityStatus?: string
@@ -57,6 +58,7 @@ export async function updateParticipant(input: {
 }) {
   if (!supabase) throw new Error('Supabase is not configured.')
   const payload: Record<string, unknown> = {}
+  if (input.name !== undefined) payload.name = input.name.trim() || 'Unknown'
   if (input.role) payload.role = input.role
   if (input.status) payload.status = input.status
   if (input.availabilityStatus) payload.availability_status = input.availabilityStatus

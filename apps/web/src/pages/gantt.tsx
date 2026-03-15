@@ -1,18 +1,22 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createRoute } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { X } from 'lucide-react'
+import { Pencil, Trash2, X } from 'lucide-react'
 import { AppButton, AppCard, AppInput, AppPanel, AppSelect, SectionHeading } from '@superapp/ui'
 import { appRoute } from '@/components/layout'
 import { fetchCoordinationObjects, updateCoordinationObjectSchedule } from '@/lib/coordination-objects'
 import {
   createMilestone,
   createTask,
+  deleteMilestone,
+  deleteTask,
   fetchProjectDetail,
   fetchProjects,
   moveTaskDueDate,
   resizeMilestoneBoundary,
   shiftMilestone,
+  updateMilestone,
+  updateTask,
 } from '@/lib/projects'
 
 type GanttItem = {
@@ -75,6 +79,10 @@ export function GanttPage({ linkedProjectId }: { linkedProjectId?: string | null
   const [addModal, setAddModal] = useState<null | 'milestone' | 'task'>(null)
   const scrollRef = useRef<HTMLDivElement | null>(null)
   const [localOverrides, setLocalOverrides] = useState<Record<string, { startsOn: string; endsOn: string }>>({})
+  const [editingItemId, setEditingItemId] = useState<string | null>(null)
+  const [editItemValue, setEditItemValue] = useState('')
+  const [deleteConfirmItemId, setDeleteConfirmItemId] = useState<string | null>(null)
+  const labelEditRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (linkedProjectId) {
@@ -265,6 +273,41 @@ export function GanttPage({ linkedProjectId }: { linkedProjectId?: string | null
       invalidateTimeline()
     },
   })
+
+  const updateItemMutation = useMutation({
+    mutationFn: ({ item, title }: { item: GanttItem; title: string }) =>
+      item.source === 'milestone' ? updateMilestone(item.id, { title }) : updateTask(item.id, { title }),
+    onSuccess: invalidateTimeline,
+  })
+
+  const deleteItemMutation = useMutation({
+    mutationFn: (item: GanttItem) =>
+      item.source === 'milestone' ? deleteMilestone(item.id) : deleteTask(item.id),
+    onSuccess: () => {
+      setDeleteConfirmItemId(null)
+      invalidateTimeline()
+    },
+  })
+
+  function beginLabelEdit(item: GanttItem) {
+    if (item.source === 'coordination') return
+    setEditingItemId(item.id)
+    setEditItemValue(item.title)
+    setTimeout(() => labelEditRef.current?.select(), 0)
+  }
+
+  function commitLabelEdit(item: GanttItem) {
+    if (!editItemValue.trim()) { cancelLabelEdit(); return }
+    if (editItemValue.trim() !== item.title) {
+      updateItemMutation.mutate({ item, title: editItemValue.trim() })
+    }
+    cancelLabelEdit()
+  }
+
+  function cancelLabelEdit() {
+    setEditingItemId(null)
+    setEditItemValue('')
+  }
 
   // Keep a ref to items so the pointerup closure always sees the current list
   const itemsRef = useRef(items)
@@ -481,7 +524,7 @@ export function GanttPage({ linkedProjectId }: { linkedProjectId?: string | null
                 return (
                   <div
                     key={item.id}
-                    className="flex"
+                    className="group flex"
                     style={{
                       height: ROW_HEIGHT,
                       borderBottom: '1px solid #f0f0f0',
@@ -490,15 +533,65 @@ export function GanttPage({ linkedProjectId }: { linkedProjectId?: string | null
                   >
                     {/* Sticky label */}
                     <div
-                      className="sticky left-0 z-10 flex shrink-0 flex-col justify-center pl-4 pr-3"
+                      className="sticky left-0 z-10 flex shrink-0 items-center pl-4 pr-2"
                       style={{
                         width: LABEL_WIDTH,
                         borderRight: '1px solid #e5e7eb',
                         backgroundColor: index % 2 === 1 ? '#fafafa' : '#fff',
                       }}
                     >
-                      <p className="truncate text-sm font-extrabold text-ink">{item.title}</p>
-                      <p className="truncate text-[10px] font-bold uppercase tracking-[0.16em] text-ink/40">{item.lane}</p>
+                      <div className="min-w-0 flex-1">
+                        {editingItemId === item.id ? (
+                          <input
+                            ref={labelEditRef}
+                            value={editItemValue}
+                            onChange={(e) => setEditItemValue(e.target.value)}
+                            onBlur={() => commitLabelEdit(item)}
+                            onKeyDown={(e) => { if (e.key === 'Enter') commitLabelEdit(item); if (e.key === 'Escape') cancelLabelEdit() }}
+                            className="w-full bg-transparent text-sm font-extrabold text-ink outline-none border-b border-ink/40 focus:border-ink"
+                          />
+                        ) : (
+                          <p
+                            className="truncate text-sm font-extrabold text-ink cursor-text group/label flex items-center gap-1"
+                            onDoubleClick={() => beginLabelEdit(item)}
+                            title={item.source !== 'coordination' ? 'Double-click to edit' : undefined}
+                          >
+                            <span className="truncate">{item.title}</span>
+                            {item.source !== 'coordination' ? (
+                              <Pencil className="h-2.5 w-2.5 shrink-0 text-ink/30 opacity-0 group-hover/label:opacity-100 transition-opacity" />
+                            ) : null}
+                          </p>
+                        )}
+                        <p className="truncate text-[10px] font-bold uppercase tracking-[0.16em] text-ink/40">{item.lane}</p>
+                      </div>
+                      {item.source !== 'coordination' ? (
+                        <div className="ml-1 shrink-0">
+                          {deleteConfirmItemId === item.id ? (
+                            <span className="flex items-center gap-1">
+                              <button
+                                type="button"
+                                className="text-[10px] font-bold text-berry hover:underline"
+                                onClick={() => deleteItemMutation.mutate(item)}
+                                disabled={deleteItemMutation.isPending}
+                              >Yes</button>
+                              <button
+                                type="button"
+                                className="text-[10px] text-ink/50 hover:underline"
+                                onClick={() => setDeleteConfirmItemId(null)}
+                              >No</button>
+                            </span>
+                          ) : (
+                            <button
+                              type="button"
+                              className="opacity-0 group-hover:opacity-100 hover:opacity-100 transition-opacity p-0.5 text-ink/30 hover:text-berry"
+                              onClick={() => setDeleteConfirmItemId(item.id)}
+                              aria-label={`Delete ${item.title}`}
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </button>
+                          )}
+                        </div>
+                      ) : null}
                     </div>
 
                     {/* Track area */}

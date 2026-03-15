@@ -10,6 +10,7 @@ import {
   createMarketplaceListing,
   deleteListingImage,
   duplicateListing,
+  deleteMarketplaceListing,
   fetchBusinessListings,
   fetchListingDetail,
   fetchListingImages,
@@ -758,6 +759,7 @@ function ListingsManagementPage() {
   })
   const projectsQuery = useQuery({ queryKey: ['projects'], queryFn: fetchProjects, enabled: Boolean(ownerId) })
   const [editingId, setEditingId] = useState<string | null>(null)
+  const [deleteConfirmListingId, setDeleteConfirmListingId] = useState<string | null>(null)
   const [kind, setKind] = useState<'template' | 'service' | 'product'>('service')
   const [newCategory, setNewCategory] = useState('')
   const [newTitle, setNewTitle] = useState('')
@@ -816,6 +818,14 @@ function ListingsManagementPage() {
   const duplicateMutation = useMutation({
     mutationFn: (listingId: string) => duplicateListing(listingId),
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['business-listings', ownerId] }),
+  })
+
+  const deleteListingMutation = useMutation({
+    mutationFn: (listingId: string) => deleteMarketplaceListing(listingId),
+    onSuccess: () => {
+      setDeleteConfirmListingId(null)
+      void queryClient.invalidateQueries({ queryKey: ['business-listings', ownerId] })
+    },
   })
 
   async function handleUploadImages(listingId: string) {
@@ -956,6 +966,17 @@ function ListingsManagementPage() {
               <Link to="/app/marketplace/listings/$listingId" params={{ listingId: listing.id }}>
                 <AppButton variant="ghost">View</AppButton>
               </Link>
+              {deleteConfirmListingId === listing.id ? (
+                <>
+                  <span className="self-center text-xs font-bold text-berry">Delete listing?</span>
+                  <AppButton variant="secondary" onClick={() => deleteListingMutation.mutate(listing.id)} disabled={deleteListingMutation.isPending}>
+                    Yes, delete
+                  </AppButton>
+                  <AppButton variant="ghost" onClick={() => setDeleteConfirmListingId(null)}>Cancel</AppButton>
+                </>
+              ) : (
+                <AppButton variant="ghost" onClick={() => setDeleteConfirmListingId(listing.id)}>Delete</AppButton>
+              )}
             </div>
           </AppCard>
         ))}

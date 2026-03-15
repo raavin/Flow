@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { createRoute, useNavigate } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { AppButton, AppCard, AppInput, AppPanel, AppTextarea, SectionHeading } from '@superapp/ui'
+import { Pencil } from 'lucide-react'
+import { AppButton, AppCard, AppInput, AppPanel, AppSelect, AppTextarea, SectionHeading } from '@superapp/ui'
 import { appRoute } from '@/components/layout'
 import { ProjectShell } from '@/components/project-shell'
 import { useAppStore } from '@/hooks/useAppStore'
@@ -14,7 +15,9 @@ import {
   deleteProject,
   fetchProjectNotes,
   fetchProjects,
+  updateProject,
   updateProjectNote,
+  deleteProjectNote,
 } from '@/lib/projects'
 import { fetchPeopleDirectory } from '@/lib/social'
 import { fetchParticipants, inviteParticipant, removeParticipant, updateParticipant } from '@/lib/participants'
@@ -27,6 +30,44 @@ function ProjectsPage() {
   const [title, setTitle] = useState('')
   const [lastProject, setLastProject] = useState<{ projectId: string; activeTab: string } | null>(null)
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
+  const [editingProjectId, setEditingProjectId] = useState<string | null>(null)
+  const [editingProjectField, setEditingProjectField] = useState<'title' | 'category' | null>(null)
+  const [editProjectValue, setEditProjectValue] = useState('')
+  const projectEditRef = useRef<HTMLInputElement>(null)
+
+  const updateProjectMutation = useMutation({
+    mutationFn: ({ projectId, input }: { projectId: string; input: Parameters<typeof updateProject>[1] }) =>
+      updateProject(projectId, input),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['projects'] }),
+  })
+
+  const statusMutation = useMutation({
+    mutationFn: ({ projectId, status }: { projectId: string; status: NonNullable<Parameters<typeof updateProject>[1]['status']> }) =>
+      updateProject(projectId, { status }),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['projects'] }),
+  })
+
+  function beginProjectEdit(projectId: string, field: 'title' | 'category', currentValue: string) {
+    setEditingProjectId(projectId)
+    setEditingProjectField(field)
+    setEditProjectValue(currentValue)
+    setTimeout(() => projectEditRef.current?.select(), 0)
+  }
+
+  function commitProjectEdit(projectId: string) {
+    if (!editProjectValue.trim()) { cancelProjectEdit(); return }
+    const input = editingProjectField === 'title'
+      ? { title: editProjectValue }
+      : { category: editProjectValue }
+    updateProjectMutation.mutate({ projectId, input })
+    cancelProjectEdit()
+  }
+
+  function cancelProjectEdit() {
+    setEditingProjectId(null)
+    setEditingProjectField(null)
+    setEditProjectValue('')
+  }
 
   const deleteMutation = useMutation({
     mutationFn: (projectId: string) => deleteProject(projectId),
@@ -122,20 +163,75 @@ function ProjectsPage() {
                   </AppButton>
                 </div>
               ) : (
-                <div className="flex items-center justify-between gap-3">
-                  <button
-                    type="button"
-                    className="min-w-0 flex-1 text-left transition hover:-translate-y-0.5"
-                    onClick={() => void navigate({ to: '/app/projects/$projectId/conversation', params: { projectId: project.id } })}
-                  >
-                    <p className="text-lg font-extrabold text-ink">{project.title}</p>
-                    <p className="text-sm text-ink/65">{project.category || 'General'}</p>
-                  </button>
-                  <div className="flex items-center gap-2">
-                    <span className="ui-pill ui-pill--butter py-1">{project.targetDate ?? 'Someday'}</span>
-                    <AppButton variant="ghost" className="text-xs" onClick={() => setDeleteConfirmId(project.id)}>
-                      Delete
-                    </AppButton>
+                <div className="space-y-2">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      {/* Title */}
+                      {editingProjectId === project.id && editingProjectField === 'title' ? (
+                        <input
+                          ref={projectEditRef}
+                          value={editProjectValue}
+                          onChange={(e) => setEditProjectValue(e.target.value)}
+                          onBlur={() => commitProjectEdit(project.id)}
+                          onKeyDown={(e) => { if (e.key === 'Enter') commitProjectEdit(project.id); if (e.key === 'Escape') cancelProjectEdit() }}
+                          className="w-full bg-transparent text-lg font-extrabold text-ink outline-none border-b-2 border-ink/40 focus:border-ink"
+                        />
+                      ) : (
+                        <p
+                          className="text-lg font-extrabold text-ink cursor-text group/title flex items-center gap-1.5"
+                          onDoubleClick={() => beginProjectEdit(project.id, 'title', project.title)}
+                          title="Double-click to rename"
+                        >
+                          <button
+                            type="button"
+                            className="truncate text-left hover:text-teal transition-colors"
+                            onClick={() => void navigate({ to: '/app/projects/$projectId/conversation', params: { projectId: project.id } })}
+                          >
+                            {project.title}
+                          </button>
+                          <Pencil className="h-3 w-3 shrink-0 text-ink/30 opacity-0 group-hover/title:opacity-100 transition-opacity" />
+                        </p>
+                      )}
+                      {/* Category */}
+                      {editingProjectId === project.id && editingProjectField === 'category' ? (
+                        <input
+                          ref={editingProjectField === 'category' ? projectEditRef : undefined}
+                          value={editProjectValue}
+                          onChange={(e) => setEditProjectValue(e.target.value)}
+                          onBlur={() => commitProjectEdit(project.id)}
+                          onKeyDown={(e) => { if (e.key === 'Enter') commitProjectEdit(project.id); if (e.key === 'Escape') cancelProjectEdit() }}
+                          className="bg-transparent text-sm text-ink outline-none border-b border-ink/30 focus:border-ink"
+                        />
+                      ) : (
+                        <p
+                          className="mt-0.5 text-sm text-ink/65 cursor-text group/cat flex items-center gap-1"
+                          onDoubleClick={() => beginProjectEdit(project.id, 'category', project.category || 'General')}
+                          title="Double-click to edit category"
+                        >
+                          <span>{project.category || 'General'}</span>
+                          <Pencil className="h-2.5 w-2.5 shrink-0 text-ink/30 opacity-0 group-hover/cat:opacity-100 transition-opacity" />
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <span className="ui-pill ui-pill--butter py-1">{project.targetDate ?? 'Someday'}</span>
+                      <AppButton variant="ghost" className="text-xs" onClick={() => setDeleteConfirmId(project.id)}>
+                        Delete
+                      </AppButton>
+                    </div>
+                  </div>
+                  {/* Status pills */}
+                  <div className="flex flex-wrap gap-1.5">
+                    {(['active', 'upcoming', 'completed'] as const).map((s) => (
+                      <button
+                        key={s}
+                        type="button"
+                        onClick={() => statusMutation.mutate({ projectId: project.id, status: s })}
+                        className={`rounded-full px-2.5 py-1 text-[11px] font-bold transition-colors ${project.status === s ? 'bg-ink text-white' : 'bg-ink/8 text-ink/55 hover:bg-ink/15'}`}
+                      >
+                        {s}
+                      </button>
+                    ))}
                   </div>
                 </div>
               )}
@@ -186,6 +282,7 @@ function ProjectNotesPage() {
   const [title, setTitle] = useState('')
   const [body, setBody] = useState('')
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null)
+  const [deleteConfirmNoteId, setDeleteConfirmNoteId] = useState<string | null>(null)
 
   const saveMutation = useMutation({
     mutationFn: () =>
@@ -203,6 +300,19 @@ function ProjectNotesPage() {
       setEditingNoteId(null)
       void queryClient.invalidateQueries({ queryKey: ['project-notes', projectId] })
       void queryClient.invalidateQueries({ queryKey: ['project-activity', projectId] })
+    },
+  })
+
+  const deleteNoteMutation = useMutation({
+    mutationFn: (noteId: string) => deleteProjectNote(noteId),
+    onSuccess: () => {
+      setDeleteConfirmNoteId(null)
+      if (editingNoteId === deleteNoteMutation.variables) {
+        setEditingNoteId(null)
+        setTitle('')
+        setBody('')
+      }
+      void queryClient.invalidateQueries({ queryKey: ['project-notes', projectId] })
     },
   })
 
@@ -236,20 +346,34 @@ function ProjectNotesPage() {
           <SectionHeading eyebrow="Notes" title="Project memory" />
           <div className="grid gap-3">
             {(notesQuery.data ?? []).map((note) => (
-              <button
-                key={note.id}
-                type="button"
-                className="ui-panel text-left transition hover:-translate-y-0.5"
-                onClick={() => {
-                  setEditingNoteId(note.id)
-                  setTitle(note.title)
-                  setBody(note.body)
-                }}
-              >
-                <p className="font-extrabold text-ink">{note.title}</p>
-                <p className="mt-2 line-clamp-4 whitespace-pre-wrap text-sm text-ink/70">{note.body}</p>
-                <p className="mt-2 text-xs font-bold text-ink/45">Updated {note.updated_at.slice(0, 16).replace('T', ' ')}</p>
-              </button>
+              <div key={note.id} className="ui-panel">
+                <button
+                  type="button"
+                  className="w-full text-left transition hover:-translate-y-0.5"
+                  onClick={() => {
+                    setEditingNoteId(note.id)
+                    setTitle(note.title)
+                    setBody(note.body)
+                  }}
+                >
+                  <p className="font-extrabold text-ink">{note.title}</p>
+                  <p className="mt-2 line-clamp-4 whitespace-pre-wrap text-sm text-ink/70">{note.body}</p>
+                  <p className="mt-2 text-xs font-bold text-ink/45">Updated {note.updated_at.slice(0, 16).replace('T', ' ')}</p>
+                </button>
+                <div className="mt-3 flex gap-2">
+                  {deleteConfirmNoteId === note.id ? (
+                    <>
+                      <span className="text-xs font-bold text-berry self-center">Delete this note?</span>
+                      <AppButton variant="secondary" onClick={() => deleteNoteMutation.mutate(note.id)} disabled={deleteNoteMutation.isPending}>
+                        Yes, delete
+                      </AppButton>
+                      <AppButton variant="ghost" onClick={() => setDeleteConfirmNoteId(null)}>Cancel</AppButton>
+                    </>
+                  ) : (
+                    <AppButton variant="ghost" onClick={() => setDeleteConfirmNoteId(note.id)}>Delete</AppButton>
+                  )}
+                </div>
+              </div>
             ))}
             {!notesQuery.data?.length ? <AppPanel className="text-sm text-ink/60">No notes yet. Capture decisions, reminders, or background here.</AppPanel> : null}
           </div>

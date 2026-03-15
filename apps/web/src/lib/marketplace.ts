@@ -248,6 +248,12 @@ export async function updateListing(input: {
   }
 }
 
+export async function deleteMarketplaceListing(listingId: string) {
+  if (!supabase) throw new Error('Supabase is not configured.')
+  const { error } = await supabase.from('marketplace_listings').delete().eq('id', listingId)
+  if (error) throw error
+}
+
 export async function duplicateListing(listingId: string) {
   if (!supabase) throw new Error('Supabase is not configured.')
   const detail = await fetchListingDetail(listingId)

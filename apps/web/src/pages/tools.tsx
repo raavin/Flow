@@ -6,6 +6,7 @@ import { appRoute } from '@/components/layout'
 import { useAppStore } from '@/hooks/useAppStore'
 import { addToCart, fetchCartCount, fetchCartItems, placeOrderFromCart, removeCartItem, summarizeCart, updateCartItem } from '@/lib/cart'
 import { formatCurrency, supportsCartQuantity } from '@/lib/commerce'
+import { fetchConnectedIntegrations } from '@/lib/integrations'
 import { fetchMarketplaceListings } from '@/lib/marketplace'
 import { fetchProjects } from '@/lib/projects'
 import { universalSearch } from '@/lib/search'
@@ -96,6 +97,17 @@ function CartReviewPage() {
   const queryClient = useQueryClient()
   const cartQuery = useQuery({ queryKey: ['cart'], queryFn: () => fetchCartItems({ status: 'draft' }) })
   const projectsQuery = useQuery({ queryKey: ['projects'], queryFn: fetchProjects })
+  const integrationsQuery = useQuery({
+    queryKey: ['connected-integrations'],
+    queryFn: fetchConnectedIntegrations,
+    enabled: Boolean(session),
+  })
+
+  // Whether the seller has Stripe connected is checked server-side by create-payment-intent.
+  // The SPA can't query the seller's connected_integrations (RLS). Placeholder for Stripe.js wiring.
+  void integrationsQuery
+  const sellerHasStripe = false
+
   const checkoutMutation = useMutation({
     mutationFn: () => placeOrderFromCart({ cartItemIds: (cartQuery.data ?? []).map((item) => item.id) }),
     onSuccess: () => {
@@ -234,7 +246,7 @@ function CartReviewPage() {
       </AppCard>
 
       <AppCard className="space-y-4">
-        <SectionHeading eyebrow="Checkout" title="Mock payment confirmation" />
+        <SectionHeading eyebrow="Checkout" title={sellerHasStripe ? 'Payment' : 'Mock payment confirmation'} />
         <AppPanel tone="butter">
           <div className="flex items-center justify-between gap-3">
             <p className="text-xs font-bold uppercase text-ink/50">Subtotal</p>
@@ -250,7 +262,9 @@ function CartReviewPage() {
           </div>
         </AppPanel>
         <p className="text-sm text-ink/70">
-          Checkout is mocked for now, but it follows the real pattern: cart draft to placed order, then buyer transaction and seller financial entry.
+          {sellerHasStripe
+            ? 'Stripe is connected — payment will be confirmed with Stripe before the order is placed.'
+            : 'Checkout is mocked for now, but it follows the real pattern: cart draft to placed order, then buyer transaction and seller financial entry.'}
         </p>
         <AppButton disabled={!session || !(cartQuery.data ?? []).length || checkoutMutation.isPending} onClick={() => checkoutMutation.mutate()}>
           {checkoutMutation.isPending ? 'Placing order...' : 'Place order'}

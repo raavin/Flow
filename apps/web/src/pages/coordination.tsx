@@ -1,7 +1,8 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { Link, createRoute, useNavigate } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import type { CoordinationDisplayKind, CoordinationMessage, CoordinationObject, CoordinationObjectIntent, CoordinationObjectKind, CoordinationObjectState, CoordinationTemplateBlock } from '@superapp/types'
+import type { CoordinationDisplayKind, CoordinationMessage, CoordinationObject, CoordinationObjectIntent, CoordinationObjectKind, CoordinationObjectState, CoordinationTemplate, CoordinationTemplateBlock } from '@superapp/types'
+import { Pencil, Trash2 } from 'lucide-react'
 import { AppButton, AppCard, AppInput, AppPanel, AppPill, AppSelect, AppTextarea, FieldLabel, SectionHeading } from '@superapp/ui'
 import { appRoute } from '@/components/layout'
 import { useAppStore } from '@/hooks/useAppStore'
@@ -10,6 +11,8 @@ import {
   createCoordinationMessage,
   createCoordinationTemplate,
   createManualCoordinationObject,
+  deleteCoordinationObject,
+  deleteCoordinationTemplate,
   fetchCoordinationMessages,
   fetchCoordinationObjectById,
   fetchCoordinationObjects,
@@ -17,7 +20,9 @@ import {
   instantiateCoordinationTemplate,
   seedStarterCoordinationTemplates,
   updateCoordinationObjectState,
+  updateCoordinationObjectTitle,
   updateCoordinationObjectProjectLink,
+  updateCoordinationTemplate,
 } from '@/lib/coordination-objects'
 import { createProject, fetchProjects } from '@/lib/projects'
 import { fetchPeopleDirectory, fetchPostSummary } from '@/lib/social'
@@ -181,6 +186,26 @@ function CoordinationPage() {
     },
   })
 
+  const updateTitleMutation = useMutation({
+    mutationFn: ({ id, title }: { id: string; title: string }) => updateCoordinationObjectTitle(id, title),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['coordination-objects'] }),
+  })
+
+  const deleteObjectMutation = useMutation({
+    mutationFn: (id: string) => deleteCoordinationObject(id),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['coordination-objects'] }),
+  })
+
+  const updateTemplateTitleMutation = useMutation({
+    mutationFn: ({ id, title }: { id: string; title: string }) => updateCoordinationTemplate(id, title),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['coordination-templates'] }),
+  })
+
+  const deleteTemplateMutation = useMutation({
+    mutationFn: (id: string) => deleteCoordinationTemplate(id),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['coordination-templates'] }),
+  })
+
   const buckets = useMemo(() => groupCoordinationObjects(coordinationQuery.data ?? []), [coordinationQuery.data])
 
   return (
@@ -291,6 +316,8 @@ function CoordinationPage() {
             description="Active, happening today, or ready to move."
             items={buckets.now}
             onStateChange={(id, state) => stateMutation.mutate({ id, state })}
+            onTitleChange={(id, title) => updateTitleMutation.mutate({ id, title })}
+            onDelete={(id) => deleteObjectMutation.mutate(id)}
           />
           <BoardSection
             title="Next"
@@ -298,6 +325,8 @@ function CoordinationPage() {
             description="Scheduled next without needing full project ceremony."
             items={buckets.next}
             onStateChange={(id, state) => stateMutation.mutate({ id, state })}
+            onTitleChange={(id, title) => updateTitleMutation.mutate({ id, title })}
+            onDelete={(id) => deleteObjectMutation.mutate(id)}
           />
           <BoardSection
             title="Backlog"
@@ -305,6 +334,8 @@ function CoordinationPage() {
             description="Floating, draft, and support clips waiting for a clearer slot."
             items={buckets.backlog}
             onStateChange={(id, state) => stateMutation.mutate({ id, state })}
+            onTitleChange={(id, title) => updateTitleMutation.mutate({ id, title })}
+            onDelete={(id) => deleteObjectMutation.mutate(id)}
           />
           <BoardSection
             title="Done"
@@ -312,6 +343,8 @@ function CoordinationPage() {
             description="Finished flows and moments."
             items={buckets.done}
             onStateChange={(id, state) => stateMutation.mutate({ id, state })}
+            onTitleChange={(id, title) => updateTitleMutation.mutate({ id, title })}
+            onDelete={(id) => deleteObjectMutation.mutate(id)}
           />
         </div>
 
@@ -327,29 +360,16 @@ function CoordinationPage() {
             </FieldLabel>
             <div className="space-y-3">
               {(templatesQuery.data ?? []).map((template) => (
-                <AppPanel key={template.id} className="space-y-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="font-extrabold text-ink">{template.title}</p>
-                      <p className="mt-1 text-sm text-ink/65">{template.summary || 'No summary yet.'}</p>
-                    </div>
-                    <AppPill tone="teal">{template.blocks.length} blocks</AppPill>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {template.blocks.slice(0, 4).map((block, index) => (
-                      <AppPill key={`${template.id}-${index}`} tone="butter">
-                        {block.title}
-                      </AppPill>
-                    ))}
-                  </div>
-                  <AppButton
-                    variant="secondary"
-                    disabled={!session || applyTemplateMutation.isPending}
-                    onClick={() => applyTemplateMutation.mutate(template.id)}
-                  >
-                    Apply to timeline
-                  </AppButton>
-                </AppPanel>
+                <TemplatePanel
+                  key={template.id}
+                  template={template}
+                  anchorDate={templateAnchorDate}
+                  isApplying={applyTemplateMutation.isPending}
+                  onApply={() => applyTemplateMutation.mutate(template.id)}
+                  onRename={(title) => updateTemplateTitleMutation.mutate({ id: template.id, title })}
+                  onDelete={() => deleteTemplateMutation.mutate(template.id)}
+                  isDeleting={deleteTemplateMutation.isPending}
+                />
               ))}
               {!templatesQuery.data?.length ? (
                 <AppPanel className="space-y-3">
@@ -411,13 +431,39 @@ function BoardSection({
   description,
   items,
   onStateChange,
+  onTitleChange,
+  onDelete,
 }: {
   title: string
   eyebrow: string
   description: string
   items: CoordinationObject[]
   onStateChange: (id: string, state: CoordinationObjectState) => void
+  onTitleChange: (id: string, title: string) => void
+  onDelete: (id: string) => void
 }) {
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editValue, setEditValue] = useState('')
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
+  const editRef = useRef<HTMLInputElement>(null)
+
+  function beginEdit(id: string, currentTitle: string) {
+    setEditingId(id)
+    setEditValue(currentTitle)
+    setTimeout(() => editRef.current?.select(), 0)
+  }
+
+  function commitEdit(id: string) {
+    if (editValue.trim()) onTitleChange(id, editValue.trim())
+    setEditingId(null)
+    setEditValue('')
+  }
+
+  function cancelEdit() {
+    setEditingId(null)
+    setEditValue('')
+  }
+
   return (
     <AppCard className="space-y-4">
       <SectionHeading eyebrow={eyebrow} title={title} />
@@ -426,13 +472,31 @@ function BoardSection({
         {items.map((item) => (
           <AppPanel key={item.id} className="space-y-3">
             <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
+              <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap gap-2">
                   <AppPill tone="butter">{item.displayKind}</AppPill>
                   <AppPill tone="teal">{item.intent}</AppPill>
                   <AppPill>{item.state}</AppPill>
                 </div>
-                <p className="mt-3 text-lg font-extrabold text-ink">{item.title}</p>
+                {editingId === item.id ? (
+                  <input
+                    ref={editRef}
+                    value={editValue}
+                    onChange={(e) => setEditValue(e.target.value)}
+                    onBlur={() => commitEdit(item.id)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') commitEdit(item.id); if (e.key === 'Escape') cancelEdit() }}
+                    className="mt-3 w-full bg-transparent text-lg font-extrabold text-ink outline-none border-b-2 border-ink/40 focus:border-ink"
+                  />
+                ) : (
+                  <p
+                    className="mt-3 text-lg font-extrabold text-ink cursor-text group/title flex items-center gap-1.5"
+                    onDoubleClick={() => beginEdit(item.id, item.title)}
+                    title="Double-click to rename"
+                  >
+                    <span className="truncate">{item.title}</span>
+                    <Pencil className="h-3 w-3 shrink-0 text-ink/30 opacity-0 group-hover/title:opacity-100 transition-opacity" />
+                  </p>
+                )}
                 {item.summary ? <p className="mt-1 text-sm text-ink/70">{item.summary}</p> : null}
               </div>
               <div className="flex flex-wrap gap-2">
@@ -454,6 +518,22 @@ function BoardSection({
                     Archive
                   </AppButton>
                 ) : null}
+                {deleteConfirmId === item.id ? (
+                  <>
+                    <span className="flex items-center text-xs font-bold text-berry">Delete?</span>
+                    <AppButton variant="secondary" onClick={() => { onDelete(item.id); setDeleteConfirmId(null) }}>Yes</AppButton>
+                    <AppButton variant="ghost" onClick={() => setDeleteConfirmId(null)}>No</AppButton>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setDeleteConfirmId(item.id)}
+                    className="p-1.5 text-ink/30 hover:text-berry transition-colors"
+                    aria-label="Delete"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                )}
               </div>
             </div>
             <div className="flex flex-wrap gap-2 text-xs text-ink/60">
@@ -470,6 +550,97 @@ function BoardSection({
         {!items.length ? <AppPanel className="text-sm text-ink/60">Nothing in this lane yet.</AppPanel> : null}
       </div>
     </AppCard>
+  )
+}
+
+function TemplatePanel({
+  template,
+  isApplying,
+  onApply,
+  onRename,
+  onDelete,
+  isDeleting,
+}: {
+  template: CoordinationTemplate
+  anchorDate: string
+  isApplying: boolean
+  onApply: () => void
+  onRename: (title: string) => void
+  onDelete: () => void
+  isDeleting: boolean
+}) {
+  const [editing, setEditing] = useState(false)
+  const [editValue, setEditValue] = useState('')
+  const [deleteConfirm, setDeleteConfirm] = useState(false)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  function beginEdit() {
+    setEditing(true)
+    setEditValue(template.title)
+    setTimeout(() => inputRef.current?.select(), 0)
+  }
+
+  function commitEdit() {
+    if (editValue.trim()) onRename(editValue.trim())
+    setEditing(false)
+  }
+
+  return (
+    <AppPanel className="space-y-3">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          {editing ? (
+            <input
+              ref={inputRef}
+              value={editValue}
+              onChange={(e) => setEditValue(e.target.value)}
+              onBlur={commitEdit}
+              onKeyDown={(e) => { if (e.key === 'Enter') commitEdit(); if (e.key === 'Escape') setEditing(false) }}
+              className="w-full bg-transparent font-extrabold text-ink outline-none border-b-2 border-ink/40 focus:border-ink"
+            />
+          ) : (
+            <p
+              className="font-extrabold text-ink cursor-text group/tmpl flex items-center gap-1.5"
+              onDoubleClick={beginEdit}
+              title="Double-click to rename"
+            >
+              <span>{template.title}</span>
+              <Pencil className="h-2.5 w-2.5 shrink-0 text-ink/30 opacity-0 group-hover/tmpl:opacity-100 transition-opacity" />
+            </p>
+          )}
+          <p className="mt-1 text-sm text-ink/65">{template.summary || 'No summary yet.'}</p>
+        </div>
+        <AppPill tone="teal">{template.blocks.length} blocks</AppPill>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {template.blocks.slice(0, 4).map((block, index) => (
+          <AppPill key={`${template.id}-${index}`} tone="butter">
+            {block.title}
+          </AppPill>
+        ))}
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <AppButton variant="secondary" disabled={isApplying} onClick={onApply}>
+          Apply to timeline
+        </AppButton>
+        {deleteConfirm ? (
+          <>
+            <span className="text-xs font-bold text-berry">Delete template?</span>
+            <AppButton variant="secondary" disabled={isDeleting} onClick={() => { onDelete(); setDeleteConfirm(false) }}>Yes, delete</AppButton>
+            <AppButton variant="ghost" onClick={() => setDeleteConfirm(false)}>Cancel</AppButton>
+          </>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setDeleteConfirm(true)}
+            className="p-1.5 text-ink/30 hover:text-berry transition-colors"
+            aria-label="Delete template"
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+        )}
+      </div>
+    </AppPanel>
   )
 }
 

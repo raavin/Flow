@@ -43,6 +43,26 @@ export async function createExpense(input: {
   })
 }
 
+export async function updateExpense(
+  expenseId: string,
+  input: { title?: string; category?: string; estimateCents?: number; actualCents?: number },
+) {
+  if (!supabase) throw new Error('Supabase is not configured.')
+  const payload: Record<string, unknown> = {}
+  if (input.title !== undefined) payload.title = input.title.trim()
+  if (input.category !== undefined) payload.category = input.category.trim()
+  if (input.estimateCents !== undefined) payload.estimate_cents = input.estimateCents
+  if (input.actualCents !== undefined) payload.actual_cents = input.actualCents
+  const { error } = await supabase.from('project_expenses').update(payload).eq('id', expenseId)
+  if (error) throw error
+}
+
+export async function deleteExpense(expenseId: string) {
+  if (!supabase) throw new Error('Supabase is not configured.')
+  const { error } = await supabase.from('project_expenses').delete().eq('id', expenseId)
+  if (error) throw error
+}
+
 export async function fetchStructuredUpdates(projectId: string) {
   if (!supabase) return []
   const { data, error } = await supabase
@@ -52,6 +72,12 @@ export async function fetchStructuredUpdates(projectId: string) {
     .order('created_at', { ascending: false })
   if (error) throw error
   return data ?? []
+}
+
+export async function deleteStructuredUpdate(updateId: string) {
+  if (!supabase) throw new Error('Supabase is not configured.')
+  const { error } = await supabase.from('structured_updates').delete().eq('id', updateId)
+  if (error) throw error
 }
 
 export function previewStructuredImpact(input: {

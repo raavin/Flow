@@ -1,6 +1,7 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { Link, createRoute } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Pencil } from 'lucide-react'
 import { AppButton, AppCard, AppInput, AppPanel, AppSelect, AppTextarea, SectionHeading } from '@superapp/ui'
 import { appRoute } from '@/components/layout'
 import { useAppStore } from '@/hooks/useAppStore'
@@ -8,7 +9,10 @@ import { fetchProjectDetail } from '@/lib/projects'
 import {
   computeAvailabilitySuggestion,
   createExpense,
+  updateExpense,
+  deleteExpense,
   createStructuredUpdate,
+  deleteStructuredUpdate,
   fetchExpenses,
   fetchStructuredUpdates,
   previewStructuredImpact,
@@ -113,6 +117,40 @@ function BudgetPage() {
     },
   })
 
+  // Inline edit state for expenses
+  const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null)
+  const [editingExpenseField, setEditingExpenseField] = useState<'title' | 'category' | null>(null)
+  const [editExpenseValue, setEditExpenseValue] = useState('')
+  const [deleteConfirmExpenseId, setDeleteConfirmExpenseId] = useState<string | null>(null)
+  const expenseEditRef = useRef<HTMLInputElement>(null)
+
+  const updateExpenseMutation = useMutation({
+    mutationFn: ({ id, input }: { id: string; input: Parameters<typeof updateExpense>[1] }) => updateExpense(id, input),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['expenses', projectId] }),
+  })
+
+  const deleteExpenseMutation = useMutation({
+    mutationFn: (id: string) => deleteExpense(id),
+    onSuccess: () => {
+      setDeleteConfirmExpenseId(null)
+      void queryClient.invalidateQueries({ queryKey: ['expenses', projectId] })
+    },
+  })
+
+  function beginExpenseEdit(id: string, field: 'title' | 'category', value: string) {
+    setEditingExpenseId(id)
+    setEditingExpenseField(field)
+    setEditExpenseValue(value)
+    setTimeout(() => expenseEditRef.current?.select(), 0)
+  }
+
+  function commitExpenseEdit(id: string, field: 'title' | 'category') {
+    if (!editExpenseValue.trim()) { setEditingExpenseId(null); setEditingExpenseField(null); return }
+    updateExpenseMutation.mutate({ id, input: field === 'title' ? { title: editExpenseValue } : { category: editExpenseValue } })
+    setEditingExpenseId(null)
+    setEditingExpenseField(null)
+  }
+
   const totals = useMemo(() => {
     const expenses = expensesQuery.data ?? []
     return expenses.reduce(
@@ -155,10 +193,63 @@ function BudgetPage() {
           <div className="grid gap-3">
             {(expensesQuery.data ?? []).map((expense) => (
               <AppPanel key={expense.id}>
-                <p className="font-extrabold text-ink">{expense.title}</p>
-                <p className="text-sm text-ink/65">
-                  {expense.category} · estimate ${(expense.estimate_cents / 100).toFixed(2)} · actual ${(expense.actual_cents / 100).toFixed(2)}
+                {/* Title — double-click to edit */}
+                {editingExpenseId === expense.id && editingExpenseField === 'title' ? (
+                  <input
+                    ref={expenseEditRef}
+                    value={editExpenseValue}
+                    onChange={(e) => setEditExpenseValue(e.target.value)}
+                    onBlur={() => commitExpenseEdit(expense.id, 'title')}
+                    onKeyDown={(e) => { if (e.key === 'Enter') commitExpenseEdit(expense.id, 'title'); if (e.key === 'Escape') { setEditingExpenseId(null); setEditingExpenseField(null) } }}
+                    className="w-full bg-transparent font-extrabold text-ink outline-none border-b-2 border-ink/40 focus:border-ink"
+                  />
+                ) : (
+                  <p
+                    className="font-extrabold text-ink cursor-text group/title flex items-center gap-2"
+                    onDoubleClick={() => beginExpenseEdit(expense.id, 'title', expense.title)}
+                    title="Double-click to edit title"
+                  >
+                    {expense.title}
+                    <Pencil className="h-3 w-3 text-ink/30 opacity-0 group-hover/title:opacity-100 transition-opacity" />
+                  </p>
+                )}
+                <p className="mt-0.5 text-sm text-ink/65 flex items-center gap-1">
+                  {/* Category — double-click to edit */}
+                  {editingExpenseId === expense.id && editingExpenseField === 'category' ? (
+                    <input
+                      value={editExpenseValue}
+                      onChange={(e) => setEditExpenseValue(e.target.value)}
+                      onBlur={() => commitExpenseEdit(expense.id, 'category')}
+                      onKeyDown={(e) => { if (e.key === 'Enter') commitExpenseEdit(expense.id, 'category'); if (e.key === 'Escape') { setEditingExpenseId(null); setEditingExpenseField(null) } }}
+                      className="bg-transparent text-sm font-medium text-ink outline-none border-b border-ink/40 focus:border-ink"
+                      autoFocus
+                    />
+                  ) : (
+                    <button
+                      type="button"
+                      className="hover:text-ink hover:underline decoration-dotted group/cat flex items-center gap-1"
+                      onDoubleClick={() => beginExpenseEdit(expense.id, 'category', expense.category)}
+                      title="Double-click to edit category"
+                    >
+                      {expense.category}
+                      <Pencil className="h-2.5 w-2.5 text-ink/30 opacity-0 group-hover/cat:opacity-100 transition-opacity" />
+                    </button>
+                  )}
+                  <span>· estimate ${(expense.estimate_cents / 100).toFixed(2)} · actual ${(expense.actual_cents / 100).toFixed(2)}</span>
                 </p>
+                <div className="mt-3 flex gap-2">
+                  {deleteConfirmExpenseId === expense.id ? (
+                    <>
+                      <span className="text-xs font-bold text-berry self-center">Delete expense?</span>
+                      <AppButton variant="secondary" onClick={() => deleteExpenseMutation.mutate(expense.id)} disabled={deleteExpenseMutation.isPending}>
+                        Yes, delete
+                      </AppButton>
+                      <AppButton variant="ghost" onClick={() => setDeleteConfirmExpenseId(null)}>Cancel</AppButton>
+                    </>
+                  ) : (
+                    <AppButton variant="ghost" onClick={() => setDeleteConfirmExpenseId(expense.id)}>Delete</AppButton>
+                  )}
+                </div>
               </AppPanel>
             ))}
             {!expensesQuery.data?.length ? <p className="text-sm text-ink/60">Attach purchases and manual costs here to keep your budget honest.</p> : null}
@@ -208,6 +299,15 @@ function UpdatesPage() {
     },
   })
 
+  const [deleteConfirmUpdateId, setDeleteConfirmUpdateId] = useState<string | null>(null)
+  const deleteUpdateMutation = useMutation({
+    mutationFn: (updateId: string) => deleteStructuredUpdate(updateId),
+    onSuccess: () => {
+      setDeleteConfirmUpdateId(null)
+      void queryClient.invalidateQueries({ queryKey: ['structured-updates', projectId] })
+    },
+  })
+
   return (
     <div className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
       <AppCard className="space-y-4">
@@ -248,8 +348,23 @@ function UpdatesPage() {
         <div className="grid gap-3">
           {(updatesQuery.data ?? []).map((update) => (
             <AppPanel key={update.id}>
-              <p className="font-extrabold text-ink">{update.update_type}</p>
-              <p className="text-sm text-ink/65">{update.note || 'No note provided'}</p>
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <p className="font-extrabold text-ink">{update.update_type}</p>
+                  <p className="text-sm text-ink/65">{update.note || 'No note provided'}</p>
+                </div>
+                {deleteConfirmUpdateId === update.id ? (
+                  <span className="flex shrink-0 items-center gap-1">
+                    <span className="text-xs font-bold text-berry">Delete?</span>
+                    <button type="button" className="text-xs font-bold text-berry hover:underline" onClick={() => deleteUpdateMutation.mutate(update.id)} disabled={deleteUpdateMutation.isPending}>Yes</button>
+                    <button type="button" className="text-xs text-ink/55 hover:underline" onClick={() => setDeleteConfirmUpdateId(null)}>No</button>
+                  </span>
+                ) : (
+                  <button type="button" className="shrink-0 text-xs text-ink/30 hover:text-berry transition-colors" onClick={() => setDeleteConfirmUpdateId(update.id)}>
+                    Delete
+                  </button>
+                )}
+              </div>
             </AppPanel>
           ))}
           {!updatesQuery.data?.length ? <p className="text-sm text-ink/60">Structured updates will show how live changes affect the project timeline.</p> : null}

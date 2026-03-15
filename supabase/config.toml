@@ -368,6 +368,18 @@ deno_version = 2
 # [edge_runtime.secrets]
 # secret_key = "env(SECRET_VALUE)"
 
+# Cron schedules for edge functions
+# dispatch-webhooks: every 30 seconds
+# xero-sync / myob-sync: daily at 02:00 UTC
+[functions.dispatch-webhooks]
+enabled = true
+
+[functions.xero-sync]
+enabled = true
+
+[functions.myob-sync]
+enabled = true
+
 [analytics]
 enabled = true
 port = 54327

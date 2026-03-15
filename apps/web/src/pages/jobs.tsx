@@ -1,10 +1,11 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Link, createRoute } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Pencil } from 'lucide-react'
 import { AppButton, AppCard, AppInput, AppPanel, AppSelect, SectionHeading } from '@superapp/ui'
 import { appRoute } from '@/components/layout'
 import { useAppStore } from '@/hooks/useAppStore'
-import { fetchJobs, createJob, updateJobStatus } from '@/lib/jobs'
+import { fetchJobs, createJob, updateJobStatus, updateJob, deleteJob } from '@/lib/jobs'
 import { fetchProjects } from '@/lib/projects'
 
 function JobsPage() {
@@ -33,10 +34,48 @@ function JobsPage() {
   })
   const statusMutation = useMutation({
     mutationFn: ({ jobId, nextStatus }: { jobId: string; nextStatus: typeof status }) => updateJobStatus(jobId, nextStatus),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['jobs'] }),
+  })
+
+  const updateMutation = useMutation({
+    mutationFn: ({ jobId, input }: { jobId: string; input: { title?: string; customerName?: string } }) =>
+      updateJob(jobId, input),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['jobs'] }),
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: (jobId: string) => deleteJob(jobId),
     onSuccess: () => {
+      setDeleteConfirmId(null)
       void queryClient.invalidateQueries({ queryKey: ['jobs'] })
     },
   })
+
+  // Inline edit state
+  const [editingJobId, setEditingJobId] = useState<string | null>(null)
+  const [editingField, setEditingField] = useState<'title' | 'customerName' | null>(null)
+  const [editValue, setEditValue] = useState('')
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
+  const editInputRef = useRef<HTMLInputElement>(null)
+
+  function beginEdit(jobId: string, field: 'title' | 'customerName', currentValue: string) {
+    setEditingJobId(jobId)
+    setEditingField(field)
+    setEditValue(currentValue)
+    setTimeout(() => editInputRef.current?.select(), 0)
+  }
+
+  function commitEdit(jobId: string, field: 'title' | 'customerName') {
+    if (!editValue.trim()) { cancelEdit(); return }
+    updateMutation.mutate({ jobId, input: field === 'title' ? { title: editValue } : { customerName: editValue } })
+    cancelEdit()
+  }
+
+  function cancelEdit() {
+    setEditingJobId(null)
+    setEditingField(null)
+    setEditValue('')
+  }
 
   return (
     <div className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
@@ -82,14 +121,54 @@ function JobsPage() {
         <div className="grid gap-3">
           {(jobsQuery.data ?? []).map((job) => (
             <AppPanel key={job.id}>
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <p className="text-lg font-extrabold text-ink">{job.title}</p>
-                  <p className="text-sm text-ink/65">
-                    {job.customer_name} · {job.status} · {job.payment_state}
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  {/* Title — double-click to edit */}
+                  {editingJobId === job.id && editingField === 'title' ? (
+                    <input
+                      ref={editInputRef}
+                      value={editValue}
+                      onChange={(e) => setEditValue(e.target.value)}
+                      onBlur={() => commitEdit(job.id, 'title')}
+                      onKeyDown={(e) => { if (e.key === 'Enter') commitEdit(job.id, 'title'); if (e.key === 'Escape') cancelEdit() }}
+                      className="w-full bg-transparent text-lg font-extrabold text-ink outline-none border-b-2 border-ink/40 focus:border-ink"
+                    />
+                  ) : (
+                    <p
+                      className="text-lg font-extrabold text-ink cursor-text group/title flex items-center gap-2"
+                      onDoubleClick={() => beginEdit(job.id, 'title', job.title)}
+                      title="Double-click to edit title"
+                    >
+                      {job.title}
+                      <Pencil className="h-3 w-3 text-ink/30 opacity-0 group-hover/title:opacity-100 transition-opacity" />
+                    </p>
+                  )}
+                  {/* Customer — double-click to edit */}
+                  <p className="mt-0.5 text-sm text-ink/65 flex items-center gap-1">
+                    {editingJobId === job.id && editingField === 'customerName' ? (
+                      <input
+                        ref={editingField === 'customerName' ? editInputRef : undefined}
+                        value={editValue}
+                        onChange={(e) => setEditValue(e.target.value)}
+                        onBlur={() => commitEdit(job.id, 'customerName')}
+                        onKeyDown={(e) => { if (e.key === 'Enter') commitEdit(job.id, 'customerName'); if (e.key === 'Escape') cancelEdit() }}
+                        className="bg-transparent text-sm font-medium text-ink outline-none border-b border-ink/40 focus:border-ink"
+                      />
+                    ) : (
+                      <button
+                        type="button"
+                        className="hover:text-ink hover:underline decoration-dotted group/cust flex items-center gap-1"
+                        onDoubleClick={() => beginEdit(job.id, 'customerName', job.customer_name)}
+                        title="Double-click to edit customer"
+                      >
+                        {job.customer_name}
+                        <Pencil className="h-2.5 w-2.5 text-ink/30 opacity-0 group-hover/cust:opacity-100 transition-opacity" />
+                      </button>
+                    )}
+                    <span>· {job.status} · {job.payment_state}</span>
                   </p>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                   {(['today', 'upcoming', 'waiting', 'delayed', 'completed'] as const).map((nextStatus) => (
                     <button
                       key={nextStatus}
@@ -106,10 +185,21 @@ function JobsPage() {
                   Open linked project
                 </Link>
               ) : null}
-              <div className="mt-3">
+              <div className="mt-3 flex flex-wrap items-center gap-3">
                 <Link to="/app/jobs/$jobId" params={{ jobId: job.id }} className="text-sm font-bold text-berry">
                   Open job detail
                 </Link>
+                {deleteConfirmId === job.id ? (
+                  <>
+                    <span className="text-xs font-bold text-berry">Delete this job?</span>
+                    <AppButton variant="secondary" onClick={() => deleteMutation.mutate(job.id)} disabled={deleteMutation.isPending}>
+                      Yes, delete
+                    </AppButton>
+                    <AppButton variant="ghost" onClick={() => setDeleteConfirmId(null)}>Cancel</AppButton>
+                  </>
+                ) : (
+                  <AppButton variant="ghost" onClick={() => setDeleteConfirmId(job.id)}>Delete</AppButton>
+                )}
               </div>
             </AppPanel>
           ))}

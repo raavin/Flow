@@ -328,6 +328,18 @@ export async function createManualCoordinationObject(input: ManualCoordinationIn
   return data.id as string
 }
 
+export async function updateCoordinationObjectTitle(id: string, title: string) {
+  if (!supabase) throw new Error('Supabase is not configured.')
+  const { error } = await supabase.from('coordination_objects').update({ title: title.trim() || 'Untitled' }).eq('id', id)
+  if (error) throw error
+}
+
+export async function deleteCoordinationObject(id: string) {
+  if (!supabase) throw new Error('Supabase is not configured.')
+  const { error } = await supabase.from('coordination_objects').delete().eq('id', id)
+  if (error) throw error
+}
+
 export async function updateCoordinationObjectState(id: string, state: CoordinationObjectState) {
   if (!supabase) throw new Error('Supabase is not configured.')
 
@@ -433,6 +445,18 @@ export async function createCoordinationTemplate(input: {
     payload: { blocks: input.blocks },
   })
 
+  if (error) throw error
+}
+
+export async function updateCoordinationTemplate(id: string, title: string) {
+  if (!supabase) throw new Error('Supabase is not configured.')
+  const { error } = await supabase.from('coordination_templates').update({ title: title.trim() || 'Untitled' }).eq('id', id)
+  if (error) throw error
+}
+
+export async function deleteCoordinationTemplate(id: string) {
+  if (!supabase) throw new Error('Supabase is not configured.')
+  const { error } = await supabase.from('coordination_templates').delete().eq('id', id)
   if (error) throw error
 }
 

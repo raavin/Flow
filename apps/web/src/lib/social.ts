@@ -488,6 +488,16 @@ export async function updateOwnPostLabel(input: {
   if (error) throw error
 }
 
+export async function deletePost(postId: string, userId: string) {
+  if (!supabase) throw new Error('Supabase is not configured.')
+  const { error } = await supabase
+    .from('coordination_objects')
+    .delete()
+    .eq('id', postId)
+    .eq('owner_id', userId)
+  if (error) throw error
+}
+
 export async function updateOwnPost(input: {
   postId: string
   userId: string
