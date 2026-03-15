@@ -192,7 +192,7 @@ export async function fetchFeed(userId: string, mode: FeedMode = 'following', op
 export async function createPost(input: {
   authorId: string
   body: string
-  contentKind?: 'update' | 'product' | 'opinion' | 'claim'
+  contentKind?: 'update' | 'product' | 'opinion' | 'claim' | 'review'
   visibility?: 'public' | 'followers' | 'private' | 'project'
   replyToPostId?: string | null
   quotePostId?: string | null
@@ -492,7 +492,7 @@ export async function updateOwnPost(input: {
   postId: string
   userId: string
   body: string
-  contentKind: 'update' | 'product' | 'opinion' | 'claim'
+  contentKind: 'update' | 'product' | 'opinion' | 'claim' | 'review'
   linkedProjectId?: string | null
   supportingLinks?: string[]
 }) {

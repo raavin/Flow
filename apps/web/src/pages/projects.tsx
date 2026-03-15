@@ -11,6 +11,7 @@ import { MessagesFeedPage } from '@/pages/messages'
 import {
   createProject,
   createProjectNote,
+  deleteProject,
   fetchProjectNotes,
   fetchProjects,
   updateProjectNote,
@@ -25,6 +26,15 @@ function ProjectsPage() {
   const projectsQuery = useQuery({ queryKey: ['projects'], queryFn: fetchProjects })
   const [title, setTitle] = useState('')
   const [lastProject, setLastProject] = useState<{ projectId: string; activeTab: string } | null>(null)
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
+
+  const deleteMutation = useMutation({
+    mutationFn: (projectId: string) => deleteProject(projectId),
+    onSuccess: () => {
+      setDeleteConfirmId(null)
+      void queryClient.invalidateQueries({ queryKey: ['projects'] })
+    },
+  })
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -96,20 +106,40 @@ function ProjectsPage() {
         <SectionHeading eyebrow="Projects" title="Your project spaces" />
         <div className="grid gap-3">
           {(projectsQuery.data ?? []).map((project) => (
-            <button
-              key={project.id}
-              type="button"
-              className="ui-panel text-left transition hover:-translate-y-0.5"
-              onClick={() => void navigate({ to: '/app/projects/$projectId/conversation', params: { projectId: project.id } })}
-            >
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-lg font-extrabold text-ink">{project.title}</p>
-                  <p className="text-sm text-ink/65">{project.category || 'General'}</p>
+            <div key={project.id} className="ui-panel">
+              {deleteConfirmId === project.id ? (
+                <div className="flex flex-wrap items-center gap-3">
+                  <p className="min-w-0 flex-1 text-sm font-bold text-ink">Delete &ldquo;{project.title}&rdquo;?</p>
+                  <AppButton
+                    variant="secondary"
+                    disabled={deleteMutation.isPending}
+                    onClick={() => deleteMutation.mutate(project.id)}
+                  >
+                    {deleteMutation.isPending ? 'Deleting…' : 'Yes, delete'}
+                  </AppButton>
+                  <AppButton variant="ghost" onClick={() => setDeleteConfirmId(null)}>
+                    Cancel
+                  </AppButton>
                 </div>
-                <span className="ui-pill ui-pill--butter py-1">{project.targetDate ?? 'Someday'}</span>
-              </div>
-            </button>
+              ) : (
+                <div className="flex items-center justify-between gap-3">
+                  <button
+                    type="button"
+                    className="min-w-0 flex-1 text-left transition hover:-translate-y-0.5"
+                    onClick={() => void navigate({ to: '/app/projects/$projectId/conversation', params: { projectId: project.id } })}
+                  >
+                    <p className="text-lg font-extrabold text-ink">{project.title}</p>
+                    <p className="text-sm text-ink/65">{project.category || 'General'}</p>
+                  </button>
+                  <div className="flex items-center gap-2">
+                    <span className="ui-pill ui-pill--butter py-1">{project.targetDate ?? 'Someday'}</span>
+                    <AppButton variant="ghost" className="text-xs" onClick={() => setDeleteConfirmId(project.id)}>
+                      Delete
+                    </AppButton>
+                  </div>
+                </div>
+              )}
+            </div>
           ))}
           {!projectsQuery.data?.length ? <p className="text-sm text-ink/60">No projects yet. Create one and land straight in its conversation.</p> : null}
         </div>

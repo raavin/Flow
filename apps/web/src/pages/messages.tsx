@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState, type KeyboardEvent, type ReactNode, type RefObject } from 'react'
 import { Link, createRoute, useNavigate } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Bookmark, Heart, ImagePlus, MessageCircle, Pencil, Repeat2, Search, Send, Share2, Sparkles, Waves, X } from 'lucide-react'
+import { Bookmark, Heart, ImagePlus, MessageCircle, Pencil, Repeat2, Search, Send, Share2, Sparkles, Star, Waves, X } from 'lucide-react'
 import { AppButton, AppCard, AppInput, AppPanel, AppPill, AppSelect, AppTextarea, SectionHeading } from '@superapp/ui'
 import { appRoute } from '@/components/layout'
 import { useAppStore } from '@/hooks/useAppStore'
@@ -49,9 +49,10 @@ export function MessagesFeedPage({ linkedProjectId }: { linkedProjectId?: string
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [mode, setMode] = useState<FeedMode>('following')
+  const [hideReviews, setHideReviews] = useState(false)
   const [body, setBody] = useState('')
   const [projectId, setProjectId] = useState('')
-  const [contentKind, setContentKind] = useState<'update' | 'product' | 'opinion' | 'claim'>('update')
+  const [contentKind, setContentKind] = useState<'update' | 'product' | 'opinion' | 'claim' | 'review'>('update')
   const [claimLinksText, setClaimLinksText] = useState('')
   const [selectedImages, setSelectedImages] = useState<File[]>([])
   const [quoteTarget, setQuoteTarget] = useState<{ id: string; body: string; author: string } | null>(null)
@@ -229,6 +230,7 @@ export function MessagesFeedPage({ linkedProjectId }: { linkedProjectId?: string
   })
 
   const filteredFeed = (feedQuery.data ?? []).filter((post) => {
+    if (hideReviews && post.content_kind === 'review') return false
     if (!rightSearch.trim()) return true
     const query = rightSearch.toLowerCase()
     return (
@@ -328,6 +330,15 @@ export function MessagesFeedPage({ linkedProjectId }: { linkedProjectId?: string
                       {item === 'following' ? 'Following' : item === 'discover' ? 'Discover' : 'Saved'}
                     </AppButton>
                   ))}
+                  <button
+                    type="button"
+                    className={`ui-chip-toggle ${hideReviews ? 'ui-chip-toggle--active' : ''} flex items-center gap-1.5`}
+                    onClick={() => setHideReviews((v) => !v)}
+                    title={hideReviews ? 'Show reviews' : 'Hide reviews'}
+                  >
+                    <Star className="h-3.5 w-3.5" />
+                    Reviews
+                  </button>
                 </div>
               )}
               <Link to="/app/messages/dm"><AppButton variant="secondary">DMs</AppButton></Link>
@@ -408,9 +419,34 @@ export function MessagesFeedPage({ linkedProjectId }: { linkedProjectId?: string
                       </div>
                     ) : null}
                     <div className="mt-2 pr-12 space-y-3">
-                      <div className="mt-2 text-[17px] leading-8 text-ink">
-                        <RichPostText body={post.body} mentionMap={post.mentionMap} />
-                      </div>
+                      {post.content_kind === 'review' && extractReviewMeta(post.metadata) ? (
+                        (() => {
+                          const rm = extractReviewMeta(post.metadata)!
+                          const lines = post.body.split('\n').filter(Boolean)
+                          const reviewText = lines.slice(1).join('\n').trim() || lines[0] || ''
+                          return (
+                            <div className="ui-panel ui-panel--surface mt-2 space-y-2">
+                              <div className="flex items-center justify-between gap-3">
+                                <ReviewStars rating={rm.rating} />
+                                <Link
+                                  to="/app/marketplace/listings/$listingId"
+                                  params={{ listingId: rm.listingId }}
+                                  className="ui-pill ui-pill--teal text-xs font-black uppercase tracking-[0.18em]"
+                                >
+                                  {rm.listingTitle ?? 'View listing'}
+                                </Link>
+                              </div>
+                              {reviewText ? (
+                                <p className="text-[15px] leading-7 text-ink">{reviewText}</p>
+                              ) : null}
+                            </div>
+                          )
+                        })()
+                      ) : (
+                        <div className="mt-2 text-[17px] leading-8 text-ink">
+                          <RichPostText body={post.body} mentionMap={post.mentionMap} />
+                        </div>
+                      )}
                       {post.quotePost ? (
                         <div className="ui-quote-card mt-3">
                           <p className="text-sm font-bold text-ink">@{post.quotePost.author?.handle || 'user'}</p>
@@ -1409,7 +1445,7 @@ function LabelBadge({
   isOwnPost = false,
   onClick,
 }: {
-  kind: 'update' | 'product' | 'opinion' | 'claim'
+  kind: 'update' | 'product' | 'opinion' | 'claim' | 'review'
   reviewState?: 'clear' | 'peer_review' | 'under_review' | 'resolved'
   flagCount?: number
   interactive?: boolean
@@ -1424,7 +1460,9 @@ function LabelBadge({
         ? 'bg-fuchsia-200 text-fuchsia-950'
         : kind === 'claim'
           ? 'bg-cyan-500 text-white'
-          : 'bg-slate-300 text-slate-900'
+          : kind === 'review'
+            ? 'bg-zinc-200 text-zinc-900'
+            : 'bg-slate-300 text-slate-900'
   const statusText =
     reviewState === 'under_review'
       ? `${labelNarration(kind)} It has been flagged for review.`
@@ -1466,22 +1504,24 @@ function LabelBadge({
   )
 }
 
-function labelNarration(kind: 'update' | 'product' | 'opinion' | 'claim') {
+function labelNarration(kind: 'update' | 'product' | 'opinion' | 'claim' | 'review') {
   return kind === 'product'
     ? 'The author says this post promotes a product, service, or offer.'
     : kind === 'opinion'
       ? 'The author says this post is opinion only.'
       : kind === 'claim'
         ? 'The author says this post makes a factual claim.'
-        : 'The author says this post is an update.'
+        : kind === 'review'
+          ? 'This post is a verified purchase review.'
+          : 'The author says this post is an update.'
 }
 
-function kindLetter(kind: 'update' | 'product' | 'opinion' | 'claim') {
-  return kind === 'product' ? 'P' : kind === 'opinion' ? 'O' : kind === 'claim' ? 'F' : 'U'
+function kindLetter(kind: 'update' | 'product' | 'opinion' | 'claim' | 'review') {
+  return kind === 'product' ? 'P' : kind === 'opinion' ? 'O' : kind === 'claim' ? 'F' : kind === 'review' ? 'R' : 'U'
 }
 
-function labelForKind(kind: 'update' | 'product' | 'opinion' | 'claim') {
-  return kind === 'product' ? 'Product' : kind === 'opinion' ? 'Opinion' : kind === 'claim' ? 'Fact claim' : 'Update'
+function labelForKind(kind: 'update' | 'product' | 'opinion' | 'claim' | 'review') {
+  return kind === 'product' ? 'Product' : kind === 'opinion' ? 'Opinion' : kind === 'claim' ? 'Fact claim' : kind === 'review' ? 'Review' : 'Update'
 }
 
 function AutocompleteMenu({
@@ -1718,6 +1758,28 @@ function parseSupportingLinks(value: string) {
     }
   }
   return unique
+}
+
+function extractReviewMeta(metadata: unknown): { rating: number; listingId: string; listingTitle: string | null; reviewId: string } | null {
+  if (!metadata || typeof metadata !== 'object') return null
+  const m = metadata as Record<string, unknown>
+  if (!m.review_id || typeof m.rating !== 'number' || typeof m.listing_id !== 'string') return null
+  return {
+    rating: m.rating,
+    listingId: m.listing_id,
+    listingTitle: typeof m.listing_title === 'string' ? m.listing_title : null,
+    reviewId: m.review_id as string,
+  }
+}
+
+function ReviewStars({ rating }: { rating: number }) {
+  return (
+    <span className="flex items-center gap-0.5">
+      {Array.from({ length: 5 }, (_, i) => (
+        <Star key={i} className={`h-3.5 w-3.5 ${i < rating ? 'fill-current text-ink' : 'text-ink/25'}`} />
+      ))}
+    </span>
+  )
 }
 
 function extractSupportingLinks(metadata: unknown) {

@@ -399,6 +399,68 @@ export type SalesLedgerRow = {
   currencyCode: string
 }
 
+export type ListingImage = {
+  id: string
+  listingId: string
+  storagePath: string
+  altText: string
+  sortOrder: number
+  createdAt: string
+}
+
+export type ListingReview = {
+  id: string
+  listingId: string
+  orderId: string | null
+  reviewerId: string
+  sellerId: string
+  rating: number
+  body: string
+  responseBody: string | null
+  responseAt: string | null
+  conversationThreadId: string | null
+  conversationMessageId: string | null
+  isVisible: boolean
+  createdAt: string
+  updatedAt: string
+  // Joined fields
+  reviewerHandle?: string | null
+  reviewerDisplayName?: string | null
+  reviewerAvatarPath?: string | null
+}
+
+export type BrowseListing = {
+  id: string
+  title: string
+  kind: MarketplaceKind
+  category: string
+  priceCents: number
+  priceLabel: string
+  currencyCode: string
+  coverImagePath: string | null
+  locationLabel: string
+  reviewCount: number
+  ratingSum: number
+  sellerId: string
+  sellerName: string
+  isPublished: boolean
+}
+
+export type SellerPublicProfile = {
+  id: string
+  businessName: string
+  category: string
+  serviceArea: string
+  offerings: string[]
+  bookingModel: string
+  availabilityNotes: string
+  totalSales: number
+  totalReviewCount: number
+  totalRatingSum: number
+  memberSince: string | null
+  logoPath: string | null
+}
+
 export type AppUser = {
   email: string
   mode: AccountMode

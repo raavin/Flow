@@ -121,11 +121,11 @@ function AppLayout() {
   const commerceNavItems =
     profile?.active_mode === 'business'
       ? [
-          { to: '/app/marketplace/services', label: 'Marketplace', icon: ShoppingBag },
+          { to: '/app/marketplace', label: 'Marketplace', icon: ShoppingBag },
           { to: '/app/wallet', label: 'Wallet', icon: Wallet },
         ]
       : [
-          { to: '/app/marketplace/templates', label: 'Marketplace', icon: ShoppingBag },
+          { to: '/app/marketplace', label: 'Marketplace', icon: ShoppingBag },
           { to: '/app/wallet', label: 'Wallet', icon: Wallet },
         ]
   const utilityNavItems = [
@@ -138,8 +138,10 @@ function AppLayout() {
 
   return (
     <div className="mx-auto flex min-h-screen max-w-7xl gap-3 px-3 py-3 sm:px-4">
-      <aside className="ui-shell-surface ui-scrollbar-hidden sticky top-3 flex h-[calc(100vh-1.5rem)] w-[76px] shrink-0 flex-col overflow-y-auto px-2.5 py-4 sm:w-60 sm:px-3">
-        <div className="mb-4">
+      <aside className="ui-shell-surface sticky top-3 flex h-[calc(100vh-1.5rem)] w-[76px] shrink-0 flex-col overflow-hidden sm:w-60">
+
+        {/* Frozen header — stays put while nav scrolls underneath */}
+        <div className="shrink-0 px-2.5 pt-1 pb-2 sm:px-3">
           <button type="button" className={`text-left ${theme === 'mono' ? 'hidden w-full sm:block' : 'flex items-center gap-3'}`} onClick={() => void navigate({ to: '/app/messages' })}>
             {theme === 'flow' ? (
               <>
@@ -153,104 +155,107 @@ function AppLayout() {
             )}
           </button>
           {businessProfile?.business_name ? <p className="mt-1 hidden pl-3 text-sm font-bold text-ink/70 sm:block">{businessProfile.business_name}</p> : null}
+
+          {profile?.account_mode === 'both' ? (
+            <div className="mt-2 hidden rounded-full bg-white/80 p-1 sm:flex">
+              <button
+                type="button"
+                className={`flex-1 rounded-full px-4 py-2 text-sm font-bold transition ${profile.active_mode === 'individual' ? 'bg-butter text-ink shadow-sm' : 'text-ink/60'}`}
+                onClick={() => void setActiveMode('individual')}
+              >
+                Personal
+              </button>
+              <button
+                type="button"
+                className={`flex-1 rounded-full px-4 py-2 text-sm font-bold transition ${profile.active_mode === 'business' ? 'bg-butter text-ink shadow-sm' : 'text-ink/60'}`}
+                onClick={() => void setActiveMode('business')}
+              >
+                Business
+              </button>
+            </div>
+          ) : null}
         </div>
 
-        {profile?.account_mode === 'both' ? (
-          <div className="mb-4 hidden rounded-full bg-white/80 p-1 sm:flex">
+        {/* Scrollable nav — slides under the frozen header */}
+        <div className="ui-scrollbar-hidden flex flex-1 flex-col overflow-y-auto px-2.5 pb-4 sm:px-3">
+          <nav className="grid gap-4">
+            <div className="grid gap-2">
+              <p className={`hidden px-3 text-[10px] font-bold uppercase tracking-[0.18em] sm:block ${theme === 'flow' ? 'text-white/30' : 'text-ink/30'}`}>Flow</p>
+              {coreNavItems.map(({ to, label, icon: Icon }) => (
+                <Link
+                  key={to}
+                  to={to}
+                  className="ui-nav-link !flex-row !justify-start !gap-3 !text-sm"
+                  activeProps={{
+                    className: 'ui-nav-link ui-nav-link--active !flex-row !justify-start !gap-3 !text-sm',
+                  }}
+                >
+                  <Icon className="h-5 w-5 shrink-0" />
+                  <span className="hidden sm:inline">{label}</span>
+                </Link>
+              ))}
+            </div>
+            <div className="grid gap-2">
+              <p className={`hidden px-3 text-[10px] font-bold uppercase tracking-[0.18em] sm:block ${theme === 'flow' ? 'text-white/30' : 'text-ink/30'}`}>Commerce</p>
+              {commerceNavItems.map(({ to, label, icon: Icon }) => (
+                <Link
+                  key={to}
+                  to={to}
+                  className="ui-nav-link !flex-row !justify-start !gap-3 !text-sm"
+                  activeProps={{
+                    className: 'ui-nav-link ui-nav-link--active !flex-row !justify-start !gap-3 !text-sm',
+                  }}
+                >
+                  <Icon className="h-5 w-5 shrink-0" />
+                  <span className="hidden sm:inline">{label}</span>
+                </Link>
+              ))}
+            </div>
+          </nav>
+
+          <div className="mt-auto pt-4 grid gap-4">
+            <div className="grid gap-2">
+              <p className={`hidden px-3 text-[10px] font-bold uppercase tracking-[0.18em] sm:block ${theme === 'flow' ? 'text-white/30' : 'text-ink/30'}`}>Profile & Support</p>
+              {utilityNavItems.map(({ to, label, icon: Icon }) => (
+                <Link
+                  key={to}
+                  to={to}
+                  className="ui-nav-link !flex-row !justify-start !gap-3 !text-sm"
+                  activeProps={{
+                    className: 'ui-nav-link ui-nav-link--active !flex-row !justify-start !gap-3 !text-sm',
+                  }}
+                >
+                  <Icon className="h-5 w-5 shrink-0" />
+                  <span className="hidden sm:inline">{label}</span>
+                </Link>
+              ))}
+            </div>
+
+            {/* Theme cycle */}
             <button
               type="button"
-              className={`flex-1 rounded-full px-4 py-2 text-sm font-bold transition ${profile.active_mode === 'individual' ? 'bg-butter text-ink shadow-sm' : 'text-ink/60'}`}
-              onClick={() => void setActiveMode('individual')}
+              onClick={cycleTheme}
+              className="ui-nav-link !flex-row !justify-start !gap-3 !text-sm w-full text-left"
+              title={`Current: ${THEME_LABELS[theme]} — click to cycle`}
             >
-              Personal
+              <Palette className="h-5 w-5 shrink-0" />
+              <span className="hidden sm:inline">{THEME_LABELS[theme]} theme</span>
             </button>
-            <button
-              type="button"
-              className={`flex-1 rounded-full px-4 py-2 text-sm font-bold transition ${profile.active_mode === 'business' ? 'bg-butter text-ink shadow-sm' : 'text-ink/60'}`}
-              onClick={() => void setActiveMode('business')}
+
+            <AppButton
+              variant="ghost"
+              className="justify-start"
+              onClick={() => {
+                void signOut().then(() => navigate({ to: '/' }))
+              }}
             >
-              Business
-            </button>
+              Sign out
+            </AppButton>
           </div>
-        ) : null}
-
-        <nav className="grid gap-4">
-          <div className="grid gap-2">
-            <p className={`hidden px-3 text-[10px] font-bold uppercase tracking-[0.18em] sm:block ${theme === 'flow' ? 'text-white/30' : 'text-ink/30'}`}>Flow</p>
-            {coreNavItems.map(({ to, label, icon: Icon }) => (
-              <Link
-                key={to}
-                to={to}
-                className="ui-nav-link !flex-row !justify-start !gap-3 !text-sm"
-                activeProps={{
-                  className: 'ui-nav-link ui-nav-link--active !flex-row !justify-start !gap-3 !text-sm',
-                }}
-              >
-                <Icon className="h-5 w-5 shrink-0" />
-                <span className="hidden sm:inline">{label}</span>
-              </Link>
-            ))}
-          </div>
-          <div className="grid gap-2">
-            <p className={`hidden px-3 text-[10px] font-bold uppercase tracking-[0.18em] sm:block ${theme === 'flow' ? 'text-white/30' : 'text-ink/30'}`}>Commerce</p>
-            {commerceNavItems.map(({ to, label, icon: Icon }) => (
-              <Link
-                key={to}
-                to={to}
-                className="ui-nav-link !flex-row !justify-start !gap-3 !text-sm"
-                activeProps={{
-                  className: 'ui-nav-link ui-nav-link--active !flex-row !justify-start !gap-3 !text-sm',
-                }}
-              >
-                <Icon className="h-5 w-5 shrink-0" />
-                <span className="hidden sm:inline">{label}</span>
-              </Link>
-            ))}
-          </div>
-        </nav>
-
-        <div className="mt-auto grid gap-4">
-          <div className="grid gap-2">
-            <p className={`hidden px-3 text-[10px] font-bold uppercase tracking-[0.18em] sm:block ${theme === 'flow' ? 'text-white/30' : 'text-ink/30'}`}>Profile & Support</p>
-            {utilityNavItems.map(({ to, label, icon: Icon }) => (
-              <Link
-                key={to}
-                to={to}
-                className="ui-nav-link !flex-row !justify-start !gap-3 !text-sm"
-                activeProps={{
-                  className: 'ui-nav-link ui-nav-link--active !flex-row !justify-start !gap-3 !text-sm',
-                }}
-              >
-                <Icon className="h-5 w-5 shrink-0" />
-                <span className="hidden sm:inline">{label}</span>
-              </Link>
-            ))}
-          </div>
-
-          {/* Theme cycle */}
-          <button
-            type="button"
-            onClick={cycleTheme}
-            className="ui-nav-link !flex-row !justify-start !gap-3 !text-sm w-full text-left"
-            title={`Current: ${THEME_LABELS[theme]} — click to cycle`}
-          >
-            <Palette className="h-5 w-5 shrink-0" />
-            <span className="hidden sm:inline">{THEME_LABELS[theme]} theme</span>
-          </button>
-
-          <AppButton
-            variant="ghost"
-            className="justify-start"
-            onClick={() => {
-              void signOut().then(() => navigate({ to: '/' }))
-            }}
-          >
-            Sign out
-          </AppButton>
         </div>
       </aside>
 
-      <main className="min-w-0 flex-1 py-1">
+      <main className="min-w-0 flex-1">
         <Outlet />
       </main>
     </div>

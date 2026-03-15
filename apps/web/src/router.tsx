@@ -6,7 +6,7 @@ import { homeRoute } from '@/pages/home'
 import { coordinationDetailRoute, coordinationRoute } from '@/pages/coordination'
 import { calendarRoute } from '@/pages/calendar'
 import { ganttRoute } from '@/pages/gantt'
-import { servicesMarketplaceRoute, templateMarketplaceRoute } from '@/pages/marketplace'
+import { marketplaceBrowseRoute, servicesMarketplaceRoute, templateMarketplaceRoute } from '@/pages/marketplace'
 import {
   projectCalendarRoute,
   projectConversationRoute,
@@ -20,7 +20,7 @@ import { jobsRoute } from '@/pages/jobs'
 import { dmInboxRoute, dmThreadRoute, messagesRoute, postRoute, projectMessagesRoute, socialProfileRoute, topicRoute } from '@/pages/messages'
 import { walletRoute } from '@/pages/wallet'
 import { notificationsRoute } from '@/pages/notifications'
-import { businessProfileRoute, listingDetailRoute, listingsManagementRoute } from '@/pages/listings'
+import { businessProfileRoute, legacyListingsManagementRoute, listingDetailRoute, listingsManagementRoute, sellerProfileRoute } from '@/pages/listings'
 import { participantsRoute } from '@/pages/participants'
 import { availabilityRoute, budgetRoute, structuredUpdatesRoute } from '@/pages/planning'
 import { cartRoute, categoryBrowseRoute, searchRoute, settingsRoute } from '@/pages/tools'
@@ -37,13 +37,16 @@ const routeTree = rootRoute.addChildren([
     coordinationDetailRoute,
     calendarRoute,
     ganttRoute,
+    marketplaceBrowseRoute,
     templateMarketplaceRoute,
     servicesMarketplaceRoute,
     categoryBrowseRoute,
     cartRoute,
     listingDetailRoute,
+    sellerProfileRoute,
     businessProfileRoute,
     listingsManagementRoute,
+    legacyListingsManagementRoute,
     projectsRoute,
     projectDetailRoute,
     projectConversationRoute,

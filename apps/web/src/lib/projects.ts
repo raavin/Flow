@@ -275,6 +275,31 @@ export async function fetchProjectDetail(projectId: string) {
   }
 }
 
+export async function updateProject(
+  projectId: string,
+  input: {
+    title?: string
+    category?: string
+    targetDate?: string | null
+    status?: Project['status']
+  },
+) {
+  if (!supabase) throw new Error('Supabase is not configured.')
+  const updates: Record<string, unknown> = {}
+  if (input.title !== undefined) updates.title = input.title.trim() || 'Untitled'
+  if (input.category !== undefined) updates.category = input.category.trim() || 'General'
+  if ('targetDate' in input) updates.target_date = input.targetDate || null
+  if (input.status !== undefined) updates.status = input.status
+  const { error } = await supabase.from('projects').update(updates).eq('id', projectId)
+  if (error) throw error
+}
+
+export async function deleteProject(projectId: string) {
+  if (!supabase) throw new Error('Supabase is not configured.')
+  const { error } = await supabase.from('projects').delete().eq('id', projectId)
+  if (error) throw error
+}
+
 export async function setProjectKind(projectId: string, projectKind: NonNullable<Project['projectKind']>) {
   if (!supabase) throw new Error('Supabase is not configured.')
   const { error } = await supabase.from('projects').update({ project_kind: projectKind }).eq('id', projectId)
