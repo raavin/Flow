@@ -470,6 +470,19 @@ export async function fetchListingsByProject(projectId: string) {
   return data ?? []
 }
 
+export async function hasPurchasedListing(listingId: string): Promise<boolean> {
+  if (!supabase) return false
+  const { data, error } = await supabase
+    .from('order_items')
+    .select('order_id, commerce_orders!inner(id, status)')
+    .eq('listing_id', listingId)
+    .in('commerce_orders.status', ['paid', 'fulfilled'])
+    .limit(1)
+    .maybeSingle()
+  if (error) return false
+  return data !== null
+}
+
 export async function updateListingPublished(listingId: string, isPublished: boolean) {
   if (!supabase) throw new Error('Supabase is not configured.')
   const { error } = await supabase.from('marketplace_listings').update({ is_published: isPublished }).eq('id', listingId)

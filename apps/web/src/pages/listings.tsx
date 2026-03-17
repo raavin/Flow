@@ -17,6 +17,7 @@ import {
   fetchMoreFromSeller,
   fetchSellerPublicProfile,
   getListingImageUrl,
+  hasPurchasedListing,
   updateListing,
   updateListingContent,
   uploadListingImage,
@@ -384,6 +385,11 @@ function ListingDetailPage() {
   })
   const projectsQuery = useQuery({ queryKey: ['projects'], queryFn: fetchProjects })
   const cartCountQuery = useQuery({ queryKey: ['cart-count'], queryFn: fetchCartCount, enabled: Boolean(session) })
+  const purchaseQuery = useQuery({
+    queryKey: ['has-purchased', listingId],
+    queryFn: () => hasPurchasedListing(listingId),
+    enabled: Boolean(session) && Boolean(listingQuery.data?.kind === 'template' && (listingQuery.data?.price_cents ?? 0) > 0),
+  })
   const [projectId, setProjectId] = useState('')
   const [detailsOpen, setDetailsOpen] = useState(true)
   const [deliveryOpen, setDeliveryOpen] = useState(false)
@@ -403,13 +409,17 @@ function ListingDetailPage() {
 
   const importMutation = useMutation({
     mutationFn: async () => {
-      if (!session || !listingQuery.data?.template_payload) throw new Error('Template is missing its plan payload.')
+      if (!session) throw new Error('You must be signed in.')
+      const payload = listingQuery.data?.template_payload
+      if (!payload || !Array.isArray(payload.milestones) || payload.milestones.length === 0) {
+        throw new Error('This template is missing its plan data. Contact the seller.')
+      }
       return createProjectFromTemplate({
         ownerId: session.user.id,
-        title: listingQuery.data.title,
-        category: listingQuery.data.category,
+        title: listingQuery.data!.title,
+        category: listingQuery.data!.category,
         startDate: new Date().toISOString().slice(0, 10),
-        templatePayload: listingQuery.data.template_payload,
+        templatePayload: payload,
       })
     },
     onSuccess: (project) => {
@@ -426,6 +436,8 @@ function ListingDetailPage() {
   const milestoneCount = listing.template_payload?.milestones?.length ?? 0
   const taskCount = listing.template_payload?.tasks?.length ?? 0
   const avgRating = listing.review_count > 0 ? listing.rating_sum / listing.review_count : 0
+  const isFreeTemplate = listing.kind === 'template' && (listing.price_cents ?? 0) === 0
+  const canImport = Boolean(session) && (isFreeTemplate || purchaseQuery.data === true)
 
   return (
     <div className="space-y-4">
@@ -506,14 +518,22 @@ function ListingDetailPage() {
             </AppButton>
 
             {listing.kind === 'template' ? (
-              <AppButton
-                variant="secondary"
-                disabled={!session || importMutation.isPending}
-                onClick={() => importMutation.mutate()}
-                className="w-full justify-center"
-              >
-                Import template
-              </AppButton>
+              <div className="space-y-1">
+                <AppButton
+                  variant="secondary"
+                  disabled={!canImport || importMutation.isPending}
+                  onClick={() => importMutation.mutate()}
+                  className="w-full justify-center"
+                >
+                  {importMutation.isPending ? 'Importing…' : 'Import template'}
+                </AppButton>
+                {!canImport && session && !isFreeTemplate ? (
+                  <p className="text-center text-xs text-ink/50">Purchase to import</p>
+                ) : null}
+                {importMutation.isError ? (
+                  <p className="text-center text-xs text-berry">{(importMutation.error as Error).message}</p>
+                ) : null}
+              </div>
             ) : null}
 
             {projectId ? (

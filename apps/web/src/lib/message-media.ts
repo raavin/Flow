@@ -48,8 +48,35 @@ export function uploadPostImages(userId: string, files: File[]) {
   return uploadFiles('post-media', userId, files)
 }
 
-export function getSignedPostImageUrls(paths: string[]) {
-  return getSignedUrls('post-media', paths)
+export async function uploadPostVideoFiles(userId: string, files: File[]): Promise<string[]> {
+  const paths = await uploadFiles('post-media', userId, files)
+  return paths.map((p) => `vid:${p}`)
+}
+
+export async function uploadPostAudioFiles(userId: string, files: File[]): Promise<string[]> {
+  const paths = await uploadFiles('post-media', userId, files)
+  return paths.map((p) => `aud:${p}`)
+}
+
+export async function getSignedPostImageUrls(paths: string[]): Promise<Record<string, string>> {
+  const client = supabase
+  if (!client || !paths.length) return {}
+
+  const result: Record<string, string> = {}
+  await Promise.all(
+    paths.map(async (path) => {
+      // External video/audio links — strip prefix and use URL directly
+      if (path.startsWith('video:') || path.startsWith('audio:')) {
+        result[path] = path.replace(/^(video|audio):/, '')
+        return
+      }
+      // Storage-backed video/audio — strip prefix to get actual storage path
+      const storagePath = path.replace(/^(vid|aud):/, '')
+      const { data, error } = await client.storage.from('post-media').createSignedUrl(storagePath, 60 * 60)
+      if (!error) result[path] = data.signedUrl
+    }),
+  )
+  return result
 }
 
 export function uploadDmImages(userId: string, files: File[]) {

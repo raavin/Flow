@@ -3,14 +3,20 @@ import { syncPostCoordinationObject } from './coordination-objects'
 import { rankFeedItems, type FeedMode } from './feed-ranking'
 
 export async function ensureSocialProfile(userId: string, firstName?: string | null, handle?: string | null) {
-  if (!supabase) throw new Error('Supabase is not configured.')
+  if (!supabase) return
+  // Refresh the session token before writing — prevents 401 when the access
+  // token has expired mid-session (e.g. after a local db reset).
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session) return
   const resolvedHandle = handle?.trim() || `user-${userId.replaceAll('-', '').slice(0, 12)}`
   const { error } = await supabase.from('social_profiles').upsert({
     id: userId,
     handle: resolvedHandle,
     display_name: firstName ?? '',
   }, { onConflict: 'id', ignoreDuplicates: false })
-  if (error) throw error
+  // Non-fatal: the post can still be created even if the social profile
+  // upsert fails (no FK from posts.author_id to social_profiles).
+  if (error) console.warn('[ensureSocialProfile]', error.message)
 }
 
 export async function updateSocialProfile(input: {
@@ -192,7 +198,7 @@ export async function fetchFeed(userId: string, mode: FeedMode = 'following', op
 export async function createPost(input: {
   authorId: string
   body: string
-  contentKind?: 'update' | 'product' | 'opinion' | 'claim' | 'review'
+  contentKind?: 'note' | 'update' | 'product' | 'opinion' | 'claim' | 'review'
   visibility?: 'public' | 'followers' | 'private' | 'project'
   replyToPostId?: string | null
   quotePostId?: string | null
@@ -215,7 +221,7 @@ export async function createPost(input: {
     .insert({
       author_id: input.authorId,
       body: input.body,
-      content_kind: input.contentKind ?? 'update',
+      content_kind: input.contentKind ?? 'note',
       visibility: input.visibility ?? (input.linkedProjectId ? 'project' : 'followers'),
       reply_to_post_id: input.replyToPostId ?? null,
       quote_post_id: input.quotePostId ?? null,
@@ -248,7 +254,7 @@ export async function createPost(input: {
       const slug = label.toLowerCase()
       const { data: topic, error: topicError } = await supabase
         .from('topics')
-        .upsert({ slug, label })
+        .upsert({ slug, label }, { onConflict: 'slug' })
         .select('id')
         .single()
       if (topicError) throw topicError
@@ -502,10 +508,11 @@ export async function updateOwnPost(input: {
   postId: string
   userId: string
   body: string
-  contentKind: 'update' | 'product' | 'opinion' | 'claim' | 'review'
+  contentKind: 'note' | 'update' | 'product' | 'opinion' | 'claim' | 'review'
   linkedProjectId?: string | null
   visibility?: 'public' | 'followers' | 'private' | 'project'
   supportingLinks?: string[]
+  mediaPaths?: string[]
 }) {
   if (!supabase) throw new Error('Supabase is not configured.')
 
@@ -544,18 +551,39 @@ export async function updateOwnPost(input: {
     delete nextMetadata.supportingLinks
   }
 
+  const updatePayload: Record<string, unknown> = {
+    body: trimmedBody,
+    content_kind: input.contentKind,
+    linked_project_id: input.linkedProjectId ?? null,
+    visibility: input.visibility ?? (input.linkedProjectId ? 'project' : 'followers'),
+    metadata: nextMetadata,
+  }
   const { error } = await supabase
     .from('posts')
-    .update({
-      body: trimmedBody,
-      content_kind: input.contentKind,
-      linked_project_id: input.linkedProjectId ?? null,
-      visibility: input.visibility ?? (input.linkedProjectId ? 'project' : 'followers'),
-      metadata: nextMetadata,
-    })
+    .update(updatePayload)
     .eq('id', input.postId)
     .eq('author_id', input.userId)
   if (error) throw error
+
+  if (input.mediaPaths !== undefined) {
+    const { error: delError } = await supabase
+      .from('post_media')
+      .delete()
+      .eq('post_id', input.postId)
+    if (delError) throw delError
+
+    if (input.mediaPaths.length) {
+      const { error: mediaError } = await supabase.from('post_media').insert(
+        input.mediaPaths.map((storagePath, index) => ({
+          post_id: input.postId,
+          owner_id: input.userId,
+          storage_path: storagePath,
+          sort_order: index,
+        })),
+      )
+      if (mediaError) throw mediaError
+    }
+  }
 
   const topicLabels = extractTopics(trimmedBody)
   const { error: deleteTopicsError } = await supabase.from('post_topics').delete().eq('post_id', input.postId)
@@ -566,7 +594,7 @@ export async function updateOwnPost(input: {
       const slug = label.toLowerCase()
       const { data: topic, error: topicError } = await supabase
         .from('topics')
-        .upsert({ slug, label })
+        .upsert({ slug, label }, { onConflict: 'slug' })
         .select('id')
         .single()
       if (topicError) throw topicError
@@ -721,7 +749,8 @@ export async function toggleTopicSubscription(input: { topicId: string; userId: 
 }
 
 function extractTopics(body: string) {
-  return [...new Set(Array.from(body.matchAll(/#([a-z0-9_-]+)/gi)).map((match) => match[1]))]
+  const text = body.replace(/<[^>]*>/g, ' ')
+  return [...new Set(Array.from(text.matchAll(/#([a-z0-9_-]+)/gi)).map((match) => match[1]))]
 }
 
 function extractMentions(body: string) {

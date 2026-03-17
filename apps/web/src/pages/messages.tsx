@@ -1,11 +1,11 @@
-import { useMemo, useRef, useState, type KeyboardEvent, type ReactNode, type RefObject } from 'react'
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode, type RefObject } from 'react'
 import { Link, createRoute, useNavigate } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Bookmark, Globe, Heart, ImagePlus, MessageCircle, Pencil, Repeat2, Search, Send, Share2, Sparkles, Star, Trash2, Waves, X } from 'lucide-react'
+import { Bookmark, Globe, Heart, ImagePlus, MessageCircle, Paperclip, Pencil, Repeat2, Search, Send, Share2, Sparkles, Star, Trash2, Waves, X } from 'lucide-react'
 import { AppButton, AppCard, AppInput, AppPanel, AppPill, AppSelect, AppTextarea, SectionHeading } from '@superapp/ui'
 import { appRoute } from '@/components/layout'
 import { useAppStore } from '@/hooks/useAppStore'
-import { getSignedDmImageUrls, getSignedPostImageUrls, uploadDmImages, uploadPostImages } from '@/lib/message-media'
+import { getSignedDmImageUrls, getSignedPostImageUrls, uploadDmImages, uploadPostImages, uploadPostVideoFiles, uploadPostAudioFiles } from '@/lib/message-media'
 import { createDmThread, fetchDmMessages, fetchDmThreads, sendDmMessage } from '@/lib/dm'
 import {
   createPost,
@@ -29,6 +29,34 @@ import {
 } from '@/lib/social'
 import { createProject, fetchProjects } from '@/lib/projects'
 import { searchSupportEntries } from '@/lib/support'
+
+function formatRichText(command: string, value?: string) {
+  document.execCommand(command, false, value ?? undefined)
+}
+
+function sanitizeHtml(html: string): string {
+  return html
+    .replace(/<script[\s\S]*?<\/script>/gi, '')
+    .replace(/<(on\w+)="[^"]*"/gi, '')
+    .replace(/javascript:/gi, '')
+}
+
+function MediaPill({ icon, label, color, onRemove }: { icon: string; label: string; color: 'blue' | 'orange' | 'green'; onRemove: () => void }) {
+  const colors = {
+    blue: 'bg-blue-50 border-blue-200 text-blue-600',
+    orange: 'bg-orange-50 border-orange-200 text-orange-600',
+    green: 'bg-green-50 border-green-200 text-green-600',
+  }
+  return (
+    <span className={`flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium ${colors[color]}`}>
+      <span>{icon}</span>
+      <span className="max-w-[120px] truncate">{label}</span>
+      <button type="button" onClick={onRemove} className="ml-0.5 opacity-50 hover:opacity-100">
+        <X className="h-3 w-3" />
+      </button>
+    </span>
+  )
+}
 
 type FeedMode = 'following' | 'discover' | 'bookmarks'
 type ComposerKind = 'post' | 'reply' | 'dm'
@@ -55,7 +83,7 @@ export function MessagesFeedPage({ linkedProjectId }: { linkedProjectId?: string
   const [hideReviews, setHideReviews] = useState(false)
   const [body, setBody] = useState('')
   const [projectId, setProjectId] = useState('')
-  const [contentKind, setContentKind] = useState<'update' | 'product' | 'opinion' | 'claim' | 'review'>('update')
+  const [contentKind, setContentKind] = useState<'note' | 'update' | 'product' | 'opinion' | 'claim' | 'review'>('note')
   const [claimLinksText, setClaimLinksText] = useState('')
   const [selectedImages, setSelectedImages] = useState<File[]>([])
   const [quoteTarget, setQuoteTarget] = useState<{ id: string; body: string; author: string } | null>(null)
@@ -83,7 +111,21 @@ export function MessagesFeedPage({ linkedProjectId }: { linkedProjectId?: string
   const [dmBody, setDmBody] = useState('')
   const [autocomplete, setAutocomplete] = useState<AutocompleteState | null>(null)
   const [activeSuggestionIndex, setActiveSuggestionIndex] = useState(0)
-  const postComposerRef = useRef<HTMLTextAreaElement>(null)
+  const [postVisibility, setPostVisibility] = useState<'private' | 'public' | 'followers' | 'project'>('followers')
+  const [activeFormats, setActiveFormats] = useState<Set<string>>(new Set())
+  const [publicWarningPending, setPublicWarningPending] = useState<'public' | 'followers' | 'project' | null>(null)
+  const [skipPublicWarning, setSkipPublicWarning] = useState(false)
+  const [notesOnly, setNotesOnly] = useState(false)
+  const [projectSearch, setProjectSearch] = useState('')
+  const [projectDropdownOpen, setProjectDropdownOpen] = useState(false)
+  const [selectedVideoFiles, setSelectedVideoFiles] = useState<File[]>([])
+  const [selectedAudioFiles, setSelectedAudioFiles] = useState<File[]>([])
+  const [videoLinkInput, setVideoLinkInput] = useState('')
+  const [audioLinkInput, setAudioLinkInput] = useState('')
+  const [showVideoLinkInput, setShowVideoLinkInput] = useState(false)
+  const [showAudioLinkInput, setShowAudioLinkInput] = useState(false)
+  const [editingMediaPaths, setEditingMediaPaths] = useState<string[]>([])
+  const postComposerRef = useRef<HTMLDivElement>(null)
   const replyComposerRef = useRef<HTMLTextAreaElement>(null)
   const dmComposerRef = useRef<HTMLTextAreaElement>(null)
   const projectsQuery = useQuery({ queryKey: ['projects'], queryFn: fetchProjects })
@@ -115,14 +157,22 @@ export function MessagesFeedPage({ linkedProjectId }: { linkedProjectId?: string
   })
 
   const createPostMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (vis: 'private' | 'public' | 'followers' | 'project') => {
       const supportingLinks = parseSupportingLinks(claimLinksText)
       await ensureSocialProfile(session!.user.id, profile?.first_name)
-      const mediaPaths = selectedImages.length ? await uploadPostImages(session!.user.id, selectedImages) : []
+      const [uploadedImages, uploadedVideos, uploadedAudio] = await Promise.all([
+        selectedImages.length ? uploadPostImages(session!.user.id, selectedImages) : Promise.resolve([]),
+        selectedVideoFiles.length ? uploadPostVideoFiles(session!.user.id, selectedVideoFiles) : Promise.resolve([]),
+        selectedAudioFiles.length ? uploadPostAudioFiles(session!.user.id, selectedAudioFiles) : Promise.resolve([]),
+      ])
+      const videoLinks = videoLinkInput.trim() ? [`video:${videoLinkInput.trim()}`] : []
+      const audioLinks = audioLinkInput.trim() ? [`audio:${audioLinkInput.trim()}`] : []
+      const mediaPaths = [...uploadedImages, ...uploadedVideos, ...videoLinks, ...uploadedAudio, ...audioLinks]
       return createPost({
         authorId: session!.user.id,
-        body,
+        body: sanitizeHtml(body),
         contentKind,
+        visibility: vis,
         linkedProjectId: projectId || linkedProjectId || null,
         mediaPaths,
         supportingLinks,
@@ -140,15 +190,26 @@ export function MessagesFeedPage({ linkedProjectId }: { linkedProjectId?: string
   })
 
   const updatePostMutation = useMutation({
-    mutationFn: () =>
-      updateOwnPost({
+    mutationFn: async (vis: 'private' | 'public' | 'followers' | 'project') => {
+      const [uploadedImages, uploadedVideos, uploadedAudio] = await Promise.all([
+        selectedImages.length ? uploadPostImages(session!.user.id, selectedImages) : Promise.resolve([]),
+        selectedVideoFiles.length ? uploadPostVideoFiles(session!.user.id, selectedVideoFiles) : Promise.resolve([]),
+        selectedAudioFiles.length ? uploadPostAudioFiles(session!.user.id, selectedAudioFiles) : Promise.resolve([]),
+      ])
+      const videoLinks = videoLinkInput.trim() ? [`video:${videoLinkInput.trim()}`] : []
+      const audioLinks = audioLinkInput.trim() ? [`audio:${audioLinkInput.trim()}`] : []
+      const mediaPaths = [...editingMediaPaths, ...uploadedImages, ...uploadedVideos, ...videoLinks, ...uploadedAudio, ...audioLinks]
+      return updateOwnPost({
         postId: editingPost!.id,
         userId: session!.user.id,
-        body,
+        body: sanitizeHtml(body),
         contentKind,
+        visibility: vis,
         linkedProjectId: projectId || linkedProjectId || null,
         supportingLinks: parseSupportingLinks(claimLinksText),
-      }),
+        mediaPaths,
+      })
+    },
     onSuccess: () => {
       resetComposer()
       void queryClient.invalidateQueries({ queryKey: ['social-feed'] })
@@ -249,6 +310,7 @@ export function MessagesFeedPage({ linkedProjectId }: { linkedProjectId?: string
 
   const filteredFeed = (feedQuery.data ?? []).filter((post) => {
     if (hideReviews && post.content_kind === 'review') return false
+    if (notesOnly && post.content_kind !== 'note' && post.visibility !== 'private') return false
     if (!rightSearch.trim()) return true
     const query = rightSearch.toLowerCase()
     return (
@@ -319,13 +381,37 @@ export function MessagesFeedPage({ linkedProjectId }: { linkedProjectId?: string
   function resetComposer() {
     setBody('')
     setProjectId(linkedProjectId ?? '')
-    setContentKind('update')
+    setContentKind('note')
     setClaimLinksText('')
     setComposerError(null)
     setSelectedImages([])
     setQuoteTarget(null)
     setEditingPost(null)
     setComposerOpen(false)
+    setPostVisibility(linkedProjectId ? 'project' : 'followers')
+    setProjectSearch('')
+    setProjectDropdownOpen(false)
+    setSelectedVideoFiles([])
+    setSelectedAudioFiles([])
+    setVideoLinkInput('')
+    setAudioLinkInput('')
+    setShowVideoLinkInput(false)
+    setShowAudioLinkInput(false)
+    if (postComposerRef.current) postComposerRef.current.innerHTML = ''
+    setEditingMediaPaths([])
+  }
+
+  // Populate contenteditable when composer opens (especially for edit mode)
+  useEffect(() => {
+    if (!composerOpen) return
+    if (postComposerRef.current) {
+      postComposerRef.current.innerHTML = body
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [composerOpen])
+
+  function updateActiveFormats() {
+    setActiveFormats(new Set(['bold', 'italic'].filter((cmd) => document.queryCommandState(cmd))))
   }
 
   return (
@@ -356,6 +442,13 @@ export function MessagesFeedPage({ linkedProjectId }: { linkedProjectId?: string
                   >
                     <Star className="h-3.5 w-3.5" />
                     Reviews
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setNotesOnly(v => !v)}
+                    className={notesOnly ? 'ui-chip-toggle ui-chip-toggle--active' : 'ui-chip-toggle ui-chip-toggle--inactive'}
+                  >
+                    Notes
                   </button>
                 </div>
               )}
@@ -441,6 +534,12 @@ export function MessagesFeedPage({ linkedProjectId }: { linkedProjectId?: string
                         ) : null}
                       </div>
                     ) : null}
+                    {post.visibility === 'private' ? (
+                      <span className="ui-pill text-xs font-semibold flex items-center gap-1">🔒 Private</span>
+                    ) : null}
+                    {post.content_kind === 'note' && post.visibility !== 'private' ? (
+                      <span className="ui-pill text-xs font-semibold">📝 Note</span>
+                    ) : null}
                     <div className="mt-2 pr-12 space-y-3">
                       {post.content_kind === 'review' && extractReviewMeta(post.metadata) ? (
                         (() => {
@@ -465,6 +564,13 @@ export function MessagesFeedPage({ linkedProjectId }: { linkedProjectId?: string
                             </div>
                           )
                         })()
+                      ) : post.content_kind === 'note' ? (
+                        <div
+                          className="mt-2 text-sm text-ink/85 leading-relaxed space-y-1 [&_input[type='checkbox']]:pointer-events-none [&_input[type='checkbox']]:cursor-default [&_label]:pointer-events-none"
+                          dangerouslySetInnerHTML={{ __html: sanitizeHtml(post.body) }}
+                        />
+                      ) : post.body.includes('<') ? (
+                        <div className="mt-2 text-[17px] leading-8 text-ink [&_input[type='checkbox']]:pointer-events-none [&_input[type='checkbox']]:cursor-default [&_label]:pointer-events-none" dangerouslySetInnerHTML={{ __html: sanitizeHtml(post.body) }} />
                       ) : (
                         <div className="mt-2 text-[17px] leading-8 text-ink">
                           <RichPostText body={post.body} mentionMap={post.mentionMap} />
@@ -494,10 +600,38 @@ export function MessagesFeedPage({ linkedProjectId }: { linkedProjectId?: string
                         </div>
                       ) : null}
                       {(post.mediaPaths ?? []).length ? (
-                        <div className={`mt-3 grid gap-2 ${(post.mediaPaths ?? []).length > 1 ? 'grid-cols-2' : 'grid-cols-1'}`}>
-                          {(post.mediaPaths ?? []).map((path) => (
-                            <img key={path} src={signedImagesQuery.data?.[path]} alt="" className="h-[320px] w-full rounded-[24px] object-cover" />
-                          ))}
+                        <div className="mt-3 space-y-2">
+                          {(() => {
+                            const paths = post.mediaPaths ?? []
+                            const images = paths.filter((p) => !p.startsWith('vid:') && !p.startsWith('aud:') && !p.startsWith('video:') && !p.startsWith('audio:'))
+                            const videos = paths.filter((p) => p.startsWith('vid:') || p.startsWith('video:'))
+                            const audios = paths.filter((p) => p.startsWith('aud:') || p.startsWith('audio:'))
+                            return (
+                              <>
+                                {images.length ? (
+                                  <div className={`grid gap-2 ${images.length > 1 ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                                    {images.map((p) => (
+                                      <img key={p} src={signedImagesQuery.data?.[p]} alt="" className="h-[320px] w-full rounded-[24px] object-cover" />
+                                    ))}
+                                  </div>
+                                ) : null}
+                                {videos.map((p) => {
+                                  const src = signedImagesQuery.data?.[p] ?? ''
+                                  const isYoutube = src.includes('youtube.com') || src.includes('youtu.be')
+                                  if (isYoutube) {
+                                    const id = src.match(/(?:v=|youtu\.be\/)([^&?/]+)/)?.[1]
+                                    return id ? (
+                                      <iframe key={p} src={`https://www.youtube.com/embed/${id}`} className="w-full rounded-[16px] aspect-video" allowFullScreen />
+                                    ) : <video key={p} src={src} controls className="w-full rounded-[16px]" />
+                                  }
+                                  return <video key={p} src={src} controls className="w-full rounded-[16px]" />
+                                })}
+                                {audios.map((p) => (
+                                  <audio key={p} src={signedImagesQuery.data?.[p] ?? ''} controls className="w-full" />
+                                ))}
+                              </>
+                            )
+                          })()}
                         </div>
                       ) : null}
                     </div>
@@ -574,11 +708,17 @@ export function MessagesFeedPage({ linkedProjectId }: { linkedProjectId?: string
                             label="Edit post"
                             onClick={() => {
                               setEditingPost({ id: post.id, mediaPaths: post.mediaPaths ?? [] })
+                              setEditingMediaPaths(post.mediaPaths ?? [])
                               setBody(post.body)
                               setProjectId(post.linked_project_id ?? '')
                               setContentKind(post.content_kind)
                               setClaimLinksText(extractSupportingLinks(post.metadata).join('\n'))
                               setSelectedImages([])
+                              setSelectedVideoFiles([])
+                              setSelectedAudioFiles([])
+                              setVideoLinkInput('')
+                              setAudioLinkInput('')
+                              setPostVisibility((post.visibility as 'private' | 'public' | 'followers' | 'project') ?? 'followers')
                               setQuoteTarget(null)
                               setComposerError(null)
                               setComposerOpen(true)
@@ -693,25 +833,100 @@ export function MessagesFeedPage({ linkedProjectId }: { linkedProjectId?: string
       </div>
 
       {composerOpen ? (
-        <div className="fixed inset-0 z-40 flex items-start justify-center bg-ink/35 px-4 py-10 backdrop-blur-sm">
-          <AppCard className="w-full max-w-2xl space-y-4">
-            <SectionHeading eyebrow={editingPost ? 'Edit post' : 'New post'} title={editingPost ? 'Refine your post' : 'Share an update'} action={<button type="button" className="ui-soft-icon-button" onClick={() => resetComposer()}><X className="h-4 w-4" /></button>} />
-            <div className="relative">
-              <AppTextarea
-                ref={postComposerRef}
-                value={body}
-                onChange={(event) => {
-                  setBody(event.target.value)
-                  updateAutocomplete('post', event.target.value, event.target.selectionStart ?? event.target.value.length, setAutocomplete, setActiveSuggestionIndex)
-                }}
-                onKeyDown={(event) =>
-                  handleAutocompleteKeyDown({
-                    event,
-                    autocomplete,
-                    options: autocompleteOptions,
-                    activeSuggestionIndex,
-                    setActiveSuggestionIndex,
-                    applyOption: (option) =>
+        <div className="fixed inset-0 z-40 flex items-start justify-center bg-ink/35 px-4 py-8 backdrop-blur-sm overflow-y-auto">
+          <div className="w-full max-w-2xl">
+            <AppCard className="overflow-hidden p-0">
+              {/* Header */}
+              <div className="flex items-center gap-3 border-b border-border px-6 py-4">
+                <p className="text-xs font-semibold uppercase tracking-widest text-ink/40">
+                  {editingPost ? 'Edit post' : 'New post'}
+                </p>
+                <p className="text-xl font-light text-ink">
+                  {editingPost ? 'Refine your post' : 'Share a note'}
+                </p>
+                <div className="flex-1" />
+                <button type="button" className="ui-soft-icon-button" onClick={() => resetComposer()}>
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+
+              {/* Formatting toolbar */}
+              <div className="flex items-center gap-1 border-b border-border bg-cloud/40 px-4 py-2">
+                {[
+                  { cmd: 'bold', label: 'B', style: { fontWeight: 700 } as React.CSSProperties },
+                  { cmd: 'italic', label: 'I', style: { fontStyle: 'italic' } as React.CSSProperties },
+                ].map(({ cmd, label, style }) => (
+                  <button
+                    key={cmd}
+                    type="button"
+                    title={cmd}
+                    style={style}
+                    className={`flex h-7 w-8 items-center justify-center rounded border text-xs transition ${activeFormats.has(cmd) ? 'border-ink/40 bg-ink/15 text-ink' : 'border-border bg-white text-ink/70 hover:border-ink/40 hover:text-ink'}`}
+                    onClick={() => { postComposerRef.current?.focus(); formatRichText(cmd); updateActiveFormats() }}
+                  >{label}</button>
+                ))}
+                <button type="button" title="heading" className="flex h-7 w-8 items-center justify-center rounded border border-border bg-white text-xs text-ink/70 hover:border-ink/40 hover:text-ink transition" onClick={() => { postComposerRef.current?.focus(); formatRichText('formatBlock', 'h3') }}>H₁</button>
+                <button type="button" title="list" className="flex h-7 w-8 items-center justify-center rounded border border-border bg-white text-xs text-ink/70 hover:border-ink/40 hover:text-ink transition" onClick={() => { postComposerRef.current?.focus(); formatRichText('insertUnorderedList') }}>≡</button>
+                <button type="button" title="checklist" className="flex h-7 w-8 items-center justify-center rounded border border-border bg-white text-xs text-ink/70 hover:border-ink/40 hover:text-ink transition" onClick={() => { postComposerRef.current?.focus(); document.execCommand('insertHTML', false, '<label contenteditable="false" style="display:inline-flex;align-items:center;gap:5px;cursor:pointer;user-select:none;margin:0 2px 0 0"><input type="checkbox" style="width:15px;height:15px;cursor:pointer;accent-color:#1a1a1a;flex-shrink:0"></label>\u200B') }}>☑</button>
+                <button type="button" title="link" className="flex h-7 w-8 items-center justify-center rounded border border-border bg-white text-xs text-ink/70 hover:border-ink/40 hover:text-ink transition" onClick={() => { const url = prompt('URL:'); if (url) { postComposerRef.current?.focus(); formatRichText('createLink', url) } }}>⌘K</button>
+                <div className="flex-1" />
+                <span className="text-xs text-ink/30">@mention  #topic  /command</span>
+              </div>
+
+              {/* Textarea */}
+              <div className="relative px-6 pt-4 pb-2">
+                <div
+                  ref={postComposerRef as unknown as React.RefObject<HTMLDivElement>}
+                  contentEditable
+                  suppressContentEditableWarning
+                  onInput={(e) => {
+                    setBody(e.currentTarget.innerHTML)
+                    const el = e.currentTarget
+                    updateAutocomplete('post', el.innerText, el.innerText.length, setAutocomplete, setActiveSuggestionIndex)
+                    updateActiveFormats()
+                  }}
+                  onKeyUp={updateActiveFormats}
+                  onMouseUp={updateActiveFormats}
+                  onClickCapture={(e) => {
+                    const target = e.target as HTMLElement
+                    if (target.tagName === 'INPUT' && (target as HTMLInputElement).type === 'checkbox') {
+                      const cb = target as HTMLInputElement
+                      // Sync DOM checked property → HTML attribute after browser toggles it
+                      requestAnimationFrame(() => {
+                        if (cb.checked) cb.setAttribute('checked', '')
+                        else cb.removeAttribute('checked')
+                        if (postComposerRef.current) setBody(postComposerRef.current.innerHTML)
+                      })
+                    }
+                  }}
+                  onKeyDown={(event) =>
+                    handleAutocompleteKeyDown({
+                      event: event as unknown as KeyboardEvent<HTMLTextAreaElement>,
+                      autocomplete,
+                      options: autocompleteOptions,
+                      activeSuggestionIndex,
+                      setActiveSuggestionIndex,
+                      applyOption: (option) =>
+                        applyAutocompleteOption({
+                          kind: 'post',
+                          option,
+                          autocomplete,
+                          refs: { post: postComposerRef, reply: replyComposerRef, dm: dmComposerRef },
+                          values: { post: body, reply: replyBody, dm: dmBody },
+                          setters: { post: setBody, reply: setReplyBody, dm: setDmBody },
+                          clearAutocomplete: () => setAutocomplete(null),
+                        }),
+                      clearAutocomplete: () => setAutocomplete(null),
+                    })
+                  }
+                  className="min-h-[220px] w-full outline-none text-[15px] leading-relaxed text-ink empty:before:content-[attr(data-placeholder)] empty:before:text-ink/30"
+                  data-placeholder="What's on your mind?"
+                />
+                {autocomplete?.kind === 'post' ? (
+                  <AutocompleteMenu
+                    options={autocompleteOptions}
+                    activeIndex={activeSuggestionIndex}
+                    onSelect={(option) =>
                       applyAutocompleteOption({
                         kind: 'post',
                         option,
@@ -720,137 +935,243 @@ export function MessagesFeedPage({ linkedProjectId }: { linkedProjectId?: string
                         values: { post: body, reply: replyBody, dm: dmBody },
                         setters: { post: setBody, reply: setReplyBody, dm: setDmBody },
                         clearAutocomplete: () => setAutocomplete(null),
-                      }),
-                    clearAutocomplete: () => setAutocomplete(null),
-                  })
-                }
-                onClick={(event) => updateAutocomplete('post', event.currentTarget.value, event.currentTarget.selectionStart ?? event.currentTarget.value.length, setAutocomplete, setActiveSuggestionIndex)}
-                onKeyUp={(event) => updateAutocomplete('post', event.currentTarget.value, event.currentTarget.selectionStart ?? event.currentTarget.value.length, setAutocomplete, setActiveSuggestionIndex)}
-                className="min-h-28"
-                placeholder="What's happening? Try @, #, or /"
-              />
-              <p className="mt-2 text-xs text-ink/50">Examples: <span className="font-bold">@avery</span> <span className="font-bold">#moving</span> <span className="font-bold">/@</span> <span className="font-bold">/support</span></p>
-              {autocomplete?.kind === 'post' ? (
-                <AutocompleteMenu
-                  options={autocompleteOptions}
-                  activeIndex={activeSuggestionIndex}
-                  onSelect={(option) =>
-                    applyAutocompleteOption({
-                      kind: 'post',
-                      option,
-                      autocomplete,
-                      refs: { post: postComposerRef, reply: replyComposerRef, dm: dmComposerRef },
-                      values: { post: body, reply: replyBody, dm: dmBody },
-                      setters: { post: setBody, reply: setReplyBody, dm: setDmBody },
-                      clearAutocomplete: () => setAutocomplete(null),
-                    })
-                  }
-                />
-              ) : null}
-            </div>
-            <AppSelect value={projectId} onChange={(event) => setProjectId(event.target.value)}>
-              <option value="">No linked project</option>
-              {(projectsQuery.data ?? []).map((project) => (
-                <option key={project.id} value={project.id}>
-                  {project.title}
-                </option>
-              ))}
-            </AppSelect>
-            <div className="flex flex-wrap gap-2">
-              {(['update', 'product', 'opinion', 'claim'] as const).map((item) => (
-                <button
-                  key={item}
-                  type="button"
-                  onClick={() => setContentKind(item)}
-                  className={contentKind === item ? 'ui-chip-toggle ui-chip-toggle--active' : 'ui-chip-toggle ui-chip-toggle--inactive'}
-                >
-                  {labelForKind(item)}
-                </button>
-              ))}
-            </div>
-            <AppPanel tone="surface" className="text-xs text-ink/60">
-              Choose the nature of the post so people know whether this is an update, product, opinion, or checkable claim.
-            </AppPanel>
-            {contentKind === 'claim' ? (
-              <div className="space-y-2">
-                <AppTextarea
-                  value={claimLinksText}
-                  onChange={(event) => setClaimLinksText(event.target.value)}
-                  className="min-h-20"
-                  placeholder="Add 1 or 2 supporting links, one per line"
-                />
-                <p className="text-xs text-ink/55">Fact claims need one or two supporting links.</p>
+                      })
+                    }
+                  />
+                ) : null}
               </div>
-            ) : null}
-            {editingPost?.mediaPaths?.length ? (
-              <AppPanel tone="surface" className="text-xs text-ink/60">
-                Existing images stay attached while you edit this post. Image replacement can come next.
-              </AppPanel>
-            ) : null}
-            {quoteTarget ? (
-              <div className="ui-quote-card">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="text-xs font-black uppercase tracking-[0.18em] text-ink/50">Quoting @{quoteTarget.author}</p>
-                    <p className="mt-2 line-clamp-3 whitespace-pre-wrap text-sm text-ink/75">{quoteTarget.body}</p>
-                  </div>
-                  <button type="button" className="ui-soft-icon-button" onClick={() => setQuoteTarget(null)}>
-                    <X className="h-4 w-4" />
-                  </button>
-                </div>
-              </div>
-            ) : null}
-            {composerError ? <AppPanel tone="peach" className="text-sm">{composerError}</AppPanel> : null}
-            {selectedImages.length ? (
-              <div className="grid gap-2 sm:grid-cols-2">
-                {selectedImages.map((file, index) => (
-                  <div key={`${file.name}-${index}`} className="ui-media-frame">
-                    <img src={URL.createObjectURL(file)} alt="" className="h-48 w-full object-cover" />
-                    <button
-                      type="button"
-                      className="ui-soft-icon-button absolute right-2 top-2"
-                      onClick={() => setSelectedImages((current) => current.filter((_, currentIndex) => currentIndex !== index))}
-                    >
+
+              {/* Quote target */}
+              {quoteTarget ? (
+                <div className="mx-6 mb-3 ui-quote-card">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-xs font-black uppercase tracking-[0.18em] text-ink/50">Quoting @{quoteTarget.author}</p>
+                      <p className="mt-2 line-clamp-3 whitespace-pre-wrap text-sm text-ink/75">{quoteTarget.body}</p>
+                    </div>
+                    <button type="button" className="ui-soft-icon-button" onClick={() => setQuoteTarget(null)}>
                       <X className="h-4 w-4" />
                     </button>
                   </div>
-                ))}
+                </div>
+              ) : null}
+
+              {composerError ? <div className="mx-6 mb-3"><AppPanel tone="peach" className="text-sm">{composerError}</AppPanel></div> : null}
+
+              {/* Project live search */}
+              <div className="relative border-t border-border px-6 py-3">
+                <div className="flex items-center gap-2 rounded border border-border bg-white px-3 py-2">
+                  <span className="text-ink/40 text-sm">⌕</span>
+                  <input
+                    type="text"
+                    className="flex-1 bg-transparent text-sm outline-none placeholder:text-ink/30"
+                    placeholder="Search or link a project…"
+                    value={projectSearch}
+                    onChange={e => { setProjectSearch(e.target.value); setProjectDropdownOpen(true) }}
+                    onFocus={() => setProjectDropdownOpen(true)}
+                    onBlur={() => setTimeout(() => setProjectDropdownOpen(false), 150)}
+                  />
+                  {projectId ? (
+                    <button type="button" className="text-xs text-ink/50 hover:text-ink" onClick={() => { setProjectId(''); setProjectSearch('') }}>
+                      <X className="h-3 w-3" />
+                    </button>
+                  ) : null}
+                </div>
+                {projectDropdownOpen && (
+                  <div className="absolute left-6 right-6 top-full z-10 mt-1 max-h-48 overflow-y-auto rounded border border-border bg-white shadow-lg">
+                    {(projectsQuery.data ?? [])
+                      .filter(p => !projectSearch || p.title.toLowerCase().includes(projectSearch.toLowerCase()))
+                      .map(p => (
+                        <button
+                          key={p.id}
+                          type="button"
+                          className={`w-full px-4 py-2 text-left text-sm hover:bg-cloud/60 ${projectId === p.id ? 'font-semibold text-ink' : 'text-ink/70'}`}
+                          onMouseDown={e => { e.preventDefault(); setProjectId(p.id); setProjectSearch(p.title); setProjectDropdownOpen(false) }}
+                        >
+                          {p.title}
+                        </button>
+                      ))}
+                    {(projectsQuery.data ?? []).filter(p => !projectSearch || p.title.toLowerCase().includes(projectSearch.toLowerCase())).length === 0 ? (
+                      <p className="px-4 py-3 text-sm text-ink/40">No projects match</p>
+                    ) : null}
+                  </div>
+                )}
               </div>
-            ) : null}
-            <div className="flex items-center justify-between gap-3">
-              <label className="ui-upload-chip">
-                <ImagePlus className="mr-1 inline h-3 w-3" />
-                Add images
-                <input
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  className="hidden"
-                  onChange={(event) => setSelectedImages((current) => [...current, ...Array.from(event.target.files ?? [])])}
-                />
-              </label>
-              <div className="flex gap-2">
-                <AppButton variant="ghost" onClick={() => {
-                  resetComposer()
-                }}>Cancel</AppButton>
-                <AppButton
-                  disabled={
-                    !session ||
-                    createPostMutation.isPending ||
-                    updatePostMutation.isPending ||
-                    (!body.trim() && !selectedImages.length)
-                  }
-                  onClick={() => {
-                    if (editingPost) {
-                      updatePostMutation.mutate()
-                    } else {
-                      createPostMutation.mutate()
-                    }
-                  }}
-                >
-                  {editingPost ? (updatePostMutation.isPending ? 'Saving…' : 'Save changes') : createPostMutation.isPending ? 'Publishing…' : 'Publish'}
-                </AppButton>
+
+              {/* Attach row */}
+              <div className="border-t border-border bg-cloud/30 px-6 py-3 space-y-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <label className="flex cursor-pointer items-center gap-1.5 rounded-lg border border-border bg-white px-3 py-1.5 text-xs font-medium text-ink/70 hover:border-ink/40 hover:text-ink transition">
+                    <Paperclip className="h-3.5 w-3.5" />
+                    Attach
+                    <input
+                      type="file"
+                      accept="image/*,video/*,audio/*"
+                      multiple
+                      className="hidden"
+                      onChange={(e) => {
+                        const files = Array.from(e.target.files ?? [])
+                        const imgs = files.filter(f => f.type.startsWith('image/'))
+                        const vids = files.filter(f => f.type.startsWith('video/'))
+                        const auds = files.filter(f => f.type.startsWith('audio/'))
+                        if (imgs.length) setSelectedImages(v => [...v, ...imgs])
+                        if (vids.length) setSelectedVideoFiles(v => [...v, ...vids])
+                        if (auds.length) setSelectedAudioFiles(v => [...v, ...auds])
+                        e.target.value = ''
+                      }}
+                    />
+                  </label>
+                  <input
+                    type="url"
+                    className="flex-1 min-w-[180px] rounded border border-border bg-white px-3 py-1.5 text-xs outline-none placeholder:text-ink/30 focus:border-ink/40"
+                    placeholder="Or paste a video / audio URL…"
+                    value={videoLinkInput || audioLinkInput}
+                    onChange={(e) => {
+                      const v = e.target.value
+                      if (v.includes('soundcloud') || v.includes('.mp3') || v.includes('.wav') || v.includes('.ogg')) {
+                        setAudioLinkInput(v); setVideoLinkInput('')
+                      } else {
+                        setVideoLinkInput(v); setAudioLinkInput('')
+                      }
+                    }}
+                  />
+                  {/* Video/audio pills */}
+                  {selectedVideoFiles.map((file, i) => (
+                    <MediaPill key={`vid-${i}`} icon="▶" label={file.name} color="orange" onRemove={() => setSelectedVideoFiles(v => v.filter((_, j) => j !== i))} />
+                  ))}
+                  {videoLinkInput ? <MediaPill icon="▶" label={videoLinkInput} color="orange" onRemove={() => setVideoLinkInput('')} /> : null}
+                  {selectedAudioFiles.map((file, i) => (
+                    <MediaPill key={`aud-${i}`} icon="♪" label={file.name} color="green" onRemove={() => setSelectedAudioFiles(v => v.filter((_, j) => j !== i))} />
+                  ))}
+                  {audioLinkInput ? <MediaPill icon="♪" label={audioLinkInput} color="green" onRemove={() => setAudioLinkInput('')} /> : null}
+                  {/* Existing video/audio pills from editing */}
+                  {editingMediaPaths.filter(p => p.startsWith('vid:') || p.startsWith('video:') || p.startsWith('aud:') || p.startsWith('audio:')).map((path) => {
+                    const isAudio = path.startsWith('aud:') || path.startsWith('audio:')
+                    return <MediaPill key={path} icon={isAudio ? '♪' : '▶'} label={path.split('/').pop()?.slice(0, 24) ?? path} color={isAudio ? 'green' : 'orange'} onRemove={() => setEditingMediaPaths(m => m.filter(p => p !== path))} />
+                  })}
+                </div>
+
+                {/* Image thumbnails */}
+                {(() => {
+                  const existingImages = editingMediaPaths.filter(p => !p.startsWith('vid:') && !p.startsWith('video:') && !p.startsWith('aud:') && !p.startsWith('audio:'))
+                  const hasImages = existingImages.length > 0 || selectedImages.length > 0
+                  if (!hasImages) return null
+                  return (
+                    <div className="flex flex-wrap gap-2">
+                      {existingImages.map((path) => (
+                        <div key={path} className="relative h-20 w-20 shrink-0">
+                          <img src={signedImagesQuery.data?.[path]} alt="" className="h-20 w-20 rounded-lg object-cover border border-border" />
+                          <button
+                            type="button"
+                            onClick={() => setEditingMediaPaths(m => m.filter(p => p !== path))}
+                            className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-ink text-white shadow"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </div>
+                      ))}
+                      {selectedImages.map((file, i) => (
+                        <div key={`new-${i}`} className="relative h-20 w-20 shrink-0">
+                          <img src={URL.createObjectURL(file)} alt={file.name} className="h-20 w-20 rounded-lg object-cover border border-border" />
+                          <button
+                            type="button"
+                            onClick={() => setSelectedImages(v => v.filter((_, j) => j !== i))}
+                            className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-ink text-white shadow"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )
+                })()}
               </div>
+
+              {/* Footer */}
+              <div className="border-t border-border px-6 py-4 space-y-3">
+                {/* Claim links (only when kind = claim) */}
+                {contentKind === 'claim' ? (
+                  <div className="space-y-2">
+                    <AppTextarea value={claimLinksText} onChange={e => setClaimLinksText(e.target.value)} className="min-h-20" placeholder="Add 1 or 2 supporting links, one per line" />
+                    <p className="text-xs text-ink/55">Fact claims need one or two supporting links.</p>
+                  </div>
+                ) : null}
+
+                {/* Action row: kind chips left, buttons right */}
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex flex-wrap gap-1.5">
+                    {(['note', 'product', 'opinion', 'claim'] as const).map((item) => (
+                      <button
+                        key={item}
+                        type="button"
+                        onClick={() => setContentKind(item)}
+                        className={contentKind === item ? 'ui-chip-toggle ui-chip-toggle--active' : 'ui-chip-toggle ui-chip-toggle--inactive'}
+                      >
+                        {labelForKind(item)}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="flex items-center shrink-0 rounded-lg border border-border overflow-hidden">
+                    {(['Private', 'Public'] as const).map((label) => {
+                      const vis = (label === 'Private' ? 'private' : (projectId ? 'project' : 'followers')) as 'private' | 'followers' | 'project'
+                      const isActive = label === 'Private' ? postVisibility === 'private' : postVisibility !== 'private'
+                      const isMutating = createPostMutation.isPending || updatePostMutation.isPending
+                      const isEmpty = !body.replace(/<[^>]*>/g, '').trim() && !selectedImages.length && !editingMediaPaths.length
+                      return (
+                        <button
+                          key={label}
+                          type="button"
+                          disabled={!session || isMutating || isEmpty}
+                          className={`px-4 py-2 text-sm font-semibold transition disabled:opacity-40 ${isActive ? 'bg-ink text-white' : 'bg-white text-ink/70 hover:bg-ink/8 hover:text-ink'}`}
+                          onClick={() => {
+                            setPostVisibility(vis)
+                            if (label === 'Public' && !localStorage.getItem('skip_public_warning')) {
+                              setPublicWarningPending(vis as 'followers' | 'project')
+                            } else {
+                              if (editingPost) { updatePostMutation.mutate(vis) } else { createPostMutation.mutate(vis) }
+                            }
+                          }}
+                        >
+                          {isMutating && isActive ? 'Saving…' : label}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              </div>
+            </AppCard>
+          </div>
+        </div>
+      ) : null}
+
+      {publicWarningPending ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/35 px-4 backdrop-blur-sm">
+          <AppCard className="w-full max-w-sm space-y-4">
+            <SectionHeading eyebrow="Heads up" title="Post publicly?" />
+            <p className="text-sm text-ink/70">
+              This will be visible to {publicWarningPending === 'project' ? 'all project members' : 'your followers'}.
+              You can always edit or delete it afterwards.
+            </p>
+            <label className="flex cursor-pointer items-center gap-2.5 text-sm text-ink/70 select-none">
+              <input
+                type="checkbox"
+                className="h-4 w-4 rounded accent-ink"
+                checked={skipPublicWarning}
+                onChange={(e) => setSkipPublicWarning(e.target.checked)}
+              />
+              Don't ask again
+            </label>
+            <div className="flex justify-end gap-2">
+              <AppButton variant="ghost" onClick={() => { setPublicWarningPending(null); setSkipPublicWarning(false) }}>Cancel</AppButton>
+              <AppButton onClick={() => {
+                if (skipPublicWarning) localStorage.setItem('skip_public_warning', '1')
+                const vis = publicWarningPending
+                setPublicWarningPending(null)
+                setSkipPublicWarning(false)
+                if (editingPost) { updatePostMutation.mutate(vis) } else { createPostMutation.mutate(vis) }
+              }}>
+                Post publicly
+              </AppButton>
             </div>
           </AppCard>
         </div>
@@ -1574,8 +1895,8 @@ function kindLetter(kind: 'update' | 'product' | 'opinion' | 'claim' | 'review')
   return kind === 'product' ? 'P' : kind === 'opinion' ? 'O' : kind === 'claim' ? 'F' : kind === 'review' ? 'R' : 'U'
 }
 
-function labelForKind(kind: 'update' | 'product' | 'opinion' | 'claim' | 'review') {
-  return kind === 'product' ? 'Product' : kind === 'opinion' ? 'Opinion' : kind === 'claim' ? 'Fact claim' : kind === 'review' ? 'Review' : 'Update'
+function labelForKind(kind: 'note' | 'update' | 'product' | 'opinion' | 'claim' | 'review') {
+  return kind === 'product' ? 'Product' : kind === 'opinion' ? 'Opinion' : kind === 'claim' ? 'Fact claim' : kind === 'review' ? 'Review' : kind === 'note' ? 'Note' : 'Update'
 }
 
 function AutocompleteMenu({
@@ -1757,7 +2078,7 @@ function applyAutocompleteOption({
   option: AutocompleteOption
   autocomplete: AutocompleteState | null
   refs: {
-    post: RefObject<HTMLTextAreaElement | null> | null
+    post: RefObject<HTMLDivElement | null> | RefObject<HTMLTextAreaElement | null> | null
     reply: RefObject<HTMLTextAreaElement | null> | null
     dm: RefObject<HTMLTextAreaElement | null> | null
   }
@@ -1783,8 +2104,12 @@ function applyAutocompleteOption({
   if (!ref?.current) return
   const nextCaret = autocomplete.start + option.value.length + 2
   requestAnimationFrame(() => {
-    ref.current?.focus()
-    ref.current?.setSelectionRange(nextCaret, nextCaret)
+    const el = ref.current
+    if (!el) return
+    el.focus()
+    if ('setSelectionRange' in el && typeof (el as HTMLTextAreaElement).setSelectionRange === 'function') {
+      (el as HTMLTextAreaElement).setSelectionRange(nextCaret, nextCaret)
+    }
   })
 }
 
