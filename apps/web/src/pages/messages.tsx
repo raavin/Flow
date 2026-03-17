@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState, type KeyboardEvent, type ReactNode, type RefObject } from 'react'
 import { Link, createRoute, useNavigate } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Bookmark, Heart, ImagePlus, MessageCircle, Pencil, Repeat2, Search, Send, Share2, Sparkles, Star, Trash2, Waves, X } from 'lucide-react'
+import { Bookmark, Globe, Heart, ImagePlus, MessageCircle, Pencil, Repeat2, Search, Send, Share2, Sparkles, Star, Trash2, Waves, X } from 'lucide-react'
 import { AppButton, AppCard, AppInput, AppPanel, AppPill, AppSelect, AppTextarea, SectionHeading } from '@superapp/ui'
 import { appRoute } from '@/components/layout'
 import { useAppStore } from '@/hooks/useAppStore'
@@ -24,6 +24,8 @@ import {
   updateOwnPostLabel,
   updateOwnPost,
   deletePost,
+  promotePost,
+  demotePost,
 } from '@/lib/social'
 import { createProject, fetchProjects } from '@/lib/projects'
 import { searchSupportEntries } from '@/lib/support'
@@ -165,6 +167,12 @@ export function MessagesFeedPage({ linkedProjectId }: { linkedProjectId?: string
       setDeleteConfirmPostId(null)
       void queryClient.invalidateQueries({ queryKey: ['social-feed'] })
     },
+  })
+
+  const promoteMutation = useMutation({
+    mutationFn: ({ postId, promoted }: { postId: string; promoted: boolean }) =>
+      promoted ? promotePost(postId, session!.user.id) : demotePost(postId, session!.user.id),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['social-feed'] }),
   })
 
   const engagementMutation = useMutation({
@@ -426,6 +434,11 @@ export function MessagesFeedPage({ linkedProjectId }: { linkedProjectId?: string
                         >
                           Project · {post.linkedProjectTitle}
                         </Link>
+                        {(post as { is_promoted?: boolean }).is_promoted ? (
+                          <span className="ui-pill ui-pill--butter text-xs font-black uppercase tracking-[0.18em] flex items-center gap-1">
+                            <Globe className="h-3 w-3" /> Public
+                          </span>
+                        ) : null}
                       </div>
                     ) : null}
                     <div className="mt-2 pr-12 space-y-3">
@@ -593,6 +606,13 @@ export function MessagesFeedPage({ linkedProjectId }: { linkedProjectId?: string
                               onClick={() => setDeleteConfirmPostId(post.id)}
                             />
                           )}
+                          {post.linked_project_id ? (
+                            <ActionButton
+                              icon={<Globe className="h-5 w-5" />}
+                              label={(post as { is_promoted?: boolean }).is_promoted ? 'Remove from feed' : 'Promote to feed'}
+                              onClick={() => promoteMutation.mutate({ postId: post.id, promoted: !(post as { is_promoted?: boolean }).is_promoted })}
+                            />
+                          ) : null}
                         </>
                       ) : null}
                       <button

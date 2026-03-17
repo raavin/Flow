@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Pencil, Trash2, X } from 'lucide-react'
 import { AppButton, AppCard, AppInput, AppPanel, AppSelect, SectionHeading } from '@superapp/ui'
 import { appRoute } from '@/components/layout'
-import { fetchCoordinationObjects, updateCoordinationObjectSchedule } from '@/lib/coordination-objects'
+import { deleteCoordinationObject, fetchCoordinationObjects, updateCoordinationObjectSchedule, updateCoordinationObjectTitle } from '@/lib/coordination-objects'
 import {
   createMilestone,
   createTask,
@@ -28,6 +28,8 @@ type GanttItem = {
   isTask: boolean
   source: 'milestone' | 'task' | 'coordination'
   scheduleMode: 'range' | 'due'
+  linkedProjectId?: string
+  linkedProjectTitle?: string
 }
 
 type ZoomLevel = 'detail' | 'comfortable' | 'overview' | 'strategic'
@@ -83,6 +85,9 @@ export function GanttPage({ linkedProjectId }: { linkedProjectId?: string | null
   const [editItemValue, setEditItemValue] = useState('')
   const [deleteConfirmItemId, setDeleteConfirmItemId] = useState<string | null>(null)
   const labelEditRef = useRef<HTMLInputElement>(null)
+  const [search, setSearch] = useState('')
+  const [filterProjectId, setFilterProjectId] = useState<string>('all')
+  const [filterKind, setFilterKind] = useState<string>('all')
 
   useEffect(() => {
     if (linkedProjectId) {
@@ -107,8 +112,16 @@ export function GanttPage({ linkedProjectId }: { linkedProjectId?: string | null
     enabled: timelineMode === 'coordination',
   })
 
-  const items = useMemo<GanttItem[]>(() => {
+  // Coordination objects linked to the selected project — shown alongside milestones in project mode
+  const projectCoordinationQuery = useQuery({
+    queryKey: ['coordination-objects', 'project', selectedProjectId],
+    queryFn: () => fetchCoordinationObjects({ onlyTimed: true, linkedProjectId: selectedProjectId }),
+    enabled: timelineMode === 'project' && Boolean(selectedProjectId),
+  })
+
+  const allItems = useMemo<GanttItem[]>(() => {
     if (timelineMode === 'coordination') {
+      const projectMap = new Map((projectsQuery.data ?? []).map((p) => [p.id, p.title]))
       return (coordinationQuery.data ?? [])
         .map((item) => {
           const startDay = (item.time.startsAt ?? item.time.dueAt)?.slice(0, 10)
@@ -118,6 +131,7 @@ export function GanttPage({ linkedProjectId }: { linkedProjectId?: string | null
           const metadata = item.metadata as Record<string, unknown> | undefined
           const lane = String((metadata?.lane as string | undefined) ?? item.displayKind).replace(/^\w/, (value) => value.toUpperCase())
           const dueOnly = !item.time.startsAt || !item.time.endsAt || item.displayKind === 'reminder' || item.displayKind === 'task'
+          const linkedProjectId = item.linkedProjectId ?? undefined
 
           return {
             id: item.id,
@@ -128,6 +142,8 @@ export function GanttPage({ linkedProjectId }: { linkedProjectId?: string | null
             isTask: dueOnly || startDay === endDay,
             source: 'coordination',
             scheduleMode: dueOnly ? 'due' : 'range',
+            linkedProjectId,
+            linkedProjectTitle: linkedProjectId ? (projectMap.get(linkedProjectId) ?? undefined) : undefined,
           } satisfies GanttItem
         })
         .filter(Boolean)
@@ -158,19 +174,71 @@ export function GanttPage({ linkedProjectId }: { linkedProjectId?: string | null
         scheduleMode: 'due' as const,
       }))
 
-    return [...milestones, ...tasks].sort(
+    const coordItems = (projectCoordinationQuery.data ?? [])
+      .map((item) => {
+        const startDay = (item.time.startsAt ?? item.time.dueAt)?.slice(0, 10)
+        const endDay = (item.time.endsAt ?? item.time.startsAt ?? item.time.dueAt)?.slice(0, 10)
+        if (!startDay || !endDay) return null
+        const metadata = item.metadata as Record<string, unknown> | undefined
+        const lane = String((metadata?.lane as string | undefined) ?? item.displayKind).replace(/^\w/, (v) => v.toUpperCase())
+        const dueOnly = !item.time.startsAt || !item.time.endsAt || item.displayKind === 'reminder' || item.displayKind === 'task'
+        return {
+          id: item.id,
+          title: item.title,
+          startsOn: startDay,
+          endsOn: endDay,
+          lane,
+          isTask: dueOnly || startDay === endDay,
+          source: 'coordination' as const,
+          scheduleMode: dueOnly ? 'due' : 'range',
+        } satisfies GanttItem
+      })
+      .filter(Boolean) as GanttItem[]
+
+    return [...milestones, ...tasks, ...coordItems].sort(
       (left, right) => left.lane.localeCompare(right.lane) || left.id.localeCompare(right.id),
     )
-  }, [coordinationQuery.data, detailQuery.data, timelineMode])
+  }, [coordinationQuery.data, detailQuery.data, projectCoordinationQuery.data, projectsQuery.data, timelineMode])
+
+  // Derived filter options (coordination mode only)
+  const availableProjectsInView = useMemo(() => {
+    if (timelineMode !== 'coordination') return []
+    const seen = new Map<string, string>()
+    for (const item of allItems) {
+      if (item.linkedProjectId && item.linkedProjectTitle) {
+        seen.set(item.linkedProjectId, item.linkedProjectTitle)
+      }
+    }
+    return Array.from(seen.entries()).map(([id, title]) => ({ id, title }))
+  }, [allItems, timelineMode])
+
+  const availableKinds = useMemo(() => {
+    if (timelineMode !== 'coordination') return []
+    return [...new Set(allItems.map((item) => item.lane))].sort()
+  }, [allItems, timelineMode])
+
+  // Apply filters
+  const items = useMemo(() => {
+    if (timelineMode !== 'coordination') return allItems
+    return allItems.filter((item) => {
+      if (search) {
+        const q = search.toLowerCase()
+        if (!item.title.toLowerCase().includes(q) && !(item.linkedProjectTitle ?? '').toLowerCase().includes(q)) return false
+      }
+      if (filterProjectId !== 'all' && item.linkedProjectId !== filterProjectId) return false
+      if (filterKind !== 'all' && item.lane !== filterKind) return false
+      return true
+    })
+  }, [allItems, filterKind, filterProjectId, search, timelineMode])
 
   // Clear optimistic overrides once items update from the server
-  const prevItemsRef = useRef(items)
+  const prevItemsRef = useRef(allItems)
   useEffect(() => {
-    if (items !== prevItemsRef.current) {
-      prevItemsRef.current = items
+    if (allItems !== prevItemsRef.current) {
+      prevItemsRef.current = allItems
       setLocalOverrides({})
     }
-  }, [items])
+  }, [allItems])
 
   const timeline = useMemo(() => buildTimeline(items, zoom), [items, zoom])
 
@@ -275,14 +343,20 @@ export function GanttPage({ linkedProjectId }: { linkedProjectId?: string | null
   })
 
   const updateItemMutation = useMutation({
-    mutationFn: ({ item, title }: { item: GanttItem; title: string }) =>
-      item.source === 'milestone' ? updateMilestone(item.id, { title }) : updateTask(item.id, { title }),
+    mutationFn: ({ item, title }: { item: GanttItem; title: string }) => {
+      if (item.source === 'milestone') return updateMilestone(item.id, { title })
+      if (item.source === 'coordination') return updateCoordinationObjectTitle(item.id, title)
+      return updateTask(item.id, { title })
+    },
     onSuccess: invalidateTimeline,
   })
 
   const deleteItemMutation = useMutation({
-    mutationFn: (item: GanttItem) =>
-      item.source === 'milestone' ? deleteMilestone(item.id) : deleteTask(item.id),
+    mutationFn: (item: GanttItem) => {
+      if (item.source === 'milestone') return deleteMilestone(item.id)
+      if (item.source === 'coordination') return deleteCoordinationObject(item.id)
+      return deleteTask(item.id)
+    },
     onSuccess: () => {
       setDeleteConfirmItemId(null)
       invalidateTimeline()
@@ -290,7 +364,6 @@ export function GanttPage({ linkedProjectId }: { linkedProjectId?: string | null
   })
 
   function beginLabelEdit(item: GanttItem) {
-    if (item.source === 'coordination') return
     setEditingItemId(item.id)
     setEditItemValue(item.title)
     setTimeout(() => labelEditRef.current?.select(), 0)
@@ -426,11 +499,53 @@ export function GanttPage({ linkedProjectId }: { linkedProjectId?: string | null
         </div>
 
         {timelineMode === 'coordination' ? (
-          <AppPanel tone="teal" className="rounded-control px-4 py-3 text-sm font-bold text-ink">
-            Coordination mode treats life and work as clips on the same timeline: reminders, asks, appointments, bookings, and reusable flow blocks.
-          </AppPanel>
+          <div className="flex flex-wrap items-center gap-2">
+            <AppInput
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search items or projects…"
+              className="min-w-[180px] flex-1"
+            />
+            {availableProjectsInView.length > 0 ? (
+              <AppSelect
+                value={filterProjectId}
+                onChange={(e) => setFilterProjectId(e.target.value)}
+                className="min-w-[160px]"
+              >
+                <option value="all">All projects</option>
+                {availableProjectsInView.map((p) => (
+                  <option key={p.id} value={p.id}>{p.title}</option>
+                ))}
+              </AppSelect>
+            ) : null}
+            {availableKinds.length > 1 ? (
+              <AppSelect
+                value={filterKind}
+                onChange={(e) => setFilterKind(e.target.value)}
+                className="min-w-[140px]"
+              >
+                <option value="all">All kinds</option>
+                {availableKinds.map((k) => (
+                  <option key={k} value={k}>{k}</option>
+                ))}
+              </AppSelect>
+            ) : null}
+            {(search || filterProjectId !== 'all' || filterKind !== 'all') ? (
+              <AppButton variant="ghost" onClick={() => { setSearch(''); setFilterProjectId('all'); setFilterKind('all') }}>
+                Clear filters
+              </AppButton>
+            ) : null}
+          </div>
         ) : null}
 
+        {items.length === 0 && allItems.length > 0 ? (
+          <AppPanel className="text-sm text-ink/60 flex items-center justify-between gap-3">
+            <span>No items match your filters.</span>
+            <AppButton variant="ghost" onClick={() => { setSearch(''); setFilterProjectId('all'); setFilterKind('all') }}>
+              Clear filters
+            </AppButton>
+          </AppPanel>
+        ) : null}
         {items.length ? (
           /* Single unified scroll container — labels are sticky left so no two-panel sync needed */
           <div
@@ -554,44 +669,45 @@ export function GanttPage({ linkedProjectId }: { linkedProjectId?: string | null
                           <p
                             className="truncate text-sm font-extrabold text-ink cursor-text group/label flex items-center gap-1"
                             onDoubleClick={() => beginLabelEdit(item)}
-                            title={item.source !== 'coordination' ? 'Double-click to edit' : undefined}
+                            title="Double-click to edit"
                           >
                             <span className="truncate">{item.title}</span>
-                            {item.source !== 'coordination' ? (
-                              <Pencil className="h-2.5 w-2.5 shrink-0 text-ink/30 opacity-0 group-hover/label:opacity-100 transition-opacity" />
-                            ) : null}
+                            <Pencil className="h-2.5 w-2.5 shrink-0 text-ink/30 opacity-0 group-hover/label:opacity-100 transition-opacity" />
                           </p>
                         )}
-                        <p className="truncate text-[10px] font-bold uppercase tracking-[0.16em] text-ink/40">{item.lane}</p>
+                        <p className="truncate text-[10px] font-bold uppercase tracking-[0.16em] text-ink/40">
+                          {item.linkedProjectTitle ? (
+                            <span className="text-teal/70">{item.linkedProjectTitle} · </span>
+                          ) : null}
+                          {item.lane}
+                        </p>
                       </div>
-                      {item.source !== 'coordination' ? (
-                        <div className="ml-1 shrink-0">
-                          {deleteConfirmItemId === item.id ? (
-                            <span className="flex items-center gap-1">
-                              <button
-                                type="button"
-                                className="text-[10px] font-bold text-berry hover:underline"
-                                onClick={() => deleteItemMutation.mutate(item)}
-                                disabled={deleteItemMutation.isPending}
-                              >Yes</button>
-                              <button
-                                type="button"
-                                className="text-[10px] text-ink/50 hover:underline"
-                                onClick={() => setDeleteConfirmItemId(null)}
-                              >No</button>
-                            </span>
-                          ) : (
+                      <div className="ml-1 shrink-0">
+                        {deleteConfirmItemId === item.id ? (
+                          <span className="flex items-center gap-1">
                             <button
                               type="button"
-                              className="opacity-0 group-hover:opacity-100 hover:opacity-100 transition-opacity p-0.5 text-ink/30 hover:text-berry"
-                              onClick={() => setDeleteConfirmItemId(item.id)}
-                              aria-label={`Delete ${item.title}`}
-                            >
-                              <Trash2 className="h-3 w-3" />
-                            </button>
-                          )}
-                        </div>
-                      ) : null}
+                              className="text-[10px] font-bold text-berry hover:underline"
+                              onClick={() => deleteItemMutation.mutate(item)}
+                              disabled={deleteItemMutation.isPending}
+                            >Yes</button>
+                            <button
+                              type="button"
+                              className="text-[10px] text-ink/50 hover:underline"
+                              onClick={() => setDeleteConfirmItemId(null)}
+                            >No</button>
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            className="opacity-0 group-hover:opacity-100 hover:opacity-100 transition-opacity p-0.5 text-ink/30 hover:text-berry"
+                            onClick={() => setDeleteConfirmItemId(item.id)}
+                            aria-label={`Delete ${item.title}`}
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </button>
+                        )}
+                      </div>
                     </div>
 
                     {/* Track area */}

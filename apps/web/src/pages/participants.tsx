@@ -25,6 +25,7 @@ function ParticipantsPage() {
   const [role, setRole] = useState<'owner' | 'collaborator' | 'helper' | 'guest' | 'provider' | 'viewer'>('helper')
   const [contactHint, setContactHint] = useState('')
   const [note, setNote] = useState('')
+  const [inviteError, setInviteError] = useState<string | null>(null)
   const inviteMutation = useMutation({
     mutationFn: () =>
       inviteParticipant({
@@ -37,8 +38,12 @@ function ParticipantsPage() {
         note,
       }),
     onSuccess: () => {
+      setInviteError(null)
       void queryClient.invalidateQueries({ queryKey: ['participants', projectId] })
       void queryClient.invalidateQueries({ queryKey: ['project-activity', projectId] })
+    },
+    onError: (err) => {
+      setInviteError(err instanceof Error ? err.message : 'Failed to add participant.')
     },
   })
   const updateMutation = useMutation({
@@ -112,9 +117,10 @@ function ParticipantsPage() {
         </AppSelect>
         <AppInput value={contactHint} onChange={(event) => setContactHint(event.target.value)} placeholder="Email / phone / username" />
         <AppTextarea value={note} onChange={(event) => setNote(event.target.value)} className="min-h-24" />
-        <AppButton disabled={!session || inviteMutation.isPending} onClick={() => inviteMutation.mutate()}>
+        <AppButton disabled={!session || inviteMutation.isPending} onClick={() => { setInviteError(null); inviteMutation.mutate() }}>
           Send invite
         </AppButton>
+        {inviteError ? <p className="text-xs font-bold text-berry">{inviteError}</p> : null}
       </AppCard>
 
       <AppCard className="space-y-4">

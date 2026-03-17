@@ -432,8 +432,8 @@ function TransactionLedgerTable({
               <td className="ui-ledger-cell--numeric">{formatCurrency(entry.subtotalCents, entry.currencyCode)}</td>
               <td className="ui-ledger-cell--numeric">{formatCurrency(entry.taxCents, entry.currencyCode)}</td>
               <td className="ui-ledger-cell--numeric">{formatCurrency(entry.platformFeeCents, entry.currencyCode)}</td>
-              <td className={`ui-ledger-cell--numeric font-bold ${entry.direction === 'in' ? 'text-teal' : 'text-ink'}`}>
-                {formatCurrency(entry.totalCents, entry.currencyCode)}
+              <td className={`ui-ledger-cell--numeric font-bold ${entry.direction === 'in' ? 'text-teal' : 'text-berry'}`}>
+                {entry.direction === 'in' ? '+' : '-'}{formatCurrency(entry.totalCents, entry.currencyCode)}
               </td>
               <td className="ui-ledger-cell--numeric">{formatCurrency(entry.sellerNetCents, entry.currencyCode)}</td>
               <td className="ui-ledger-cell">

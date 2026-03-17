@@ -457,6 +457,25 @@ export async function fetchSellerPublicProfile(sellerId: string): Promise<Seller
   }
 }
 
+export async function fetchListingsByProject(projectId: string) {
+  if (!supabase) return []
+  const { data, error } = await supabase
+    .from('marketplace_listings')
+    .select(
+      'id, owner_id, title, summary, kind, category, price_label, price_cents, currency_code, sku, tax_rate_basis_points, workspace_project_id, fulfillment_notes, whimsical_note, is_published, created_at, template_payload',
+    )
+    .eq('workspace_project_id', projectId)
+    .order('created_at', { ascending: false })
+  if (error) throw error
+  return data ?? []
+}
+
+export async function updateListingPublished(listingId: string, isPublished: boolean) {
+  if (!supabase) throw new Error('Supabase is not configured.')
+  const { error } = await supabase.from('marketplace_listings').update({ is_published: isPublished }).eq('id', listingId)
+  if (error) throw error
+}
+
 export async function updateListingContent(input: {
   listingId: string
   description?: string

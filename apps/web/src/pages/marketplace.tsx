@@ -74,15 +74,24 @@ function ListingCard({ listing, onAddToCart, addingId }: {
         <p className="text-sm font-semibold text-ink">{listing.priceLabel}</p>
       </div>
 
-      {/* Add to cart — visible on hover */}
-      <button
-        type="button"
-        className="mt-2 w-full border border-border py-1.5 text-xs font-medium text-ink/70 opacity-0 transition group-hover:opacity-100 hover:border-ink hover:text-ink"
-        disabled={addingId === listing.id}
-        onClick={() => onAddToCart(listing.id)}
-      >
-        {addingId === listing.id ? 'Adding…' : 'Add to cart'}
-      </button>
+      {/* Actions */}
+      <div className="mt-2 flex gap-2">
+        <Link
+          to="/app/marketplace/listings/$listingId"
+          params={{ listingId: listing.id }}
+          className="flex-1 border border-border py-1.5 text-center text-xs font-medium text-ink/70 hover:border-ink hover:text-ink transition"
+        >
+          View details
+        </Link>
+        <button
+          type="button"
+          className="flex-1 border border-border py-1.5 text-xs font-medium text-ink/70 hover:border-ink hover:text-ink transition disabled:opacity-40"
+          disabled={addingId === listing.id}
+          onClick={() => onAddToCart(listing.id)}
+        >
+          {addingId === listing.id ? 'Adding…' : 'Add to cart'}
+        </button>
+      </div>
     </div>
   )
 }

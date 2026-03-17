@@ -22,6 +22,13 @@ export async function inviteParticipant(input: {
   note?: string
 }) {
   if (!supabase) throw new Error('Supabase is not configured.')
+
+  const existing = await fetchParticipants(input.projectId)
+  const duplicate = existing.find(
+    (p) => p.name.trim().toLowerCase() === input.name.trim().toLowerCase() && p.status !== 'removed',
+  )
+  if (duplicate) throw new Error(`${input.name} is already a participant in this project.`)
+
   const { error } = await supabase.from('project_participants').insert({
     project_id: input.projectId,
     owner_id: input.ownerId,

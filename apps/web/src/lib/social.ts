@@ -34,7 +34,7 @@ export async function fetchFeed(userId: string, mode: FeedMode = 'following', op
   if (!supabase) return []
   const { data: posts, error: postsError } = await supabase
     .from('posts')
-    .select('id, author_id, body, visibility, content_kind, mislabel_flag_count, review_state, reply_to_post_id, quote_post_id, linked_project_id, metadata, created_at')
+    .select('id, author_id, body, visibility, content_kind, mislabel_flag_count, review_state, reply_to_post_id, quote_post_id, linked_project_id, is_promoted, metadata, created_at')
     .order('created_at', { ascending: false })
   if (postsError) throw postsError
   if (!posts?.length) return []
@@ -276,7 +276,7 @@ export async function fetchPost(postId: string, userId: string) {
   if (!post) return null
   const { data: replies, error } = await supabase
     .from('posts')
-    .select('id, author_id, body, visibility, content_kind, mislabel_flag_count, review_state, reply_to_post_id, quote_post_id, linked_project_id, metadata, created_at')
+    .select('id, author_id, body, visibility, content_kind, mislabel_flag_count, review_state, reply_to_post_id, quote_post_id, linked_project_id, is_promoted, metadata, created_at')
     .eq('reply_to_post_id', postId)
     .order('created_at', { ascending: true })
   if (error) throw error
@@ -504,6 +504,7 @@ export async function updateOwnPost(input: {
   body: string
   contentKind: 'update' | 'product' | 'opinion' | 'claim' | 'review'
   linkedProjectId?: string | null
+  visibility?: 'public' | 'followers' | 'private' | 'project'
   supportingLinks?: string[]
 }) {
   if (!supabase) throw new Error('Supabase is not configured.')
@@ -549,7 +550,7 @@ export async function updateOwnPost(input: {
       body: trimmedBody,
       content_kind: input.contentKind,
       linked_project_id: input.linkedProjectId ?? null,
-      visibility: input.linkedProjectId ? 'project' : 'followers',
+      visibility: input.visibility ?? (input.linkedProjectId ? 'project' : 'followers'),
       metadata: nextMetadata,
     })
     .eq('id', input.postId)
@@ -573,6 +574,26 @@ export async function updateOwnPost(input: {
       if (linkError) throw linkError
     }
   }
+}
+
+export async function promotePost(postId: string, userId: string) {
+  if (!supabase) throw new Error('Supabase is not configured.')
+  const { error } = await supabase
+    .from('posts')
+    .update({ is_promoted: true, visibility: 'public' })
+    .eq('id', postId)
+    .eq('author_id', userId)
+  if (error) throw error
+}
+
+export async function demotePost(postId: string, userId: string) {
+  if (!supabase) throw new Error('Supabase is not configured.')
+  const { error } = await supabase
+    .from('posts')
+    .update({ is_promoted: false, visibility: 'project' })
+    .eq('id', postId)
+    .eq('author_id', userId)
+  if (error) throw error
 }
 
 export async function linkPostToProject(input: {

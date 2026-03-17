@@ -20,6 +20,7 @@ import {
   deleteProjectNote,
 } from '@/lib/projects'
 import { fetchPeopleDirectory } from '@/lib/social'
+import { fetchListingsByProject, updateListingPublished } from '@/lib/marketplace'
 import { fetchParticipants, inviteParticipant, removeParticipant, updateParticipant } from '@/lib/participants'
 
 function ProjectsPage() {
@@ -111,7 +112,7 @@ function ProjectsPage() {
         <SectionHeading eyebrow="Create" title="Start a project" />
         <AppInput value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Move house, birthday prep, leave request..." />
         <p className="text-sm text-ink/65">
-          Start with just the title. Conversation, calendar, timeline, notes, and people can all be added once you’re inside.
+          Start with just the title. Conversation, calendar, timeline, store, and people can all be added once you’re inside.
         </p>
         <div className="flex flex-wrap gap-2">
           <AppButton disabled={!session || createMutation.isPending || !title.trim()} onClick={() => createMutation.mutate()}>
@@ -126,8 +127,8 @@ function ProjectsPage() {
                     ? '/app/projects/$projectId/calendar'
                     : lastProject.activeTab === 'timeline'
                       ? '/app/projects/$projectId/timeline'
-                      : lastProject.activeTab === 'notes'
-                        ? '/app/projects/$projectId/notes'
+                      : lastProject.activeTab === 'store'
+                        ? '/app/projects/$projectId/store'
                         : lastProject.activeTab === 'people'
                           ? '/app/projects/$projectId/people'
                           : '/app/projects/$projectId/conversation'
@@ -317,7 +318,7 @@ function ProjectNotesPage() {
   })
 
   return (
-    <ProjectShell projectId={projectId} activeTab="notes">
+    <ProjectShell projectId={projectId} activeTab="conversation">
       <div className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
         <AppCard className="space-y-4">
           <SectionHeading eyebrow={editingNoteId ? 'Edit note' : 'Add note'} title={editingNoteId ? 'Update project note' : 'Capture a project note'} />
@@ -549,6 +550,65 @@ export const projectNotesRoute = createRoute({
   getParentRoute: () => appRoute,
   path: 'projects/$projectId/notes',
   component: ProjectNotesPage,
+})
+
+function ProjectStorePage() {
+  const { projectId } = projectStoreRoute.useParams()
+  const queryClient = useQueryClient()
+  const listingsQuery = useQuery({
+    queryKey: ['project-listings', projectId],
+    queryFn: () => fetchListingsByProject(projectId),
+  })
+
+  const togglePublishedMutation = useMutation({
+    mutationFn: ({ listingId, isPublished }: { listingId: string; isPublished: boolean }) =>
+      updateListingPublished(listingId, isPublished),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['project-listings', projectId] }),
+  })
+
+  const listings = listingsQuery.data ?? []
+
+  return (
+    <ProjectShell projectId={projectId} activeTab="store">
+      <AppCard className="space-y-4">
+        <SectionHeading eyebrow="Store" title="Project-linked listings" />
+        {listings.length === 0 ? (
+          <AppPanel className="text-sm text-ink/60">
+            No listings linked to this project yet. Create a listing and set this as the workspace project to see it here.
+          </AppPanel>
+        ) : (
+          <div className="grid gap-3">
+            {listings.map((listing) => (
+              <AppPanel key={listing.id} className="flex flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <p className="font-extrabold text-ink">{listing.title}</p>
+                  <p className="text-sm text-ink/65">{listing.kind} · {listing.category} · {listing.price_label}</p>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className={`text-xs font-bold ${listing.is_published ? 'text-teal' : 'text-ink/45'}`}>
+                    {listing.is_published ? 'Published' : 'Draft'}
+                  </span>
+                  <AppButton
+                    variant={listing.is_published ? 'ghost' : 'secondary'}
+                    onClick={() => togglePublishedMutation.mutate({ listingId: listing.id, isPublished: !listing.is_published })}
+                    disabled={togglePublishedMutation.isPending}
+                  >
+                    {listing.is_published ? 'Unpublish' : 'Publish'}
+                  </AppButton>
+                </div>
+              </AppPanel>
+            ))}
+          </div>
+        )}
+      </AppCard>
+    </ProjectShell>
+  )
+}
+
+export const projectStoreRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: 'projects/$projectId/store',
+  component: ProjectStorePage,
 })
 
 export const projectPeopleRoute = createRoute({

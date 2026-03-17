@@ -69,6 +69,22 @@ function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
+function timeAgo(iso: string) {
+  const seconds = Math.floor((Date.now() - new Date(iso).getTime()) / 1000)
+  if (seconds < 60) return 'just now'
+  const minutes = Math.floor(seconds / 60)
+  if (minutes < 60) return `${minutes}m`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `${hours}h`
+  const days = Math.floor(hours / 24)
+  if (days < 7) return `${days}d`
+  return formatDate(iso)
+}
+
+function AvatarBadge({ label }: { label: string }) {
+  return <div className="ui-avatar-badge h-8 w-8 text-sm shrink-0">{label.slice(0, 1).toUpperCase()}</div>
+}
+
 // ─── Photo gallery ────────────────────────────────────────────────────────────
 
 function PhotoGallery({ images, title }: { images: Array<{ id: string; storagePath: string; altText: string }>; title: string }) {
@@ -176,67 +192,75 @@ function ReviewsList({
   }
 
   return (
-    <div className="space-y-0 divide-y divide-border">
+    <div className="space-y-5">
       {reviews.map((review) => (
-        <div key={review.id} className="py-5 first:pt-0 last:pb-0">
-          {/* Reviewer row */}
-          <div className="flex items-start justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <div className="ui-avatar-badge h-8 w-8 text-sm shrink-0">
-                {(review.reviewerDisplayName || review.reviewerHandle || '?')[0].toUpperCase()}
-              </div>
-              <div>
-                <p className="text-sm font-semibold text-ink">
+        <div key={review.id} className="space-y-3">
+          {/* Reviewer message */}
+          <div className="flex gap-3">
+            <AvatarBadge label={review.reviewerDisplayName || review.reviewerHandle || '?'} />
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2 text-sm text-ink/55">
+                <span className="font-extrabold text-ink">
                   {review.reviewerDisplayName || (review.reviewerHandle ? `@${review.reviewerHandle}` : 'Buyer')}
-                </p>
-                <p className="text-xs text-ink/50">{formatDate(review.createdAt)}</p>
+                </span>
+                <span>·</span>
+                <StarDisplay rating={review.rating} />
+                <span>·</span>
+                <span>{timeAgo(review.createdAt)}</span>
               </div>
-            </div>
-            <div className="flex items-center gap-2 shrink-0">
-              <StarDisplay rating={review.rating} />
-              <span className="ui-pill">This listing</span>
+              <p className="mt-1 text-sm text-ink/80 leading-relaxed">{review.body}</p>
             </div>
           </div>
 
-          {/* Review body */}
-          <p className="mt-3 text-sm text-ink/80 leading-relaxed">{review.body}</p>
-
-          {/* Seller response */}
+          {/* Seller reply */}
           {review.responseBody ? (
-            <div className="mt-3 ml-4 border-l-2 border-border pl-4">
-              <p className="text-xs font-semibold text-ink/60 uppercase tracking-wider mb-1">Seller response</p>
-              <p className="text-sm text-ink/75 leading-relaxed">{review.responseBody}</p>
-              {review.responseAt ? <p className="mt-1 text-xs text-ink/40">{formatDate(review.responseAt)}</p> : null}
+            <div className="flex gap-3 pl-6">
+              <AvatarBadge label="S" />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2 text-sm text-ink/55">
+                  <span className="font-extrabold text-ink">Shop owner</span>
+                  {review.responseAt ? (
+                    <>
+                      <span>·</span>
+                      <span>{timeAgo(review.responseAt)}</span>
+                    </>
+                  ) : null}
+                </div>
+                <p className="mt-1 text-sm text-ink/75 leading-relaxed">{review.responseBody}</p>
+              </div>
             </div>
           ) : isSeller && showRespondButton ? (
             respondingTo === review.id ? (
-              <div className="mt-3 ml-4 space-y-2">
-                <AppTextarea
-                  value={responseText}
-                  onChange={(e) => setResponseText(e.target.value)}
-                  className="min-h-20 text-sm"
-                  placeholder="Write a response..."
-                  autoFocus
-                />
-                <div className="flex gap-2">
-                  <AppButton
-                    disabled={!responseText.trim() || respondMutation.isPending}
-                    onClick={() => respondMutation.mutate({ reviewId: review.id, body: responseText.trim() })}
-                  >
-                    {respondMutation.isPending ? 'Saving…' : 'Post response'}
-                  </AppButton>
-                  <AppButton variant="ghost" onClick={() => { setRespondingTo(null); setResponseText('') }}>
-                    Cancel
-                  </AppButton>
+              <div className="flex gap-3 pl-6">
+                <AvatarBadge label="S" />
+                <div className="min-w-0 flex-1 space-y-2">
+                  <AppTextarea
+                    value={responseText}
+                    onChange={(e) => setResponseText(e.target.value)}
+                    className="min-h-20 text-sm"
+                    placeholder="Write a response..."
+                    autoFocus
+                  />
+                  <div className="flex gap-2">
+                    <AppButton
+                      disabled={!responseText.trim() || respondMutation.isPending}
+                      onClick={() => respondMutation.mutate({ reviewId: review.id, body: responseText.trim() })}
+                    >
+                      {respondMutation.isPending ? 'Saving…' : 'Post response'}
+                    </AppButton>
+                    <AppButton variant="ghost" onClick={() => { setRespondingTo(null); setResponseText('') }}>
+                      Cancel
+                    </AppButton>
+                  </div>
                 </div>
               </div>
             ) : (
               <button
                 type="button"
-                className="mt-2 text-xs text-ink/50 hover:text-ink hover:underline"
+                className="pl-6 text-xs text-ink/50 hover:text-ink hover:underline"
                 onClick={() => setRespondingTo(review.id)}
               >
-                Respond to this review
+                Reply
               </button>
             )
           ) : null}
@@ -488,7 +512,7 @@ function ListingDetailPage() {
                 onClick={() => importMutation.mutate()}
                 className="w-full justify-center"
               >
-                Import template to project
+                Import template
               </AppButton>
             ) : null}
 
@@ -505,7 +529,7 @@ function ListingDetailPage() {
 
             <Link to="/app/marketplace/cart">
               <AppButton variant="ghost" className="w-full justify-center">
-                View cart{cartCountQuery.data ? ` (${cartCountQuery.data})` : ''}
+                Cart{cartCountQuery.data ? ` (${cartCountQuery.data})` : ''}
               </AppButton>
             </Link>
           </AppCard>
@@ -534,10 +558,40 @@ function ListingDetailPage() {
                     ))}
                   </ul>
                 ) : null}
-                {listing.kind === 'template' ? (
-                  <p className="text-ink/55">
-                    {milestoneCount} milestone{milestoneCount !== 1 ? 's' : ''} · {taskCount} task{taskCount !== 1 ? 's' : ''}
-                  </p>
+                {listing.kind === 'template' && (milestoneCount > 0 || taskCount > 0) ? (
+                  <div className="space-y-3 pt-1">
+                    {milestoneCount > 0 ? (
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-wider text-ink/40 mb-1.5">
+                          {milestoneCount} timeline block{milestoneCount !== 1 ? 's' : ''}
+                        </p>
+                        <ul className="space-y-1">
+                          {listing.template_payload!.milestones!.map((m, i) => (
+                            <li key={i} className="flex items-center gap-2 text-sm text-ink/70">
+                              <span className="h-1.5 w-1.5 rounded-full bg-teal/60 shrink-0" />
+                              {m.title}
+                              <span className="text-ink/35 text-xs">{m.lane}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : null}
+                    {taskCount > 0 ? (
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-wider text-ink/40 mb-1.5">
+                          {taskCount} task{taskCount !== 1 ? 's' : ''}
+                        </p>
+                        <ul className="space-y-1">
+                          {listing.template_payload!.tasks!.map((t, i) => (
+                            <li key={i} className="flex items-center gap-2 text-sm text-ink/70">
+                              <span className="h-1.5 w-1.5 rounded-full bg-ink/25 shrink-0" />
+                              {t.title}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : null}
+                  </div>
                 ) : null}
               </div>
             ) : null}

@@ -13,6 +13,7 @@ import {
   projectDetailRoute,
   projectNotesRoute,
   projectPeopleRoute,
+  projectStoreRoute,
   projectTimelineRoute,
   projectsRoute,
 } from '@/pages/projects'
@@ -54,6 +55,7 @@ const routeTree = rootRoute.addChildren([
     projectCalendarRoute,
     projectTimelineRoute,
     projectNotesRoute,
+    projectStoreRoute,
     projectPeopleRoute,
     participantsRoute,
     availabilityRoute,

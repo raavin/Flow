@@ -97,18 +97,26 @@ export async function createProject(input: {
   const seedMilestones = [
     {
       project_id: project.id,
-      title: `${normalizedCategory} plan`,
+      title: 'Kickoff',
       starts_on: normalizedTargetDate,
       ends_on: normalizedTargetDate,
       lane: 'Planning',
-      progress: 10,
+      progress: 0,
     },
     {
       project_id: project.id,
-      title: 'Coordination sprint',
-      starts_on: normalizedTargetDate,
-      ends_on: normalizedTargetDate,
-      lane: 'Coordination',
+      title: 'Mid-point review',
+      starts_on: shiftDate(normalizedTargetDate, 30),
+      ends_on: shiftDate(normalizedTargetDate, 30),
+      lane: 'Planning',
+      progress: 0,
+    },
+    {
+      project_id: project.id,
+      title: 'Delivery',
+      starts_on: shiftDate(normalizedTargetDate, 60),
+      ends_on: shiftDate(normalizedTargetDate, 60),
+      lane: 'Planning',
       progress: 0,
     },
   ]
