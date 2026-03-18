@@ -1,4 +1,10 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode, type RefObject } from 'react'
+import { useEditor, EditorContent } from '@tiptap/react'
+import StarterKit from '@tiptap/starter-kit'
+import { TaskList } from '@tiptap/extension-task-list'
+import { TaskItem } from '@tiptap/extension-task-item'
+import { Link as TiptapLink } from '@tiptap/extension-link'
+import Placeholder from '@tiptap/extension-placeholder'
 import { Link, createRoute, useNavigate } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Bookmark, Globe, Heart, ImagePlus, MessageCircle, Paperclip, Pencil, Repeat2, Search, Send, Share2, Sparkles, Star, Trash2, Waves, X } from 'lucide-react'
@@ -30,9 +36,6 @@ import {
 import { createProject, fetchProjects } from '@/lib/projects'
 import { searchSupportEntries } from '@/lib/support'
 
-function formatRichText(command: string, value?: string) {
-  document.execCommand(command, false, value ?? undefined)
-}
 
 function sanitizeHtml(html: string): string {
   return html
@@ -112,7 +115,7 @@ export function MessagesFeedPage({ linkedProjectId }: { linkedProjectId?: string
   const [autocomplete, setAutocomplete] = useState<AutocompleteState | null>(null)
   const [activeSuggestionIndex, setActiveSuggestionIndex] = useState(0)
   const [postVisibility, setPostVisibility] = useState<'private' | 'public' | 'followers' | 'project'>('followers')
-  const [activeFormats, setActiveFormats] = useState<Set<string>>(new Set())
+
   const [publicWarningPending, setPublicWarningPending] = useState<'public' | 'followers' | 'project' | null>(null)
   const [skipPublicWarning, setSkipPublicWarning] = useState(false)
   const [notesOnly, setNotesOnly] = useState(false)
@@ -125,7 +128,6 @@ export function MessagesFeedPage({ linkedProjectId }: { linkedProjectId?: string
   const [showVideoLinkInput, setShowVideoLinkInput] = useState(false)
   const [showAudioLinkInput, setShowAudioLinkInput] = useState(false)
   const [editingMediaPaths, setEditingMediaPaths] = useState<string[]>([])
-  const postComposerRef = useRef<HTMLDivElement>(null)
   const replyComposerRef = useRef<HTMLTextAreaElement>(null)
   const dmComposerRef = useRef<HTMLTextAreaElement>(null)
   const projectsQuery = useQuery({ queryKey: ['projects'], queryFn: fetchProjects })
@@ -397,22 +399,38 @@ export function MessagesFeedPage({ linkedProjectId }: { linkedProjectId?: string
     setAudioLinkInput('')
     setShowVideoLinkInput(false)
     setShowAudioLinkInput(false)
-    if (postComposerRef.current) postComposerRef.current.innerHTML = ''
     setEditingMediaPaths([])
   }
 
-  // Populate contenteditable when composer opens (especially for edit mode)
-  useEffect(() => {
-    if (!composerOpen) return
-    if (postComposerRef.current) {
-      postComposerRef.current.innerHTML = body
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [composerOpen])
+  const editor = useEditor({
+    extensions: [
+      StarterKit.configure({ heading: { levels: [3] } }),
+      TaskList,
+      TaskItem.configure({ nested: false }),
+      TiptapLink.configure({ openOnClick: false }),
+      Placeholder.configure({ placeholder: "What's on your mind?" }),
+    ],
+    content: '',
+    onUpdate: ({ editor: e }) => {
+      const html = e.getHTML()
+      setBody(html === '<p></p>' ? '' : html)
+      const textBeforeCursor = e.state.doc.textBetween(0, e.state.selection.anchor, '\n')
+      updateAutocomplete('post', textBeforeCursor, textBeforeCursor.length, setAutocomplete, setActiveSuggestionIndex)
+    },
+    editorProps: {
+      attributes: {
+        class: 'min-h-[220px] outline-none text-[15px] leading-relaxed text-ink',
+      },
+    },
+  })
 
-  function updateActiveFormats() {
-    setActiveFormats(new Set(['bold', 'italic'].filter((cmd) => document.queryCommandState(cmd))))
-  }
+  // Sync content into editor when composer opens (handles both new and edit)
+  useEffect(() => {
+    if (!composerOpen || !editor) return
+    editor.commands.setContent(body || '')
+    editor.commands.focus('end')
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [composerOpen, editor])
 
   return (
     <>
@@ -566,11 +584,11 @@ export function MessagesFeedPage({ linkedProjectId }: { linkedProjectId?: string
                         })()
                       ) : post.content_kind === 'note' ? (
                         <div
-                          className="mt-2 text-sm text-ink/85 leading-relaxed space-y-1 [&_input[type='checkbox']]:pointer-events-none [&_input[type='checkbox']]:cursor-default [&_label]:pointer-events-none"
+                          className="rich-content mt-2 text-sm text-ink/85 leading-relaxed space-y-1"
                           dangerouslySetInnerHTML={{ __html: sanitizeHtml(post.body) }}
                         />
                       ) : post.body.includes('<') ? (
-                        <div className="mt-2 text-[17px] leading-8 text-ink [&_input[type='checkbox']]:pointer-events-none [&_input[type='checkbox']]:cursor-default [&_label]:pointer-events-none" dangerouslySetInnerHTML={{ __html: sanitizeHtml(post.body) }} />
+                        <div className="rich-content mt-2 text-[17px] leading-8 text-ink" dangerouslySetInnerHTML={{ __html: sanitizeHtml(post.body) }} />
                       ) : (
                         <div className="mt-2 text-[17px] leading-8 text-ink">
                           <RichPostText body={post.body} mentionMap={post.mentionMap} />
@@ -852,53 +870,43 @@ export function MessagesFeedPage({ linkedProjectId }: { linkedProjectId?: string
 
               {/* Formatting toolbar */}
               <div className="flex items-center gap-1 border-b border-border bg-cloud/40 px-4 py-2">
-                {[
-                  { cmd: 'bold', label: 'B', style: { fontWeight: 700 } as React.CSSProperties },
-                  { cmd: 'italic', label: 'I', style: { fontStyle: 'italic' } as React.CSSProperties },
-                ].map(({ cmd, label, style }) => (
+                {([
+                  { name: 'bold', label: 'B', style: { fontWeight: 700 } as React.CSSProperties, action: () => editor?.chain().focus().toggleBold().run() },
+                  { name: 'italic', label: 'I', style: { fontStyle: 'italic' } as React.CSSProperties, action: () => editor?.chain().focus().toggleItalic().run() },
+                ] as const).map(({ name, label, style, action }) => (
                   <button
-                    key={cmd}
+                    key={name}
                     type="button"
-                    title={cmd}
+                    title={name}
                     style={style}
-                    className={`flex h-7 w-8 items-center justify-center rounded border text-xs transition ${activeFormats.has(cmd) ? 'border-ink/40 bg-ink/15 text-ink' : 'border-border bg-white text-ink/70 hover:border-ink/40 hover:text-ink'}`}
-                    onClick={() => { postComposerRef.current?.focus(); formatRichText(cmd); updateActiveFormats() }}
+                    className={`flex h-7 w-8 items-center justify-center rounded border text-xs transition ${editor?.isActive(name) ? 'border-ink/40 bg-ink/15 text-ink' : 'border-border bg-white text-ink/70 hover:border-ink/40 hover:text-ink'}`}
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={action}
                   >{label}</button>
                 ))}
-                <button type="button" title="heading" className="flex h-7 w-8 items-center justify-center rounded border border-border bg-white text-xs text-ink/70 hover:border-ink/40 hover:text-ink transition" onClick={() => { postComposerRef.current?.focus(); formatRichText('formatBlock', 'h3') }}>H₁</button>
-                <button type="button" title="list" className="flex h-7 w-8 items-center justify-center rounded border border-border bg-white text-xs text-ink/70 hover:border-ink/40 hover:text-ink transition" onClick={() => { postComposerRef.current?.focus(); formatRichText('insertUnorderedList') }}>≡</button>
-                <button type="button" title="checklist" className="flex h-7 w-8 items-center justify-center rounded border border-border bg-white text-xs text-ink/70 hover:border-ink/40 hover:text-ink transition" onClick={() => { postComposerRef.current?.focus(); document.execCommand('insertHTML', false, '<label contenteditable="false" style="display:inline-flex;align-items:center;gap:5px;cursor:pointer;user-select:none;margin:0 2px 0 0"><input type="checkbox" style="width:15px;height:15px;cursor:pointer;accent-color:#1a1a1a;flex-shrink:0"></label>\u200B') }}>☑</button>
-                <button type="button" title="link" className="flex h-7 w-8 items-center justify-center rounded border border-border bg-white text-xs text-ink/70 hover:border-ink/40 hover:text-ink transition" onClick={() => { const url = prompt('URL:'); if (url) { postComposerRef.current?.focus(); formatRichText('createLink', url) } }}>⌘K</button>
+                <button type="button" title="heading"
+                  className={`flex h-7 w-8 items-center justify-center rounded border text-xs transition ${editor?.isActive('heading', { level: 3 }) ? 'border-ink/40 bg-ink/15 text-ink' : 'border-border bg-white text-ink/70 hover:border-ink/40 hover:text-ink'}`}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => editor?.chain().focus().toggleHeading({ level: 3 }).run()}>H₁</button>
+                <button type="button" title="list"
+                  className={`flex h-7 w-8 items-center justify-center rounded border text-xs transition ${editor?.isActive('bulletList') ? 'border-ink/40 bg-ink/15 text-ink' : 'border-border bg-white text-ink/70 hover:border-ink/40 hover:text-ink'}`}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => editor?.chain().focus().toggleBulletList().run()}>≡</button>
+                <button type="button" title="checklist"
+                  className={`flex h-7 w-8 items-center justify-center rounded border text-xs transition ${editor?.isActive('taskList') ? 'border-ink/40 bg-ink/15 text-ink' : 'border-border bg-white text-ink/70 hover:border-ink/40 hover:text-ink'}`}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => editor?.chain().focus().toggleTaskList().run()}>☑</button>
+                <button type="button" title="link" className="flex h-7 w-8 items-center justify-center rounded border border-border bg-white text-xs text-ink/70 hover:border-ink/40 hover:text-ink transition"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => { const url = prompt('URL:'); if (url) editor?.chain().focus().setLink({ href: url }).run() }}>⌘K</button>
                 <div className="flex-1" />
                 <span className="text-xs text-ink/30">@mention  #topic  /command</span>
               </div>
 
-              {/* Textarea */}
+              {/* Tiptap editor */}
               <div className="relative px-6 pt-4 pb-2">
-                <div
-                  ref={postComposerRef as unknown as React.RefObject<HTMLDivElement>}
-                  contentEditable
-                  suppressContentEditableWarning
-                  onInput={(e) => {
-                    setBody(e.currentTarget.innerHTML)
-                    const el = e.currentTarget
-                    updateAutocomplete('post', el.innerText, el.innerText.length, setAutocomplete, setActiveSuggestionIndex)
-                    updateActiveFormats()
-                  }}
-                  onKeyUp={updateActiveFormats}
-                  onMouseUp={updateActiveFormats}
-                  onClickCapture={(e) => {
-                    const target = e.target as HTMLElement
-                    if (target.tagName === 'INPUT' && (target as HTMLInputElement).type === 'checkbox') {
-                      const cb = target as HTMLInputElement
-                      // Sync DOM checked property → HTML attribute after browser toggles it
-                      requestAnimationFrame(() => {
-                        if (cb.checked) cb.setAttribute('checked', '')
-                        else cb.removeAttribute('checked')
-                        if (postComposerRef.current) setBody(postComposerRef.current.innerHTML)
-                      })
-                    }
-                  }}
+                <EditorContent
+                  editor={editor}
                   onKeyDown={(event) =>
                     handleAutocompleteKeyDown({
                       event: event as unknown as KeyboardEvent<HTMLTextAreaElement>,
@@ -906,37 +914,34 @@ export function MessagesFeedPage({ linkedProjectId }: { linkedProjectId?: string
                       options: autocompleteOptions,
                       activeSuggestionIndex,
                       setActiveSuggestionIndex,
-                      applyOption: (option) =>
-                        applyAutocompleteOption({
-                          kind: 'post',
-                          option,
-                          autocomplete,
-                          refs: { post: postComposerRef, reply: replyComposerRef, dm: dmComposerRef },
-                          values: { post: body, reply: replyBody, dm: dmBody },
-                          setters: { post: setBody, reply: setReplyBody, dm: setDmBody },
-                          clearAutocomplete: () => setAutocomplete(null),
-                        }),
+                      applyOption: (option) => {
+                        if (!editor || !autocomplete) return
+                        const deletionLength = autocomplete.end - autocomplete.start
+                        const anchor = editor.state.selection.anchor
+                        editor.chain().focus()
+                          .deleteRange({ from: anchor - deletionLength, to: anchor })
+                          .insertContent(`${option.trigger}${option.value} `)
+                          .run()
+                        setAutocomplete(null)
+                      },
                       clearAutocomplete: () => setAutocomplete(null),
                     })
                   }
-                  className="min-h-[220px] w-full outline-none text-[15px] leading-relaxed text-ink empty:before:content-[attr(data-placeholder)] empty:before:text-ink/30"
-                  data-placeholder="What's on your mind?"
                 />
                 {autocomplete?.kind === 'post' ? (
                   <AutocompleteMenu
                     options={autocompleteOptions}
                     activeIndex={activeSuggestionIndex}
-                    onSelect={(option) =>
-                      applyAutocompleteOption({
-                        kind: 'post',
-                        option,
-                        autocomplete,
-                        refs: { post: postComposerRef, reply: replyComposerRef, dm: dmComposerRef },
-                        values: { post: body, reply: replyBody, dm: dmBody },
-                        setters: { post: setBody, reply: setReplyBody, dm: setDmBody },
-                        clearAutocomplete: () => setAutocomplete(null),
-                      })
-                    }
+                    onSelect={(option) => {
+                      if (!editor || !autocomplete) return
+                      const deletionLength = autocomplete.end - autocomplete.start
+                      const anchor = editor.state.selection.anchor
+                      editor.chain().focus()
+                        .deleteRange({ from: anchor - deletionLength, to: anchor })
+                        .insertContent(`${option.trigger}${option.value} `)
+                        .run()
+                      setAutocomplete(null)
+                    }}
                   />
                 ) : null}
               </div>
