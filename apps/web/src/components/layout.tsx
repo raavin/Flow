@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import { Link, Outlet, createRootRoute, createRoute, useNavigate } from '@tanstack/react-router'
 import {
   Bell,
@@ -18,40 +18,7 @@ import {
 import { AppButton, AppCard } from '@superapp/ui'
 import { AppStoreProvider, useAppStore } from '@/hooks/useAppStore'
 
-type Theme = 'quirky' | 'clean' | 'flow' | 'mono'
-
-const THEMES: Theme[] = ['quirky', 'clean', 'flow', 'mono']
-const THEME_LABELS: Record<Theme, string> = {
-  quirky: 'Quirky',
-  clean:  'Clean',
-  flow:   'Flow',
-  mono:   'Mono',
-}
-
-function useTheme() {
-  const [theme, setThemeState] = useState<Theme>(() => {
-    return (localStorage.getItem('superapp-theme') as Theme) ?? 'mono'
-  })
-
-  useEffect(() => {
-    document.documentElement.setAttribute('data-theme', theme)
-    localStorage.setItem('superapp-theme', theme)
-  }, [theme])
-
-  useEffect(() => {
-    const saved = (localStorage.getItem('superapp-theme') as Theme) ?? 'mono'
-    document.documentElement.setAttribute('data-theme', saved)
-  }, [])
-
-  function cycleTheme() {
-    setThemeState((current) => {
-      const idx = THEMES.indexOf(current)
-      return THEMES[(idx + 1) % THEMES.length]
-    })
-  }
-
-  return { theme, cycleTheme }
-}
+import { THEME_LABELS, useTheme } from '@/hooks/useTheme'
 
 function RootComponent() {
   return (

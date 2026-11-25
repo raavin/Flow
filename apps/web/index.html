@@ -1,9 +1,21 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="mono">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Flow</title>
+    <script>
+      // Restore before styles and React load, including on public routes.
+      // Keep the supported themes and fallback aligned with useTheme.ts.
+      try {
+        var savedTheme = localStorage.getItem('superapp-theme')
+        if (['quirky', 'clean', 'flow', 'mono'].includes(savedTheme)) {
+          document.documentElement.setAttribute('data-theme', savedTheme)
+        }
+      } catch (_) {
+        // Storage may be disabled; the HTML default still applies.
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>
