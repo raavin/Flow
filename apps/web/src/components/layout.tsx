@@ -76,6 +76,7 @@ function AppLayout() {
       ? [
           { to: '/app/messages', label: 'Messages', icon: MessageCircleMore },
           { to: '/app/projects', label: 'Projects', icon: BriefcaseBusiness },
+          { to: '/app/coordination', label: 'Flows & templates', icon: LayoutGrid },
           { to: '/app/jobs', label: 'Jobs', icon: BriefcaseBusiness },
           { to: '/app/calendar', label: 'Calendar', icon: CalendarDays },
           { to: '/app/gantt', label: 'Timeline', icon: LayoutGrid },
@@ -85,16 +86,19 @@ function AppLayout() {
           { to: '/app/calendar', label: 'Calendar', icon: CalendarDays },
           { to: '/app/gantt', label: 'Timeline', icon: LayoutGrid },
           { to: '/app/projects', label: 'Projects', icon: BriefcaseBusiness },
+          { to: '/app/coordination', label: 'Flows & templates', icon: LayoutGrid },
         ]
   const commerceNavItems =
     profile?.active_mode === 'business'
       ? [
           { to: '/app/marketplace', label: 'Marketplace', icon: ShoppingBag },
-          { to: '/app/wallet', label: 'Wallet', icon: Wallet },
+          { to: '/app/budgets', label: 'Budgets', icon: Wallet },
+          { to: '/app/wallet', label: 'Money records', icon: Wallet },
         ]
       : [
           { to: '/app/marketplace', label: 'Marketplace', icon: ShoppingBag },
-          { to: '/app/wallet', label: 'Wallet', icon: Wallet },
+          { to: '/app/budgets', label: 'Budgets', icon: Wallet },
+          { to: '/app/wallet', label: 'Money records', icon: Wallet },
         ]
   const utilityNavItems = [
     { to: '/app/search', label: 'Search', icon: Search },
@@ -102,7 +106,7 @@ function AppLayout() {
     { to: '/app/notifications', label: 'Notifications', icon: Bell },
     { to: '/app/settings', label: profile?.active_mode === 'business' ? 'Profile & Admin' : 'Profile', icon: CircleUserRound },
     { to: '/app/integrations', label: 'Integrations', icon: Plug },
-    { to: '/app/ai', label: 'AI assistant', icon: Bot },
+    { to: '/app/ai', label: 'Planning helper', icon: Bot },
   ] as const
 
   return (

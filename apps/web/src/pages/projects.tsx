@@ -318,7 +318,7 @@ function ProjectNotesPage() {
   })
 
   return (
-    <ProjectShell projectId={projectId} activeTab="conversation">
+    <ProjectShell projectId={projectId} activeTab="notes">
       <div className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
         <AppCard className="space-y-4">
           <SectionHeading eyebrow={editingNoteId ? 'Edit note' : 'Add note'} title={editingNoteId ? 'Update project note' : 'Capture a project note'} />

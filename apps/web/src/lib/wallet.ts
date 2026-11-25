@@ -1,3 +1,4 @@
+import { assertBudgetAmount } from './budget'
 import type { FinancialTransaction, SalesLedgerRow } from '@superapp/types'
 import { supabase } from './supabase'
 import { createNotification } from './coordination'
@@ -227,10 +228,12 @@ export async function createWalletEntry(input: {
   occurredAt?: string
 }) {
   if (!supabase) throw new Error('Supabase is not configured.')
+  assertBudgetAmount(input.amountCents)
+  if (!input.amountCents) throw new Error('Enter an amount greater than zero.')
   const transactionType =
     input.transactionType ?? (input.entryKind === 'request' ? 'request' : input.sourceKind === 'marketplace' ? 'purchase' : 'transfer')
   const sourceKind = input.sourceKind ?? (input.linkedListingId ? 'marketplace' : input.relatedProfileId ? 'peer' : input.linkedProjectId ? 'project' : 'manual')
-  const status = input.entryKind === 'request' ? 'pending' : 'settled'
+  const status = input.entryKind === 'send' ? 'settled' : 'pending'
 
   const { error } = await supabase.from('financial_transactions').insert({
     profile_id: input.profileId,
@@ -274,9 +277,15 @@ export async function updateWalletEntry(entryId: string, input: { description?: 
   if (!supabase) throw new Error('Supabase is not configured.')
   const payload: Record<string, unknown> = {}
   if (input.description !== undefined) payload.description = input.description.trim()
-  if (input.amountCents !== undefined) payload.amount_cents = input.amountCents
+  if (input.amountCents !== undefined) {
+    assertBudgetAmount(input.amountCents)
+    if (!input.amountCents) throw new Error('Enter an amount greater than zero.')
+    payload.subtotal_cents = input.amountCents
+    payload.total_cents = input.amountCents
+    payload.seller_net_cents = input.amountCents
+  }
   if (input.direction !== undefined) payload.direction = input.direction
-  const { error } = await supabase.from('financial_transactions').update(payload).eq('id', entryId).eq('transaction_type', 'manual')
+  const { error } = await supabase.from('financial_transactions').update(payload).eq('id', entryId).eq('transaction_role', 'manual')
   if (error) throw error
 }
 
@@ -288,6 +297,6 @@ export async function deleteWalletEntry(entryId: string) {
 
 export async function settleWalletEntry(entryId: string) {
   if (!supabase) throw new Error('Supabase is not configured.')
-  const { error } = await supabase.from('financial_transactions').update({ status: 'settled' }).eq('id', entryId)
+  const { error } = await supabase.from('financial_transactions').update({ status: 'settled' }).eq('id', entryId).eq('transaction_role', 'manual')
   if (error) throw error
 }

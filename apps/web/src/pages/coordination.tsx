@@ -1,3 +1,5 @@
+import { TemplatePreview } from '@/components/template-preview'
+import { templateSchedule } from '@/lib/template-planning'
 import { useMemo, useRef, useState } from 'react'
 import { Link, createRoute, useNavigate } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -79,7 +81,9 @@ function CoordinationPage() {
   const [templateTitle, setTemplateTitle] = useState('')
   const [templateSummary, setTemplateSummary] = useState('')
   const [templateDisplayKind, setTemplateDisplayKind] = useState<CoordinationDisplayKind>('plan')
+  const [advancedTemplate, setAdvancedTemplate] = useState(false)
   const [templateJson, setTemplateJson] = useState('')
+  const [templateSteps, setTemplateSteps] = useState([{ title: '', offsetDays: 0 }])
   const [templateError, setTemplateError] = useState<string | null>(null)
 
   const coordinationQuery = useQuery({
@@ -139,9 +143,11 @@ function CoordinationPage() {
       let blocks: CoordinationTemplateBlock[] = []
 
       try {
-        blocks = parseTemplateBlocks(templateJson)
+        blocks = advancedTemplate ? JSON.parse(templateJson) : templateSteps.map(step => ({ title: step.title.trim(), kind: 'plan', displayKind: 'task', intent: 'coordinate', offsetDays: step.offsetDays, durationDays: 1, lane: 'Preparation' }))
+        if (!Array.isArray(blocks) || !blocks.every(block => typeof block?.title === 'string' && typeof block?.kind === 'string' && typeof block?.displayKind === 'string' && typeof block?.intent === 'string')) throw new Error('Each step needs title, kind, displayKind and intent.')
+        templateSchedule(blocks, templateAnchorDate)
       } catch (error) {
-        setTemplateError(error instanceof Error ? error.message : 'Template JSON is not valid.')
+        setTemplateError(error instanceof Error ? error.message : 'Check the steps and dates.')
         throw error
       }
 
@@ -156,7 +162,9 @@ function CoordinationPage() {
     onSuccess: () => {
       setTemplateTitle('')
       setTemplateSummary('')
+      setTemplateSteps([{ title: '', offsetDays: 0 }])
       setTemplateJson('')
+      setAdvancedTemplate(false)
       setTemplateError(null)
       void queryClient.invalidateQueries({ queryKey: ['coordination-templates'] })
     },
@@ -211,7 +219,7 @@ function CoordinationPage() {
   return (
     <div className="space-y-4">
       <AppCard className="space-y-4">
-        <SectionHeading eyebrow="Flows" title="Coordination objects" />
+        <SectionHeading eyebrow="Flows" title="Make room for the steps before the day" />
         <p className="text-sm text-ink/70">
           Everything can start lightweight here: a reminder, a request, an appointment, a booking, a tiny plan, or the seed of a bigger project.
         </p>
@@ -231,6 +239,7 @@ function CoordinationPage() {
         </div>
       </AppCard>
 
+      {(applyTemplateMutation.error || saveTemplateMutation.error || starterTemplatesMutation.error) ? <p role="alert" className="ui-panel">{(applyTemplateMutation.error || saveTemplateMutation.error || starterTemplatesMutation.error)?.message}</p> : null}
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]">
         <div className="space-y-4">
           <AppCard className="space-y-4">
@@ -350,12 +359,12 @@ function CoordinationPage() {
 
         <div className="space-y-4">
           <AppCard className="space-y-4">
-            <SectionHeading eyebrow="Reusable flows" title="Templates as timeline blocks" />
+            <SectionHeading eyebrow="Reusable flows" title="Reusable plans" action={<AppButton variant="ghost" disabled={!session || starterTemplatesMutation.isPending} onClick={() => starterTemplatesMutation.mutate()}>Add starter plans</AppButton>} />
             <p className="text-sm text-ink/70">
               Save the shape of real-life sequences, then drop them onto the timeline whenever the same pattern comes around again.
             </p>
             <FieldLabel>
-              Anchor date
+              Main date / day zero
               <AppInput type="date" value={templateAnchorDate} onChange={(event) => setTemplateAnchorDate(event.target.value)} className="mt-2" />
             </FieldLabel>
             <div className="space-y-3">
@@ -402,20 +411,19 @@ function CoordinationPage() {
                 ))}
               </AppSelect>
             </FieldLabel>
-            <FieldLabel>
-              Blocks JSON
-              <AppTextarea
-                value={templateJson}
-                onChange={(event) => setTemplateJson(event.target.value)}
-                className="mt-2 min-h-40 font-mono text-xs"
-                placeholder={`[
-  { "title": "Invite people", "kind": "message", "displayKind": "chat", "intent": "notify", "offsetDays": -7, "durationDays": 1, "lane": "People" },
-  { "title": "Main event", "kind": "event", "displayKind": "event", "intent": "celebrate", "offsetDays": 0, "durationDays": 1, "lane": "Main event" }
-]`}
-              />
-            </FieldLabel>
+            <p className="text-sm text-ink/70">Add the steps around your main date. Use negative days for preparation, 0 for the day itself, and positive days for follow-up.</p>
+            {!advancedTemplate ? templateSteps.map((step, index) => <div key={index} className="grid grid-cols-[1fr_90px_auto] items-end gap-2">
+              <FieldLabel>Step {index + 1}<AppInput value={step.title} placeholder="Buy a present" onChange={e => setTemplateSteps(steps => steps.map((item, i) => i === index ? { ...item, title: e.target.value } : item))} /></FieldLabel>
+              <FieldLabel>Days +/-<AppInput type="number" step="1" min="-3650" max="3650" value={Number.isNaN(step.offsetDays) ? '' : step.offsetDays} onChange={e => setTemplateSteps(steps => steps.map((item, i) => i === index ? { ...item, offsetDays: e.target.value === '' ? NaN : Number(e.target.value) } : item))} /></FieldLabel>
+              <AppButton variant="ghost" disabled={templateSteps.length === 1} aria-label={`Remove step ${index + 1}`} onClick={() => setTemplateSteps(steps => steps.filter((_, i) => i !== index))}>×</AppButton>
+            </div>) : <FieldLabel>Advanced steps JSON<AppTextarea className="min-h-40 font-mono text-xs" value={templateJson} onChange={e => setTemplateJson(e.target.value)} /></FieldLabel>}
+            {!advancedTemplate ? <AppButton variant="secondary" onClick={() => setTemplateSteps(steps => [...steps, { title: '', offsetDays: 0 }])}>Add step</AppButton> : null}
+            <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={advancedTemplate} onChange={e => {
+              if (e.target.checked && !templateJson) setTemplateJson(JSON.stringify(templateSteps.map(step => ({ ...step, kind: 'plan', displayKind: 'task', intent: 'coordinate', durationDays: 1, lane: 'Preparation' })), null, 2))
+              setAdvancedTemplate(e.target.checked)
+            }} />Advanced template editor</label>
             {templateError ? <AppPanel tone="peach">{templateError}</AppPanel> : null}
-            <AppButton disabled={!session || saveTemplateMutation.isPending || !templateTitle.trim() || !templateJson.trim()} onClick={() => saveTemplateMutation.mutate()}>
+            <AppButton disabled={!session || saveTemplateMutation.isPending || !templateTitle.trim() || (advancedTemplate ? !templateJson.trim() : templateSteps.some(step => !step.title.trim()))} onClick={() => saveTemplateMutation.mutate()}>
               Save reusable flow
             </AppButton>
           </AppCard>
@@ -555,6 +563,7 @@ function BoardSection({
 
 function TemplatePanel({
   template,
+  anchorDate,
   isApplying,
   onApply,
   onRename,
@@ -612,16 +621,10 @@ function TemplatePanel({
         </div>
         <AppPill tone="teal">{template.blocks.length} blocks</AppPill>
       </div>
-      <div className="flex flex-wrap gap-2">
-        {template.blocks.slice(0, 4).map((block, index) => (
-          <AppPill key={`${template.id}-${index}`} tone="butter">
-            {block.title}
-          </AppPill>
-        ))}
-      </div>
+      <details><summary className="cursor-pointer text-sm font-semibold">Preview all {template.blocks.length} steps and dates</summary><div className="mt-3"><TemplatePreview blocks={template.blocks} anchorDate={anchorDate} /></div></details>
       <div className="flex flex-wrap items-center gap-2">
-        <AppButton variant="secondary" disabled={isApplying} onClick={onApply}>
-          Apply to timeline
+        <AppButton variant="secondary" disabled={isApplying || !anchorDate} onClick={onApply}>
+          Add plan to calendar & timeline
         </AppButton>
         {deleteConfirm ? (
           <>
@@ -932,14 +935,6 @@ function getParticipantNames(item: CoordinationObject | null) {
   if (!item) return []
   const participants = item.participants ?? []
   return participants.filter((participant) => participant.role !== 'owner').map((participant) => participant.participantName)
-}
-
-function parseTemplateBlocks(value: string) {
-  const parsed = JSON.parse(value) as CoordinationTemplateBlock[]
-  if (!Array.isArray(parsed) || !parsed.every((block) => typeof block?.title === 'string' && typeof block?.kind === 'string' && typeof block?.displayKind === 'string' && typeof block?.intent === 'string')) {
-    throw new Error('Template blocks must be a JSON array with title, kind, displayKind, and intent on each block.')
-  }
-  return parsed
 }
 
 function todayDate() {

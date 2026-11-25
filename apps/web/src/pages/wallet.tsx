@@ -1,3 +1,4 @@
+import { parseBudgetAmount } from '@/lib/budget'
 import { useMemo, useState, type ReactNode } from 'react'
 import { createRoute, Link } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -48,7 +49,7 @@ function WalletPage() {
         transactionType: draftKind === 'request' ? 'request' : 'transfer',
         sourceKind: selectedPerson ? 'peer' : projectId ? 'project' : 'manual',
         direction,
-        amountCents: Math.round(Number(amount || 0) * 100),
+        amountCents: parseBudgetAmount(amount),
         counterparty: selectedPerson?.label || counterpartyQuery || 'Unassigned',
         reason,
         dueOn: dueOn || undefined,
@@ -83,8 +84,8 @@ function WalletPage() {
   const summary = useMemo(() => {
     const pendingIn = pending.filter((entry) => entry.direction === 'in').reduce((sum, entry) => sum + entry.totalCents, 0)
     const pendingOut = pending.filter((entry) => entry.direction === 'out').reduce((sum, entry) => sum + entry.totalCents, 0)
-    const marketplaceSpent = marketplaceSpendEntries.reduce((sum, entry) => sum + entry.totalCents, 0)
-    const settledNet = entries.reduce((sum, entry) => sum + (entry.direction === 'in' ? entry.totalCents : -entry.totalCents), 0)
+    const marketplaceSpent = marketplaceSpendEntries.filter(entry => entry.status === 'paid' || entry.status === 'settled').reduce((sum, entry) => sum + entry.totalCents, 0)
+    const settledNet = entries.filter(entry => entry.status === 'paid' || entry.status === 'settled').reduce((sum, entry) => sum + (entry.direction === 'in' ? entry.totalCents : -entry.totalCents), 0)
     return { pendingIn, pendingOut, marketplaceSpent, settledNet }
   }, [entries, marketplaceSpendEntries, pending])
 
@@ -130,25 +131,27 @@ function WalletPage() {
 
   return (
     <div className="space-y-4">
+      <Link to="/app/budgets" className="inline-block text-sm underline">View project budgets and forecast costs →</Link>
+      {(entriesQuery.error || createMutation.error || settleMutation.error || editMutation.error || deleteMutation.error) ? <p role="alert" className="ui-panel">{String((entriesQuery.error || createMutation.error || settleMutation.error || editMutation.error || deleteMutation.error)?.message || 'Could not save this record.')}</p> : null}
       <AppCard className="space-y-4">
-        <SectionHeading eyebrow="Transactions" title="Money movement and commerce" />
+        <SectionHeading eyebrow="Money records" title="Keep track of what was paid and what is owed" />
         <p className="text-sm text-ink/65">
-          Marketplace purchases, person-to-person transfers, and project-linked expenses now flow through one shared ledger.
+          Record payments made elsewhere and amounts owed. These records do not send money, charge anyone, or connect to a bank account.
         </p>
         <div className="flex flex-wrap gap-2">
-          <AppButton onClick={() => openDraft('transfer')}>New transfer</AppButton>
+          <AppButton onClick={() => openDraft('transfer')}>Record payment</AppButton>
           <AppButton variant="secondary" onClick={() => openDraft('request')}>
-            Request money
+            Record money owed to you
           </AppButton>
           <AppButton variant="ghost" onClick={() => openDraft('manual')}>
-            Log manual entry
+            Record amount you owe
           </AppButton>
         </div>
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <SummaryCard icon={<Repeat className="h-5 w-5" />} label="Pending in" value={formatCurrency(summary.pendingIn)} tone="teal" />
           <SummaryCard icon={<Landmark className="h-5 w-5" />} label="Pending out" value={formatCurrency(summary.pendingOut)} tone="peach" />
           <SummaryCard icon={<Receipt className="h-5 w-5" />} label="Marketplace spend" value={formatCurrency(summary.marketplaceSpent)} tone="butter" />
-          <SummaryCard icon={<WalletCards className="h-5 w-5" />} label="Net position" value={formatCurrency(summary.settledNet)} tone="surface" />
+          <SummaryCard icon={<WalletCards className="h-5 w-5" />} label="Recorded net (paid only)" value={formatCurrency(summary.settledNet)} tone="surface" />
         </div>
       </AppCard>
 
@@ -159,7 +162,7 @@ function WalletPage() {
           action={<AppPill tone={pending.length ? 'butter' : 'teal'}>{pending.length ? `${pending.length} pending` : 'All clear'}</AppPill>}
         />
         <AppPanel tone="surface" className="flex flex-wrap items-center justify-between gap-3 text-sm text-ink/65">
-          <span>Purchases, sales, requests, transfers, and project-linked money movement all land in one spreadsheet view.</span>
+          <span>Keep supporting payment records here. Plan estimates and limits in project budgets.</span>
           <span>
             Pending movement {formatCurrency(summary.pendingIn + summary.pendingOut)} · Marketplace spend {formatCurrency(summary.marketplaceSpent)}
           </span>
@@ -207,7 +210,7 @@ function WalletPage() {
           <AppCard className="w-full max-w-lg space-y-4">
             <SectionHeading
               eyebrow="New transaction"
-              title={draftKind === 'transfer' ? 'Move money' : draftKind === 'request' ? 'Request money' : 'Log manual item'}
+              title={draftKind === 'transfer' ? 'Record a payment made elsewhere' : draftKind === 'request' ? 'Record money owed to you' : 'Record an amount you owe'}
               action={
                 <button type="button" className="ui-soft-icon-button" onClick={resetDraft}>
                   <X className="h-4 w-4" />
@@ -222,7 +225,7 @@ function WalletPage() {
                   onClick={() => setDraftKind(kind)}
                   className={draftKind === kind ? 'ui-chip-toggle ui-chip-toggle--active' : 'ui-chip-toggle ui-chip-toggle--inactive'}
                 >
-                  {kind === 'transfer' ? 'Transfer' : kind === 'request' ? 'Request' : 'Manual'}
+                  {kind === 'transfer' ? 'Paid' : kind === 'request' ? 'Owed to me' : 'I owe'}
                 </button>
               ))}
             </div>
@@ -234,7 +237,7 @@ function WalletPage() {
                   setCounterpartyQuery(event.target.value)
                   setSelectedPerson(null)
                 }}
-                placeholder="Pay @name or type a merchant"
+                placeholder="Person or merchant"
               />
               {counterpartyQuery ? (
                 <div className="grid gap-2 rounded-panel bg-cloud/70 p-2">
@@ -278,7 +281,7 @@ function WalletPage() {
                 disabled={!session || !amount || !reason.trim() || !counterpartyQuery.trim() || createMutation.isPending}
                 onClick={() => createMutation.mutate()}
               >
-                {createMutation.isPending ? 'Saving...' : 'Save transaction'}
+                {createMutation.isPending ? 'Saving...' : 'Save record'}
               </AppButton>
             </div>
           </AppCard>
@@ -329,6 +332,7 @@ function TransactionLedgerTable({
   const [editingEntryId, setEditingEntryId] = useState<string | null>(null)
   const [editDesc, setEditDesc] = useState('')
   const [editAmount, setEditAmount] = useState('')
+  const [editError, setEditError] = useState<string | null>(null)
 
   function beginEdit(entry: WalletEntry) {
     setEditingEntryId(entry.id)
@@ -338,14 +342,21 @@ function TransactionLedgerTable({
 
   function commitEdit(entryId: string) {
     if (!onEdit) return
-    onEdit(entryId, {
-      description: editDesc.trim() || undefined,
-      amountCents: editAmount ? Math.round(Number(editAmount) * 100) : undefined,
-    })
+    try {
+      onEdit(entryId, {
+        description: editDesc.trim() || undefined,
+        amountCents: editAmount ? parseBudgetAmount(editAmount) : undefined,
+      })
+      setEditError(null)
+    } catch (error) {
+      setEditError(error instanceof Error ? error.message : 'Enter a valid amount.')
+      return
+    }
     setEditingEntryId(null)
   }
   return (
     <div className="ui-ledger-shell">
+      {editError ? <p role="alert" className="p-3 text-sm">{editError}</p> : null}
       <table className="ui-ledger-table min-w-[1180px]">
         <thead className="ui-ledger-head">
           <tr>
@@ -445,9 +456,9 @@ function TransactionLedgerTable({
               <td className="ui-ledger-cell text-ink/65">{entry.referenceNumber ?? entry.orderId ?? '-'}</td>
               <td className="ui-ledger-cell">
                 <div className="flex flex-col gap-1">
-                  {onSettle && entry.status === 'pending' ? (
+                  {onSettle && entry.transactionRole === 'manual' && entry.status === 'pending' ? (
                     <AppButton variant="ghost" className="px-3 py-2 text-xs" onClick={() => onSettle(entry.id)}>
-                      Mark settled
+                      Mark paid elsewhere
                     </AppButton>
                   ) : null}
                   {onEdit && entry.transactionRole === 'manual' ? (
