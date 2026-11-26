@@ -1,3 +1,4 @@
+import { templateSchedule } from './template-planning'
 import type {
   CoordinationDependencyKind,
   CoordinationObject,
@@ -463,7 +464,10 @@ export async function deleteCoordinationTemplate(id: string) {
 export async function seedStarterCoordinationTemplates(ownerId: string) {
   if (!supabase) throw new Error('Supabase is not configured.')
 
-  const templates = starterTemplates.map((template) => ({
+  const { data: existing, error: existingError } = await supabase.from('coordination_templates').select('title').eq('owner_id', ownerId)
+  if (existingError) throw existingError
+  const titles = new Set((existing ?? []).map(item => item.title))
+  const templates = starterTemplates.filter(template => !titles.has(template.title)).map((template) => ({
     owner_id: ownerId,
     title: template.title,
     summary: template.summary,
@@ -471,6 +475,7 @@ export async function seedStarterCoordinationTemplates(ownerId: string) {
     payload: { blocks: template.blocks },
   }))
 
+  if (!templates.length) return
   const { error } = await supabase.from('coordination_templates').insert(templates)
   if (error) throw error
 }
@@ -484,6 +489,9 @@ export async function instantiateCoordinationTemplate(input: {
 }) {
   if (!supabase) throw new Error('Supabase is not configured.')
 
+  const schedule = templateSchedule(input.template.blocks, input.anchorDate)
+  const firstDay = schedule.reduce((day, step) => step.startsOn < day ? step.startsOn : day, input.anchorDate)
+
   const parentId = await createManualCoordinationObject({
     ownerId: input.ownerId,
     title: input.title || input.template.title,
@@ -492,7 +500,7 @@ export async function instantiateCoordinationTemplate(input: {
     displayKind: input.template.displayKind,
     intent: 'coordinate',
     state: 'active',
-    startsAt: asStartOfDay(input.anchorDate),
+    startsAt: asStartOfDay(firstDay),
     endsAt: asEndOfDay(lastTemplateDay(input.template.blocks, input.anchorDate)),
     isAllDay: true,
     flexibility: 'shiftable',
@@ -754,7 +762,36 @@ const starterTemplates: Array<{
       { title: 'Gift ideas', kind: 'plan', displayKind: 'task', intent: 'celebrate', offsetDays: -21, durationDays: 1, lane: 'Support' },
       { title: 'Invite people', kind: 'message', displayKind: 'chat', intent: 'notify', offsetDays: -14, durationDays: 1, lane: 'People' },
       { title: 'Buy present', kind: 'purchase', displayKind: 'purchase', intent: 'buy', offsetDays: -7, durationDays: 1, lane: 'Support' },
+      { title: 'Buy food and drinks', kind: 'purchase', displayKind: 'purchase', intent: 'buy', offsetDays: -2, durationDays: 1, lane: 'Support' },
       { title: 'Birthday day', kind: 'event', displayKind: 'event', intent: 'celebrate', offsetDays: 0, durationDays: 1, lane: 'Main event' },
+    ],
+  },
+  {
+    title: 'Wedding preparation',
+    summary: 'A starting sequence counting back from the wedding date. Adjust the timing to suit your plans.',
+    displayKind: 'plan',
+    blocks: [
+      { title: 'Agree priorities, guest numbers and budget', kind: 'plan', displayKind: 'task', intent: 'coordinate', offsetDays: -180, durationDays: 1, lane: 'Planning' },
+      { title: 'Discuss venue and supplier options', kind: 'plan', displayKind: 'task', intent: 'coordinate', offsetDays: -150, durationDays: 1, lane: 'Bookings' },
+      { title: 'Send invitations', kind: 'plan', displayKind: 'task', intent: 'coordinate', offsetDays: -90, durationDays: 1, lane: 'People' },
+      { title: 'Confirm guests, catering and outstanding costs', kind: 'plan', displayKind: 'task', intent: 'coordinate', offsetDays: -21, durationDays: 1, lane: 'Planning' },
+      { title: 'Share the day plan with helpers and suppliers', kind: 'plan', displayKind: 'task', intent: 'coordinate', offsetDays: -7, durationDays: 1, lane: 'People' },
+      { title: 'Wedding day', kind: 'event', displayKind: 'event', intent: 'celebrate', offsetDays: 0, durationDays: 1, lane: 'Main event' },
+      { title: 'Send thanks and review final costs', kind: 'plan', displayKind: 'task', intent: 'coordinate', offsetDays: 7, durationDays: 1, lane: 'Follow-up' },
+    ],
+  },
+  {
+    title: 'Business idea to first launch',
+    summary: 'A practical starting sequence counting back from a first launch or pilot date.',
+    displayKind: 'plan',
+    blocks: [
+      { title: 'Discuss the problem and who needs it solved', kind: 'plan', displayKind: 'task', intent: 'work', offsetDays: -60, durationDays: 1, lane: 'Discovery' },
+      { title: 'Talk with potential customers', kind: 'plan', displayKind: 'task', intent: 'work', offsetDays: -45, durationDays: 1, lane: 'Discovery' },
+      { title: 'Agree scope, responsibilities and cost limit', kind: 'plan', displayKind: 'task', intent: 'work', offsetDays: -30, durationDays: 1, lane: 'Planning' },
+      { title: 'Build and test a small first version', kind: 'plan', displayKind: 'task', intent: 'work', offsetDays: -21, durationDays: 14, lane: 'Delivery' },
+      { title: 'Review readiness with the team', kind: 'plan', displayKind: 'task', intent: 'work', offsetDays: -3, durationDays: 1, lane: 'Delivery' },
+      { title: 'Launch the pilot', kind: 'event', displayKind: 'event', intent: 'work', offsetDays: 0, durationDays: 1, lane: 'Main event' },
+      { title: 'Review feedback and agree the next steps', kind: 'plan', displayKind: 'task', intent: 'work', offsetDays: 7, durationDays: 1, lane: 'Follow-up' },
     ],
   },
   {

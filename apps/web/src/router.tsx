@@ -1,3 +1,5 @@
+import { requestsRoute, requestDetailRoute } from '@/pages/supplier-requests'
+import { budgetsRoute } from '@/pages/budgets'
 import { createRouter } from '@tanstack/react-router'
 import { rootRoute, appRoute } from '@/components/layout'
 import { landingRoute } from '@/pages/landing'
@@ -40,6 +42,8 @@ const routeTree = rootRoute.addChildren([
     calendarRoute,
     ganttRoute,
     marketplaceBrowseRoute,
+    requestsRoute,
+    requestDetailRoute,
     templateMarketplaceRoute,
     servicesMarketplaceRoute,
     categoryBrowseRoute,
@@ -69,6 +73,7 @@ const routeTree = rootRoute.addChildren([
     dmInboxRoute,
     dmThreadRoute,
     walletRoute,
+    budgetsRoute,
     jobsRoute,
     jobDetailRoute,
     notificationsRoute,

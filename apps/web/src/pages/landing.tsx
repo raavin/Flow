@@ -40,14 +40,14 @@ function LandingPage() {
       <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
         <HeroPanel
           badge="Flow"
-          title="A friendly flow for everything you are making happen."
-          subtitle="Coordinate people, calendars, tasks, bookings, templates, and helpful nudges in one bright place."
+          title="Good conversations. Real plans."
+          subtitle="Share ideas, bring people together, and turn the conversation into a plan — for a birthday, a business, or whatever comes next."
         >
           <div className="mt-6 grid gap-3 sm:grid-cols-3">
             {[
-              { label: 'Plan real life', Icon: Sparkles },
-              { label: 'Coordinate people & business', Icon: TentTree },
-              { label: 'Book, buy, and keep it moving', Icon: WandSparkles },
+              { label: 'Talk it through', Icon: Sparkles },
+              { label: 'Map out the next steps', Icon: TentTree },
+              { label: 'Make it happen together', Icon: WandSparkles },
             ].map(({ label, Icon }) => (
               <AppCard key={label} className="bg-white/80">
                 <Icon className="mb-3 h-6 w-6 text-berry" />
@@ -90,13 +90,10 @@ function LandingPage() {
             <AppButton onClick={() => void submit()}>
               {mode === 'sign-up' ? 'Create account' : 'Sign in'}
             </AppButton>
-            <AppButton variant="ghost" onClick={() => navigate({ to: '/onboarding' })}>
-              Peek at onboarding
-            </AppButton>
           </div>
           {error ? <p className="rounded-2xl bg-berry/10 p-3 text-sm text-berry">{error}</p> : null}
           <p className="text-xs text-ink/60">
-            Authentication now uses the local Supabase project. Passwords are handled by Supabase Auth and never stored in the browser app.
+            Keep a thought private, share it with your followers, or build a plan with your project team.
           </p>
         </AppCard>
       </div>

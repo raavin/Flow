@@ -117,7 +117,6 @@ export function MessagesFeedPage({ linkedProjectId }: { linkedProjectId?: string
   const [postVisibility, setPostVisibility] = useState<'private' | 'public' | 'followers' | 'project'>('followers')
 
   const [publicWarningPending, setPublicWarningPending] = useState<'public' | 'followers' | 'project' | null>(null)
-  const [skipPublicWarning, setSkipPublicWarning] = useState(false)
   const [notesOnly, setNotesOnly] = useState(false)
   const [projectSearch, setProjectSearch] = useState('')
   const [projectDropdownOpen, setProjectDropdownOpen] = useState(false)
@@ -479,10 +478,15 @@ export function MessagesFeedPage({ linkedProjectId }: { linkedProjectId?: string
             >
               <AvatarBadge label={profile?.first_name || 'Y'} />
               <div className="min-w-0 flex-1">
-                <p className="text-base font-bold text-ink/65">What&apos;s up?</p>
+                <p className="text-base font-bold text-ink/65">Share an idea or start a conversation…</p>
               </div>
               <Sparkles className="h-5 w-5 text-berry" />
             </button>
+            <div className="flex flex-wrap items-center gap-3 text-sm">
+              <AppButton variant="ghost" onClick={() => { setPostVisibility('private'); setContentKind('note'); setComposerOpen(true) }}>Save a private note</AppButton>
+              <Link to="/app/coordination" className="text-ink/70 underline">Flows & templates</Link>
+              <span className="text-xs text-ink/70">Use “Turn into a plan” on a message when an idea is ready.</span>
+            </div>
           </AppCard>
 
           <div className="ui-feed-shell space-y-0">
@@ -701,7 +705,7 @@ export function MessagesFeedPage({ linkedProjectId }: { linkedProjectId?: string
                     ) : null}
                       <ActionButton
                         icon={<Waves className="h-5 w-5" />}
-                        label={post.linked_project_id ? 'Open project' : 'Create project'}
+                        label={post.linked_project_id ? 'Open project' : 'Turn into a plan'}
                         count={post.linked_project_id ? 1 : 0}
                         onClick={() => {
                           if (post.linked_project_id) {
@@ -709,9 +713,9 @@ export function MessagesFeedPage({ linkedProjectId }: { linkedProjectId?: string
                             return
                           }
                           setFlowError(null)
-                          setFlowDraft({ postId: post.id, body: post.body, projectId: post.linked_project_id ?? null })
+                          setFlowDraft({ postId: post.author_id === session?.user.id ? post.id : '', body: post.body, projectId: post.linked_project_id ?? null })
                           setFlowTitle(post.body.slice(0, 60))
-                          setFlowDate(post.created_at.slice(0, 10))
+                          setFlowDate('')
                         }}
                       />
                       <ActionButton
@@ -1103,7 +1107,7 @@ export function MessagesFeedPage({ linkedProjectId }: { linkedProjectId?: string
                 ) : null}
 
                 {/* Action row: kind chips left, buttons right */}
-                <div className="flex items-center justify-between gap-3">
+                <div className="flex flex-wrap items-center justify-between gap-3">
                   <div className="flex flex-wrap gap-1.5">
                     {(['note', 'product', 'opinion', 'claim'] as const).map((item) => (
                       <button
@@ -1117,30 +1121,20 @@ export function MessagesFeedPage({ linkedProjectId }: { linkedProjectId?: string
                     ))}
                   </div>
                   <div className="flex items-center shrink-0 rounded-lg border border-border overflow-hidden">
-                    {(['Private', 'Public'] as const).map((label) => {
-                      const vis = (label === 'Private' ? 'private' : (projectId ? 'project' : 'followers')) as 'private' | 'followers' | 'project'
-                      const isActive = label === 'Private' ? postVisibility === 'private' : postVisibility !== 'private'
-                      const isMutating = createPostMutation.isPending || updatePostMutation.isPending
-                      const isEmpty = !body.replace(/<[^>]*>/g, '').trim() && !selectedImages.length && !editingMediaPaths.length
-                      return (
-                        <button
-                          key={label}
-                          type="button"
-                          disabled={!session || isMutating || isEmpty}
-                          className={`px-4 py-2 text-sm font-semibold transition disabled:opacity-40 ${isActive ? 'bg-ink text-white' : 'bg-white text-ink/70 hover:bg-ink/8 hover:text-ink'}`}
-                          onClick={() => {
-                            setPostVisibility(vis)
-                            if (label === 'Public' && !localStorage.getItem('skip_public_warning')) {
-                              setPublicWarningPending(vis as 'followers' | 'project')
-                            } else {
-                              if (editingPost) { updatePostMutation.mutate(vis) } else { createPostMutation.mutate(vis) }
-                            }
-                          }}
-                        >
-                          {isMutating && isActive ? 'Saving…' : label}
-                        </button>
-                      )
-                    })}
+                    <label className="px-2 text-xs text-ink/70">Audience
+                      <select aria-label="Post audience" className="ml-2 bg-transparent py-2 text-sm text-ink" value={postVisibility} onChange={e => setPostVisibility(e.target.value as typeof postVisibility)}>
+                        <option value="private">Only me</option>
+                        <option value="followers">Followers</option>
+                        <option value="public">Everyone</option>
+                        {(projectId || linkedProjectId) ? <option value="project">Project members</option> : null}
+                      </select>
+                    </label>
+                    <AppButton disabled={(createPostMutation.isPending || updatePostMutation.isPending) || !(body.replace(/<[^>]*>/g, '').trim() || selectedImages.length || selectedVideoFiles.length || selectedAudioFiles.length || editingMediaPaths.length || videoLinkInput.trim() || audioLinkInput.trim())} onClick={() => {
+                      if (postVisibility === 'project' && !projectId && !linkedProjectId) return
+                      if (postVisibility !== 'private') setPublicWarningPending(postVisibility)
+                      else if (editingPost) updatePostMutation.mutate('private')
+                      else createPostMutation.mutate('private')
+                    }}>{(createPostMutation.isPending || updatePostMutation.isPending) ? 'Saving…' : postVisibility === 'private' ? 'Save privately' : editingPost ? 'Save changes' : 'Share'}</AppButton>
                   </div>
                 </div>
               </div>
@@ -1152,30 +1146,19 @@ export function MessagesFeedPage({ linkedProjectId }: { linkedProjectId?: string
       {publicWarningPending ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/35 px-4 backdrop-blur-sm">
           <AppCard className="w-full max-w-sm space-y-4">
-            <SectionHeading eyebrow="Heads up" title="Post publicly?" />
+            <SectionHeading eyebrow="Heads up" title="Share this message?" />
             <p className="text-sm text-ink/70">
-              This will be visible to {publicWarningPending === 'project' ? 'all project members' : 'your followers'}.
+              This will be visible to {publicWarningPending === 'project' ? 'all project members' : publicWarningPending === 'public' ? 'everyone who can browse the public feed' : 'your followers'}.
               You can always edit or delete it afterwards.
             </p>
-            <label className="flex cursor-pointer items-center gap-2.5 text-sm text-ink/70 select-none">
-              <input
-                type="checkbox"
-                className="h-4 w-4 rounded accent-ink"
-                checked={skipPublicWarning}
-                onChange={(e) => setSkipPublicWarning(e.target.checked)}
-              />
-              Don't ask again
-            </label>
             <div className="flex justify-end gap-2">
-              <AppButton variant="ghost" onClick={() => { setPublicWarningPending(null); setSkipPublicWarning(false) }}>Cancel</AppButton>
+              <AppButton variant="ghost" onClick={() => { setPublicWarningPending(null) }}>Cancel</AppButton>
               <AppButton onClick={() => {
-                if (skipPublicWarning) localStorage.setItem('skip_public_warning', '1')
                 const vis = publicWarningPending
                 setPublicWarningPending(null)
-                setSkipPublicWarning(false)
                 if (editingPost) { updatePostMutation.mutate(vis) } else { createPostMutation.mutate(vis) }
               }}>
-                Post publicly
+                Confirm share
               </AppButton>
             </div>
           </AppCard>
@@ -1185,10 +1168,12 @@ export function MessagesFeedPage({ linkedProjectId }: { linkedProjectId?: string
       {flowDraft ? (
         <div className="fixed inset-0 z-40 flex items-start justify-center bg-ink/35 px-4 py-10 backdrop-blur-sm">
           <AppCard className="w-full max-w-xl space-y-4">
-            <SectionHeading eyebrow="Create project" title="Turn this message into a project" action={<button type="button" className="ui-soft-icon-button" onClick={() => setFlowDraft(null)}><X className="h-4 w-4" /></button>} />
+            <SectionHeading eyebrow="Create project" title="Turn this conversation into a plan" action={<button type="button" className="ui-soft-icon-button" onClick={() => setFlowDraft(null)}><X className="h-4 w-4" /></button>} />
             <AppPanel tone="butter" className="text-sm text-ink/70">{flowDraft.body}</AppPanel>
             <AppInput value={flowTitle} onChange={(event) => setFlowTitle(event.target.value)} placeholder="Project title" />
-            <AppInput type="date" value={flowDate} onChange={(event) => setFlowDate(event.target.value)} />
+            <label className="block text-sm font-semibold">Target date (optional)<AppInput type="date" value={flowDate} onChange={(event) => setFlowDate(event.target.value)} /></label>
+            <p className="text-sm text-ink/70">Start with the conversation, then add people, dates and a budget. Your original message keeps its current audience.</p>
+            <Link to="/app/coordination" className="block text-sm underline">Prefer a reusable starting point? Browse flows & templates</Link>
             {flowError ? <AppPanel tone="peach" className="text-sm">{flowError}</AppPanel> : null}
             <div className="flex justify-end gap-2">
               <AppButton variant="ghost" onClick={() => {

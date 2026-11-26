@@ -1,19 +1,15 @@
-import { useMemo, useRef, useState } from 'react'
+import { ProjectBudget } from '@/components/project-budget'
+import { useMemo, useState } from 'react'
 import { Link, createRoute } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Pencil } from 'lucide-react'
 import { AppButton, AppCard, AppInput, AppPanel, AppSelect, AppTextarea, SectionHeading } from '@superapp/ui'
 import { appRoute } from '@/components/layout'
 import { useAppStore } from '@/hooks/useAppStore'
 import { fetchProjectDetail } from '@/lib/projects'
 import {
   computeAvailabilitySuggestion,
-  createExpense,
-  updateExpense,
-  deleteExpense,
   createStructuredUpdate,
   deleteStructuredUpdate,
-  fetchExpenses,
   fetchStructuredUpdates,
   previewStructuredImpact,
 } from '@/lib/planning'
@@ -86,178 +82,7 @@ function AvailabilityPage() {
 
 function BudgetPage() {
   const { projectId } = budgetRoute.useParams()
-  const { session } = useAppStore()
-  const queryClient = useQueryClient()
-  const detailQuery = useQuery({
-    queryKey: ['project-detail', projectId],
-    queryFn: () => fetchProjectDetail(projectId),
-  })
-  const expensesQuery = useQuery({
-    queryKey: ['expenses', projectId],
-    queryFn: () => fetchExpenses(projectId),
-  })
-  const [category, setCategory] = useState('services')
-  const [title, setTitle] = useState('')
-  const [estimate, setEstimate] = useState('')
-  const [actual, setActual] = useState('')
-  const mutation = useMutation({
-    mutationFn: () =>
-      createExpense({
-        ownerId: session!.user.id,
-        projectId,
-        category,
-        title,
-        estimateCents: Math.round(Number(estimate || 0) * 100),
-        actualCents: Math.round(Number(actual || 0) * 100),
-        paymentStatus: 'paid',
-      }),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['expenses', projectId] })
-      void queryClient.invalidateQueries({ queryKey: ['project-activity', projectId] })
-    },
-  })
-
-  // Inline edit state for expenses
-  const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null)
-  const [editingExpenseField, setEditingExpenseField] = useState<'title' | 'category' | null>(null)
-  const [editExpenseValue, setEditExpenseValue] = useState('')
-  const [deleteConfirmExpenseId, setDeleteConfirmExpenseId] = useState<string | null>(null)
-  const expenseEditRef = useRef<HTMLInputElement>(null)
-
-  const updateExpenseMutation = useMutation({
-    mutationFn: ({ id, input }: { id: string; input: Parameters<typeof updateExpense>[1] }) => updateExpense(id, input),
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['expenses', projectId] }),
-  })
-
-  const deleteExpenseMutation = useMutation({
-    mutationFn: (id: string) => deleteExpense(id),
-    onSuccess: () => {
-      setDeleteConfirmExpenseId(null)
-      void queryClient.invalidateQueries({ queryKey: ['expenses', projectId] })
-    },
-  })
-
-  function beginExpenseEdit(id: string, field: 'title' | 'category', value: string) {
-    setEditingExpenseId(id)
-    setEditingExpenseField(field)
-    setEditExpenseValue(value)
-    setTimeout(() => expenseEditRef.current?.select(), 0)
-  }
-
-  function commitExpenseEdit(id: string, field: 'title' | 'category') {
-    if (!editExpenseValue.trim()) { setEditingExpenseId(null); setEditingExpenseField(null); return }
-    updateExpenseMutation.mutate({ id, input: field === 'title' ? { title: editExpenseValue } : { category: editExpenseValue } })
-    setEditingExpenseId(null)
-    setEditingExpenseField(null)
-  }
-
-  const totals = useMemo(() => {
-    const expenses = expensesQuery.data ?? []
-    return expenses.reduce(
-      (acc, item) => {
-        acc.estimate += item.estimate_cents
-        acc.actual += item.actual_cents
-        if (item.payment_status !== 'paid') acc.outstanding += item.actual_cents
-        return acc
-      },
-      { estimate: 0, actual: 0, outstanding: 0 },
-    )
-  }, [expensesQuery.data])
-
-  return (
-    <div className="space-y-4">
-      <AppCard className="space-y-4">
-        <SectionHeading eyebrow="Budget" title={`Budget for ${detailQuery.data?.project.title ?? 'project'}`} />
-        <div className="grid gap-3 md:grid-cols-4">
-          <AppPanel><p className="text-xs font-bold uppercase text-ink/50">Budget target</p><p className="text-lg font-extrabold">${((detailQuery.data?.project.budgetCents ?? 0) / 100).toFixed(2)}</p></AppPanel>
-          <AppPanel><p className="text-xs font-bold uppercase text-ink/50">Estimated</p><p className="text-lg font-extrabold">${(totals.estimate / 100).toFixed(2)}</p></AppPanel>
-          <AppPanel><p className="text-xs font-bold uppercase text-ink/50">Actual</p><p className="text-lg font-extrabold">${(totals.actual / 100).toFixed(2)}</p></AppPanel>
-          <AppPanel><p className="text-xs font-bold uppercase text-ink/50">Outstanding</p><p className="text-lg font-extrabold">${(totals.outstanding / 100).toFixed(2)}</p></AppPanel>
-        </div>
-      </AppCard>
-
-      <div className="grid gap-4 xl:grid-cols-[0.85fr_1.15fr]">
-        <AppCard className="space-y-4">
-          <SectionHeading eyebrow="Add expense" title="Track spend" />
-          <AppInput value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Expense title" />
-          <AppInput value={category} onChange={(event) => setCategory(event.target.value)} placeholder="Category" />
-          <AppInput value={estimate} onChange={(event) => setEstimate(event.target.value)} placeholder="Estimate" />
-          <AppInput value={actual} onChange={(event) => setActual(event.target.value)} placeholder="Actual" />
-          <AppButton disabled={!session || mutation.isPending} onClick={() => mutation.mutate()}>
-            Add expense
-          </AppButton>
-        </AppCard>
-
-        <AppCard className="space-y-4">
-          <SectionHeading eyebrow="Categories" title="Project expenses" />
-          <div className="grid gap-3">
-            {(expensesQuery.data ?? []).map((expense) => (
-              <AppPanel key={expense.id}>
-                {/* Title — double-click to edit */}
-                {editingExpenseId === expense.id && editingExpenseField === 'title' ? (
-                  <input
-                    ref={expenseEditRef}
-                    value={editExpenseValue}
-                    onChange={(e) => setEditExpenseValue(e.target.value)}
-                    onBlur={() => commitExpenseEdit(expense.id, 'title')}
-                    onKeyDown={(e) => { if (e.key === 'Enter') commitExpenseEdit(expense.id, 'title'); if (e.key === 'Escape') { setEditingExpenseId(null); setEditingExpenseField(null) } }}
-                    className="w-full bg-transparent font-extrabold text-ink outline-none border-b-2 border-ink/40 focus:border-ink"
-                  />
-                ) : (
-                  <p
-                    className="font-extrabold text-ink cursor-text group/title flex items-center gap-2"
-                    onDoubleClick={() => beginExpenseEdit(expense.id, 'title', expense.title)}
-                    title="Double-click to edit title"
-                  >
-                    {expense.title}
-                    <Pencil className="h-3 w-3 text-ink/30 opacity-0 group-hover/title:opacity-100 transition-opacity" />
-                  </p>
-                )}
-                <p className="mt-0.5 text-sm text-ink/65 flex items-center gap-1">
-                  {/* Category — double-click to edit */}
-                  {editingExpenseId === expense.id && editingExpenseField === 'category' ? (
-                    <input
-                      value={editExpenseValue}
-                      onChange={(e) => setEditExpenseValue(e.target.value)}
-                      onBlur={() => commitExpenseEdit(expense.id, 'category')}
-                      onKeyDown={(e) => { if (e.key === 'Enter') commitExpenseEdit(expense.id, 'category'); if (e.key === 'Escape') { setEditingExpenseId(null); setEditingExpenseField(null) } }}
-                      className="bg-transparent text-sm font-medium text-ink outline-none border-b border-ink/40 focus:border-ink"
-                      autoFocus
-                    />
-                  ) : (
-                    <button
-                      type="button"
-                      className="hover:text-ink hover:underline decoration-dotted group/cat flex items-center gap-1"
-                      onDoubleClick={() => beginExpenseEdit(expense.id, 'category', expense.category)}
-                      title="Double-click to edit category"
-                    >
-                      {expense.category}
-                      <Pencil className="h-2.5 w-2.5 text-ink/30 opacity-0 group-hover/cat:opacity-100 transition-opacity" />
-                    </button>
-                  )}
-                  <span>· estimate ${(expense.estimate_cents / 100).toFixed(2)} · actual ${(expense.actual_cents / 100).toFixed(2)}</span>
-                </p>
-                <div className="mt-3 flex gap-2">
-                  {deleteConfirmExpenseId === expense.id ? (
-                    <>
-                      <span className="text-xs font-bold text-berry self-center">Delete expense?</span>
-                      <AppButton variant="secondary" onClick={() => deleteExpenseMutation.mutate(expense.id)} disabled={deleteExpenseMutation.isPending}>
-                        Yes, delete
-                      </AppButton>
-                      <AppButton variant="ghost" onClick={() => setDeleteConfirmExpenseId(null)}>Cancel</AppButton>
-                    </>
-                  ) : (
-                    <AppButton variant="ghost" onClick={() => setDeleteConfirmExpenseId(expense.id)}>Delete</AppButton>
-                  )}
-                </div>
-              </AppPanel>
-            ))}
-            {!expensesQuery.data?.length ? <p className="text-sm text-ink/60">Attach purchases and manual costs here to keep your budget honest.</p> : null}
-          </div>
-        </AppCard>
-      </div>
-    </div>
-  )
+  return <ProjectBudget projectId={projectId} />
 }
 
 function UpdatesPage() {

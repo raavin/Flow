@@ -14,7 +14,7 @@ export function ProjectShell({
   children,
 }: {
   projectId: string
-  activeTab: 'conversation' | 'calendar' | 'timeline' | 'store' | 'people'
+  activeTab: 'conversation' | 'calendar' | 'timeline' | 'store' | 'people' | 'budget' | 'notes'
   children: ReactNode
 }) {
   const queryClient = useQueryClient()
@@ -104,6 +104,8 @@ export function ProjectShell({
     { key: 'conversation', label: 'Conversation', to: '/app/projects/$projectId/conversation' as const },
     { key: 'calendar', label: 'Calendar', to: '/app/projects/$projectId/calendar' as const },
     { key: 'timeline', label: 'Timeline', to: '/app/projects/$projectId/timeline' as const },
+    { key: 'notes', label: 'Notes', to: '/app/projects/$projectId/notes' as const },
+    { key: 'budget', label: 'Budget', to: '/app/projects/$projectId/budget' as const },
     { key: 'store', label: 'Store', to: '/app/projects/$projectId/store' as const },
     { key: 'people', label: 'People', to: '/app/projects/$projectId/people' as const },
   ] as const

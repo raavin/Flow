@@ -633,7 +633,7 @@ export async function linkPostToProject(input: {
 
   const { error } = await supabase
     .from('posts')
-    .update({ linked_project_id: input.projectId, visibility: input.projectId ? 'project' : 'followers' })
+    .update({ linked_project_id: input.projectId })
     .eq('id', input.postId)
     .eq('author_id', input.userId)
 
