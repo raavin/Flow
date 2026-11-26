@@ -30,10 +30,11 @@ import { createProject, fetchProjects } from '@/lib/projects'
 import { fetchPeopleDirectory, fetchPostSummary } from '@/lib/social'
 
 
-const displayOptions: Array<{ value: CoordinationDisplayKind; label: string }> = [
+const displayOptions: Array<{ value: CoordinationDisplayKind | 'request'; label: string }> = [
   { value: 'task', label: 'Task' },
   { value: 'event', label: 'Event' },
   { value: 'reminder', label: 'Reminder' },
+  { value: 'request', label: 'Request' },
   { value: 'booking', label: 'Booking' },
   { value: 'purchase', label: 'Purchase' },
   { value: 'plan', label: 'Plan' },
@@ -251,7 +252,7 @@ function CoordinationPage() {
               </FieldLabel>
               <FieldLabel>
                 Type
-                <AppSelect value={displayKind} onChange={(event) => { const value = event.target.value as CoordinationDisplayKind; setDisplayKind(value); setKind(value === 'task' ? 'reminder' : value as CoordinationObjectKind) }} className="mt-2">
+                <AppSelect value={kind === 'request' ? 'request' : displayKind} onChange={(event) => { const value = event.target.value as CoordinationDisplayKind | 'request'; setDisplayKind(value === 'request' ? 'task' : value); setKind(value === 'task' ? 'reminder' : value as CoordinationObjectKind) }} className="mt-2">
                   {displayOptions.map((option) => (
                     <option key={option.value} value={option.value}>
                       {option.label}
