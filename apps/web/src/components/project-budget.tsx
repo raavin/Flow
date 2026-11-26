@@ -52,15 +52,15 @@ export function ProjectBudget({ projectId }: { projectId: string }) {
     <ProjectShell projectId={projectId} activeTab="budget">
       <div className="space-y-4">
         <AppCard className="space-y-4">
-          <SectionHeading eyebrow="Project budget · AUD" title="Keep the plan affordable" action={<Link to="/app/budgets" className="text-sm underline">All project budgets</Link>} />
-          <p className="text-sm text-ink/70">Plan costs here, then update them as quotes and receipts arrive. These are your private planning records; saving a cost does not move money.</p>
+          <SectionHeading eyebrow="AUD" title="Project budget" action={<Link to="/app/budgets" className="text-sm underline">All project budgets</Link>} />
+          <p className="text-sm text-ink/70">Track estimates and spending. Add receipts to saved costs. These records are private.</p>
           {loading ? <p role="status">Loading budget…</p> : !costs.isError && !project.isError ? <>
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
               {[
                 ['Budget limit', budget === null ? 'Not set' : formatCurrency(budget)],
                 ['Forecast total', formatCurrency(totals.forecast)],
-                ['Recorded paid', formatCurrency(totals.paid)],
-                [budget !== null && totals.forecast > budget ? 'Over budget' : 'Room in budget', budget === null ? 'Set a limit below' : formatCurrency(Math.abs(budget - totals.forecast))],
+                ['Paid', formatCurrency(totals.paid)],
+                [budget !== null && totals.forecast > budget ? 'Over budget' : 'Remaining', budget === null ? 'Set a limit below' : formatCurrency(Math.abs(budget - totals.forecast))],
               ].map(([label, value]) => <AppPanel key={label}><p className="text-sm text-ink/70">{label}</p><p className="text-xl font-bold">{value}</p></AppPanel>)}
             </div>
             <p className="text-sm text-ink/70">Estimated {formatCurrency(totals.estimated)} · Actual costs {formatCurrency(totals.actual)} · Still to cover {formatCurrency(totals.remaining)}. Forecast uses the actual amount when recorded, otherwise the estimate; paid items use their actual amount.</p>
@@ -73,10 +73,10 @@ export function ProjectBudget({ projectId }: { projectId: string }) {
         </AppCard>
         {error ? <div role="alert" className="ui-panel">{featureError(error)}</div> : null}
         {session ? <BudgetAllocations projectId={projectId} ownerId={session.user.id} budget={budget} costs={costs.data ?? []}/> : null}
-        <Link to="/app/marketplace/requests" search={{projectId}} className="inline-block underline">Request supplier quotes for this project</Link>
+        <Link to="/app/marketplace/requests" search={{projectId}} className="inline-block underline">Get quotes</Link>
         <div className="grid gap-4 lg:grid-cols-2">
           <AppCard className="space-y-4">
-            <SectionHeading eyebrow={editing ? 'Edit cost' : 'Plan a cost'} title={editing ? 'Update cost' : 'What will you need?'} />
+            <SectionHeading title={editing ? 'Update cost' : 'Add cost'} />
             <form className="space-y-3" onSubmit={e => { e.preventDefault(); save.mutate() }}>
               <FieldLabel>Cost name<AppInput required value={draft.title} onChange={e => setDraft({ ...draft, title: e.target.value })} placeholder="Gift, venue, supplies…" /></FieldLabel>
               {allocations.data ? <FieldLabel>Budget allocation<AppSelect value={draft.allocationId} onChange={e=>setDraft({...draft,allocationId:e.target.value})}><option value="">Unallocated</option>{allocations.data.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}</AppSelect></FieldLabel> : null}
@@ -91,8 +91,8 @@ export function ProjectBudget({ projectId }: { projectId: string }) {
             </form>
           </AppCard>
           <AppCard className="space-y-4">
-            <SectionHeading eyebrow="Costs" title="Your cost plan" />
-            {!loading && !costs.isError && !costs.data?.length ? <p className="text-sm text-ink/70">Start with a rough estimate. You can refine the details together as the plan takes shape.</p> : null}
+            <SectionHeading title="Costs" />
+            {!loading && !costs.isError && !costs.data?.length ? <p className="text-sm text-ink/70">No costs yet. Add an estimate to get started.</p> : null}
             {(costs.data ?? []).map(cost => <AppPanel key={cost.id}>
               <p className="font-bold">{cost.title}</p><p className="text-sm text-ink/70">{cost.category} · {cost.payment_status === 'paid' ? 'Paid' : cost.payment_status === 'pending' ? 'Committed' : 'Planned'}</p>
               <p className="mt-2 text-sm">Estimate {formatCurrency(cost.estimate_cents)} · Actual {formatCurrency(cost.actual_cents)}</p>

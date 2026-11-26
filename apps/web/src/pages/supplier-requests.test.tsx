@@ -83,7 +83,7 @@ beforeEach(() => {
 it('previews only the explicitly written brief before publishing', async () => {
   open(<RequestsPage />)
   await screen.findByText('Private party')
-  fireEvent.change(screen.getByLabelText('What do you need?'), {
+  fireEvent.change(screen.getByLabelText('Request title'), {
     target: { value: 'Catering' },
   })
   fireEvent.change(

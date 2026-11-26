@@ -29,16 +29,6 @@ import {
 import { createProject, fetchProjects } from '@/lib/projects'
 import { fetchPeopleDirectory, fetchPostSummary } from '@/lib/social'
 
-const kindOptions: Array<{ value: CoordinationObjectKind; label: string }> = [
-  { value: 'reminder', label: 'Reminder' },
-  { value: 'event', label: 'Event' },
-  { value: 'request', label: 'Request' },
-  { value: 'booking', label: 'Booking' },
-  { value: 'purchase', label: 'Purchase' },
-  { value: 'plan', label: 'Plan' },
-  { value: 'workflow', label: 'Workflow' },
-  { value: 'project', label: 'Project' },
-]
 
 const displayOptions: Array<{ value: CoordinationDisplayKind; label: string }> = [
   { value: 'task', label: 'Task' },
@@ -219,9 +209,9 @@ function CoordinationPage() {
   return (
     <div className="space-y-4">
       <AppCard className="space-y-4">
-        <SectionHeading eyebrow="Flows" title="Make room for the steps before the day" />
+        <SectionHeading title="Plans" action={<Link to="/app/ai" className="text-sm underline">Find a template</Link>} />
         <p className="text-sm text-ink/70">
-          Everything can start lightweight here: a reminder, a request, an appointment, a booking, a tiny plan, or the seed of a bigger project.
+          Add a reminder or plan, or use a template for a sequence of steps.
         </p>
         <div className="grid gap-3 sm:grid-cols-3">
           <AppPanel tone="butter">
@@ -233,7 +223,7 @@ function CoordinationPage() {
             <p className="text-2xl font-extrabold text-ink">{buckets.next.length}</p>
           </AppPanel>
           <AppPanel tone="teal">
-            <p className="text-xs font-bold uppercase text-ink/50">Reusable flows</p>
+            <p className="text-xs font-bold uppercase text-ink/50">Templates</p>
             <p className="text-2xl font-extrabold text-ink">{templatesQuery.data?.length ?? 0}</p>
           </AppPanel>
         </div>
@@ -243,7 +233,7 @@ function CoordinationPage() {
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]">
         <div className="space-y-4">
           <AppCard className="space-y-4">
-            <SectionHeading eyebrow="Quick capture" title="Start light, structure later" />
+            <SectionHeading title="New plan" />
             <div className="grid gap-3 md:grid-cols-2">
               <FieldLabel>
                 Title
@@ -260,19 +250,9 @@ function CoordinationPage() {
                 </AppSelect>
               </FieldLabel>
               <FieldLabel>
-                Structure
-                <AppSelect value={displayKind} onChange={(event) => setDisplayKind(event.target.value as CoordinationDisplayKind)} className="mt-2">
+                Type
+                <AppSelect value={displayKind} onChange={(event) => { const value = event.target.value as CoordinationDisplayKind; setDisplayKind(value); setKind(value === 'task' ? 'reminder' : value as CoordinationObjectKind) }} className="mt-2">
                   {displayOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </AppSelect>
-              </FieldLabel>
-              <FieldLabel>
-                Internal kind
-                <AppSelect value={kind} onChange={(event) => setKind(event.target.value as CoordinationObjectKind)} className="mt-2">
-                  {kindOptions.map((option) => (
                     <option key={option.value} value={option.value}>
                       {option.label}
                     </option>
@@ -289,8 +269,8 @@ function CoordinationPage() {
               </FieldLabel>
             </div>
             <FieldLabel>
-              Supporting note
-              <AppTextarea value={summary} onChange={(event) => setSummary(event.target.value)} className="mt-2 min-h-24" placeholder="What is this trying to make happen?" />
+              Notes
+              <AppTextarea value={summary} onChange={(event) => setSummary(event.target.value)} className="mt-2 min-h-24" placeholder="Add notes" />
             </FieldLabel>
             <div className="grid gap-3 md:grid-cols-2">
               <FieldLabel>
@@ -311,10 +291,10 @@ function CoordinationPage() {
             </div>
             <div className="flex flex-wrap gap-2">
               <AppButton disabled={!session || createMutation.isPending || !title.trim()} onClick={() => createMutation.mutate()}>
-                Create coordination object
+                Create plan
               </AppButton>
               <Link to="/app/gantt">
-                <AppButton variant="ghost">Open timeline editor</AppButton>
+                <AppButton variant="ghost">View timeline</AppButton>
               </Link>
             </div>
           </AppCard>
@@ -331,7 +311,7 @@ function CoordinationPage() {
           <BoardSection
             title="Next"
             eyebrow="Upcoming"
-            description="Scheduled next without needing full project ceremony."
+            description="Scheduled for later."
             items={buckets.next}
             onStateChange={(id, state) => stateMutation.mutate({ id, state })}
             onTitleChange={(id, title) => updateTitleMutation.mutate({ id, title })}
@@ -340,7 +320,7 @@ function CoordinationPage() {
           <BoardSection
             title="Backlog"
             eyebrow="Flexible"
-            description="Floating, draft, and support clips waiting for a clearer slot."
+            description="Plans without a fixed date."
             items={buckets.backlog}
             onStateChange={(id, state) => stateMutation.mutate({ id, state })}
             onTitleChange={(id, title) => updateTitleMutation.mutate({ id, title })}
@@ -349,7 +329,7 @@ function CoordinationPage() {
           <BoardSection
             title="Done"
             eyebrow="Completed"
-            description="Finished flows and moments."
+            description="Completed plans."
             items={buckets.done}
             onStateChange={(id, state) => stateMutation.mutate({ id, state })}
             onTitleChange={(id, title) => updateTitleMutation.mutate({ id, title })}
@@ -359,12 +339,12 @@ function CoordinationPage() {
 
         <div className="space-y-4">
           <AppCard className="space-y-4">
-            <SectionHeading eyebrow="Reusable flows" title="Reusable plans" action={<AppButton variant="ghost" disabled={!session || starterTemplatesMutation.isPending} onClick={() => starterTemplatesMutation.mutate()}>Add starter plans</AppButton>} />
+            <SectionHeading title="Templates" action={<AppButton variant="ghost" disabled={!session || starterTemplatesMutation.isPending} onClick={() => starterTemplatesMutation.mutate()}>Add starter plans</AppButton>} />
             <p className="text-sm text-ink/70">
-              Save the shape of real-life sequences, then drop them onto the timeline whenever the same pattern comes around again.
+              Choose a template and a date to schedule its steps.
             </p>
             <FieldLabel>
-              Main date / day zero
+              Event date
               <AppInput type="date" value={templateAnchorDate} onChange={(event) => setTemplateAnchorDate(event.target.value)} className="mt-2" />
             </FieldLabel>
             <div className="space-y-3">
@@ -382,7 +362,7 @@ function CoordinationPage() {
               ))}
               {!templatesQuery.data?.length ? (
                 <AppPanel className="space-y-3">
-                  <p className="text-sm text-ink/70">No reusable flows yet. You can seed a few strong starting patterns or create your own below.</p>
+                  <p className="text-sm text-ink/70">No templates yet. Add a starter or make your own.</p>
                   <AppButton variant="secondary" disabled={!session || starterTemplatesMutation.isPending} onClick={() => starterTemplatesMutation.mutate()}>
                     Add starter templates
                   </AppButton>
@@ -392,17 +372,17 @@ function CoordinationPage() {
           </AppCard>
 
           <AppCard className="space-y-4">
-            <SectionHeading eyebrow="Custom template" title="Define your own sequence" />
+            <SectionHeading title="New template" />
             <FieldLabel>
               Template title
               <AppInput value={templateTitle} onChange={(event) => setTemplateTitle(event.target.value)} className="mt-2" placeholder="Annual birthday prep, concert night, medical admin..." />
             </FieldLabel>
             <FieldLabel>
               Summary
-              <AppTextarea value={templateSummary} onChange={(event) => setTemplateSummary(event.target.value)} className="mt-2 min-h-20" placeholder="What pattern does this capture?" />
+              <AppTextarea value={templateSummary} onChange={(event) => setTemplateSummary(event.target.value)} className="mt-2 min-h-20" placeholder="What is this template for?" />
             </FieldLabel>
             <FieldLabel>
-              Template surface
+              Template type
               <AppSelect value={templateDisplayKind} onChange={(event) => setTemplateDisplayKind(event.target.value as CoordinationDisplayKind)} className="mt-2">
                 {displayOptions.filter((option) => ['plan', 'workflow', 'project'].includes(option.value)).map((option) => (
                   <option key={option.value} value={option.value}>
@@ -424,7 +404,7 @@ function CoordinationPage() {
             }} />Advanced template editor</label>
             {templateError ? <AppPanel tone="peach">{templateError}</AppPanel> : null}
             <AppButton disabled={!session || saveTemplateMutation.isPending || !templateTitle.trim() || (advancedTemplate ? !templateJson.trim() : templateSteps.some(step => !step.title.trim()))} onClick={() => saveTemplateMutation.mutate()}>
-              Save reusable flow
+              Save template
             </AppButton>
           </AppCard>
         </div>
@@ -839,7 +819,7 @@ function CoordinationDetailPage() {
 
       {sourcePostQuery.data ? (
         <AppCard className="space-y-3">
-          <SectionHeading eyebrow="Source message" title="Where this flow started" />
+          <SectionHeading eyebrow="Source message" title="Original message" />
           <div className="ui-panel ui-panel--surface space-y-2">
             <div className="text-sm text-ink/55">
               <span className="font-extrabold text-ink">{sourcePostQuery.data.author?.displayName || 'User'}</span>
@@ -857,7 +837,7 @@ function CoordinationDetailPage() {
       ) : null}
 
       <AppCard className="space-y-4">
-        <SectionHeading eyebrow="Conversation" title="Messages around this flow" />
+        <SectionHeading eyebrow="Conversation" title="Discussion" />
         <p className="text-sm text-ink/70">
           Keep the ongoing chatter attached to the flow so the plan and the conversation stay together. It uses the same visual language as the main feed, just scoped to this flow.
         </p>

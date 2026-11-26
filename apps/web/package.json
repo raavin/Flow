@@ -9,7 +9,8 @@
     "lint": "eslint .",
     "test": "TMPDIR=/tmp vitest run --environment jsdom src",
     "test:e2e": "playwright test",
-    "typecheck": "tsc -b"
+    "typecheck": "tsc -b",
+    "audit:ui": "vite --config scripts/ui-audit/vite.config.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.53.0",

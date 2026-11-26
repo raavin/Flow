@@ -112,7 +112,7 @@ function ProjectsPage() {
         <SectionHeading eyebrow="Create" title="Start a project" />
         <AppInput value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Move house, birthday prep, leave request..." />
         <p className="text-sm text-ink/65">
-          Start with just the title. Conversation, calendar, timeline, store, and people can all be added once you’re inside.
+          Give your project a name. Add people, dates and costs when you need them.
         </p>
         <div className="flex flex-wrap gap-2">
           <AppButton disabled={!session || createMutation.isPending || !title.trim()} onClick={() => createMutation.mutate()}>
@@ -145,7 +145,7 @@ function ProjectsPage() {
       </AppCard>
 
       <AppCard className="space-y-4">
-        <SectionHeading eyebrow="Projects" title="Your project spaces" />
+        <SectionHeading eyebrow="Projects" title="Your projects" />
         <div className="grid gap-3">
           {(projectsQuery.data ?? []).map((project) => (
             <div key={project.id} className="ui-panel">
@@ -238,7 +238,7 @@ function ProjectsPage() {
               )}
             </div>
           ))}
-          {!projectsQuery.data?.length ? <p className="text-sm text-ink/60">No projects yet. Create one and land straight in its conversation.</p> : null}
+          {!projectsQuery.data?.length ? <p className="text-sm text-ink/60">No projects yet. Create one to start a discussion.</p> : null}
         </div>
       </AppCard>
     </div>
@@ -321,7 +321,7 @@ function ProjectNotesPage() {
     <ProjectShell projectId={projectId} activeTab="notes">
       <div className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
         <AppCard className="space-y-4">
-          <SectionHeading eyebrow={editingNoteId ? 'Edit note' : 'Add note'} title={editingNoteId ? 'Update project note' : 'Capture a project note'} />
+          <SectionHeading eyebrow={editingNoteId ? 'Edit note' : 'Add note'} title={editingNoteId ? 'Edit note' : 'New note'} />
           <AppInput value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Title" />
           <AppTextarea value={body} onChange={(event) => setBody(event.target.value)} className="min-h-48" placeholder="Write what matters for this project..." />
           <div className="flex gap-2">
@@ -344,7 +344,7 @@ function ProjectNotesPage() {
         </AppCard>
 
         <AppCard className="space-y-4">
-          <SectionHeading eyebrow="Notes" title="Project memory" />
+          <SectionHeading eyebrow="Notes" title="Notes" />
           <div className="grid gap-3">
             {(notesQuery.data ?? []).map((note) => (
               <div key={note.id} className="ui-panel">
@@ -441,7 +441,7 @@ function ProjectPeoplePage() {
     <ProjectShell projectId={projectId} activeTab="people">
       <div className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
         <AppCard className="space-y-4">
-          <SectionHeading eyebrow="Add people" title="Bring the right people in" />
+          <SectionHeading eyebrow="Add people" title="Add people" />
           <AppInput
             value={participantQuery}
             onChange={(event) => setParticipantQuery(event.target.value.startsWith('@') ? event.target.value : `@${event.target.value}`)}
@@ -472,7 +472,7 @@ function ProjectPeoplePage() {
         </AppCard>
 
         <AppCard className="space-y-4">
-          <SectionHeading eyebrow="People" title="Current participants" />
+          <SectionHeading eyebrow="People" title="People" />
           <div className="grid gap-3">
             {(participantsQuery.data ?? []).map((participant) => (
               <AppPanel key={participant.id}>
@@ -571,7 +571,7 @@ function ProjectStorePage() {
   return (
     <ProjectShell projectId={projectId} activeTab="store">
       <AppCard className="space-y-4">
-        <SectionHeading eyebrow="Store" title="Project-linked listings" />
+        <SectionHeading eyebrow="Store" title="Project listings" />
         {listings.length === 0 ? (
           <AppPanel className="text-sm text-ink/60">
             No listings linked to this project yet. Create a listing and set this as the workspace project to see it here.
