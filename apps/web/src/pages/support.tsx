@@ -12,22 +12,17 @@ function SupportPage() {
   return (
     <div className="mx-auto max-w-5xl space-y-4">
       <AppCard className="space-y-4">
-        <SectionHeading eyebrow="Support" title="Search help and product notes" />
+        <SectionHeading eyebrow="Support" title="Help" />
         <div className="relative">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink/40" />
         <AppInput
+          aria-label="Search help"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           className="pl-10"
-          placeholder="Search support, features, or coordination concepts"
+          placeholder="Search help"
         />
       </div>
-        <AppPanel tone="surface" className="text-sm text-ink/65">
-          This support index is stored as structured data so we can search it now and later feed it into AI support tools safely.
-        </AppPanel>
-        <AppPanel tone="butter" className="text-sm text-ink/75">
-          Search directly here with words like <span className="font-bold">mentions</span>, <span className="font-bold">timeline</span>, <span className="font-bold">support</span>, or <span className="font-bold">ranking</span>. Slash help is mainly for the message composer.
-        </AppPanel>
       </AppCard>
 
       <div className="grid gap-4">
@@ -35,7 +30,7 @@ function SupportPage() {
           <AppCard key={entry.id} className="space-y-3">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <p className="ui-eyebrow">Support note</p>
+                <p className="ui-eyebrow">Help</p>
                 <h2 className="ui-section-title text-2xl">{entry.title}</h2>
               </div>
               {entry.route ? (
@@ -60,7 +55,7 @@ function SupportPage() {
         ))}
         {!results.length ? (
           <AppCard>
-            <p className="text-sm text-ink/60">No support entries match that search yet.</p>
+            <p className="text-sm text-ink/60">No results. Try a different search.</p>
           </AppCard>
         ) : null}
       </div>

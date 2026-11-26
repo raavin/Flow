@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Pencil } from 'lucide-react'
 import { AppButton, AppCard, AppPill, AppSelect } from '@superapp/ui'
 import { deleteProject, fetchProjectDetail, updateProject } from '@/lib/projects'
+import { QueryFeedback, MutationFeedback } from '@/components/request-feedback'
 import type { Project } from '@superapp/types'
 
 type EditField = 'title' | 'category' | 'targetDate' | 'status' | null
@@ -122,6 +123,7 @@ export function ProjectShell({
             {/* Title — double-click to edit */}
             {editingField === 'title' ? (
               <input
+                aria-label="Project title"
                 ref={titleInputRef}
                 value={editTitle}
                 onChange={(e) => setEditTitle(e.target.value)}
@@ -136,7 +138,7 @@ export function ProjectShell({
                 title="Double-click to edit title"
               >
                 {project?.title ?? 'Project'}
-                <Pencil className="h-3.5 w-3.5 text-ink/30 opacity-0 group-hover/title:opacity-100 transition-opacity" />
+                <button type="button" aria-label="Edit project title" className="rounded p-2 text-ink/60 hover:text-ink" onClick={() => beginEdit('title')}><Pencil className="h-4 w-4" /></button>
               </h2>
             )}
 
@@ -145,6 +147,7 @@ export function ProjectShell({
               <p className="mt-1 flex flex-wrap items-center gap-1 text-sm text-ink/70">
                 {editingField === 'category' ? (
                   <input
+                    aria-label="Project category"
                     ref={categoryInputRef}
                     value={editCategory}
                     onChange={(e) => setEditCategory(e.target.value)}
@@ -166,6 +169,7 @@ export function ProjectShell({
                 <span>target</span>
                 {editingField === 'targetDate' ? (
                   <input
+                    aria-label="Target date"
                     type="date"
                     value={editTargetDate}
                     onChange={(e) => setEditTargetDate(e.target.value)}
@@ -185,7 +189,7 @@ export function ProjectShell({
                 )}
               </p>
             ) : (
-              <p className="mt-1 text-sm text-ink/70">Loading project context...</p>
+              <p className="mt-1 text-sm text-ink/70">Project unavailable.</p>
             )}
           </div>
 
@@ -244,10 +248,13 @@ export function ProjectShell({
                 <AppPill tone="butter" className="cursor-pointer hover:opacity-75">{project.status}</AppPill>
               </button>
             )}
-            {project.targetDate ? <AppPill tone="teal">{project.targetDate}</AppPill> : null}
+
           </div>
         ) : null}
 
+        <QueryFeedback query={detailQuery} />
+        <MutationFeedback mutation={updateMutation} />
+        <MutationFeedback mutation={deleteMutation} />
         {/* Tabs */}
         <div className="flex flex-wrap gap-2">
           {tabs.map((tab) => (

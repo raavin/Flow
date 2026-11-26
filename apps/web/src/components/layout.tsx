@@ -145,6 +145,11 @@ function AppLayout() {
           ) : null}
         </div>
 
+        {profile.account_mode === 'both' && <label className="px-2 pb-2 text-[10px] sm:hidden">Mode
+          <select aria-label="Account mode" className="w-full bg-transparent py-2 text-[10px]" value={profile.active_mode} onChange={e => void setActiveMode(e.target.value as 'individual' | 'business')}>
+            <option value="individual">Personal</option><option value="business">Business</option>
+          </select>
+        </label>}
         {/* Scrollable nav — slides under the frozen header */}
         <div className="ui-scrollbar-hidden flex flex-1 flex-col overflow-y-auto px-2.5 pb-4 sm:px-3">
           <nav className="grid gap-4">
@@ -156,13 +161,13 @@ function AppLayout() {
                   to={to}
                   aria-label={label}
                   title={label}
-                  className={`ui-nav-link !flex-row !justify-start !gap-3 !text-sm ${activeSection === to ? 'ui-nav-link--active' : ''}`}
+                  className={`ui-nav-link !flex-col sm:!flex-row !justify-start !gap-1 sm:!gap-3 !text-sm ${activeSection === to ? 'ui-nav-link--active' : ''}`}
                   activeProps={{
-                    className: 'ui-nav-link ui-nav-link--active !flex-row !justify-start !gap-3 !text-sm',
+                    className: 'ui-nav-link ui-nav-link--active !flex-col sm:!flex-row !justify-start !gap-1 sm:!gap-3 !text-sm',
                   }}
                 >
                   <Icon className="h-5 w-5 shrink-0" />
-                  <span className="hidden sm:inline">{label}</span>
+                  <span className="text-[9px] leading-tight sm:text-sm">{label}</span>
                 </Link>
               ))}
             </div>
@@ -174,13 +179,13 @@ function AppLayout() {
                   to={to}
                   aria-label={label}
                   title={label}
-                  className={`ui-nav-link !flex-row !justify-start !gap-3 !text-sm ${activeSection === to ? 'ui-nav-link--active' : ''}`}
+                  className={`ui-nav-link !flex-col sm:!flex-row !justify-start !gap-1 sm:!gap-3 !text-sm ${activeSection === to ? 'ui-nav-link--active' : ''}`}
                   activeProps={{
-                    className: 'ui-nav-link ui-nav-link--active !flex-row !justify-start !gap-3 !text-sm',
+                    className: 'ui-nav-link ui-nav-link--active !flex-col sm:!flex-row !justify-start !gap-1 sm:!gap-3 !text-sm',
                   }}
                 >
                   <Icon className="h-5 w-5 shrink-0" />
-                  <span className="hidden sm:inline">{label}</span>
+                  <span className="text-[9px] leading-tight sm:text-sm">{label}</span>
                 </Link>
               ))}
             </div>
@@ -195,13 +200,13 @@ function AppLayout() {
                   to={to}
                   aria-label={label}
                   title={label}
-                  className={`ui-nav-link !flex-row !justify-start !gap-3 !text-sm ${activeSection === to ? 'ui-nav-link--active' : ''}`}
+                  className={`ui-nav-link !flex-col sm:!flex-row !justify-start !gap-1 sm:!gap-3 !text-sm ${activeSection === to ? 'ui-nav-link--active' : ''}`}
                   activeProps={{
-                    className: 'ui-nav-link ui-nav-link--active !flex-row !justify-start !gap-3 !text-sm',
+                    className: 'ui-nav-link ui-nav-link--active !flex-col sm:!flex-row !justify-start !gap-1 sm:!gap-3 !text-sm',
                   }}
                 >
                   <Icon className="h-5 w-5 shrink-0" />
-                  <span className="hidden sm:inline">{label}</span>
+                  <span className="text-[9px] leading-tight sm:text-sm">{label}</span>
                 </Link>
               ))}
             </div>
@@ -210,7 +215,8 @@ function AppLayout() {
             <button
               type="button"
               onClick={cycleTheme}
-              className="ui-nav-link !flex-row !justify-start !gap-3 !text-sm w-full text-left"
+              className="ui-nav-link !flex-col sm:!flex-row !justify-start !gap-1 sm:!gap-3 !text-sm w-full text-left"
+              aria-label={`Change theme. Current: ${THEME_LABELS[theme]}`}
               title={`Current: ${THEME_LABELS[theme]} — click to cycle`}
             >
               <Palette className="h-5 w-5 shrink-0" />

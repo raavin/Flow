@@ -600,10 +600,10 @@ function IntegrationsPage() {
           </p>
         </div>
       </AppCard>
-      <PaymentProvidersSection />
       <AccountingSection />
-      <ShiftlySection />
-      <DeveloperApiSection />
+      <details className="ui-card"><summary className="cursor-pointer font-bold">Payment providers</summary><div className="mt-4"><PaymentProvidersSection /></div></details>
+      <details className="ui-card"><summary className="cursor-pointer font-bold">Shiftly</summary><div className="mt-4"><ShiftlySection /></div></details>
+      <details className="ui-card"><summary className="cursor-pointer font-bold">API keys and webhooks</summary><div className="mt-4"><DeveloperApiSection /></div></details>
     </div>
   )
 }

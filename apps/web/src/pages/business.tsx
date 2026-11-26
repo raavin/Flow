@@ -1,8 +1,9 @@
+import { QueryFeedback, MutationFeedback } from '@/components/request-feedback'
 import { useRef, useState } from 'react'
-import { createRoute } from '@tanstack/react-router'
+import { createRoute, Link } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Pencil } from 'lucide-react'
-import { AppButton, AppCard, AppInput, AppPanel, AppTextarea, SectionHeading } from '@superapp/ui'
+import { AppButton, AppCard, AppInput, AppPanel, AppTextarea, FieldLabel, SectionHeading } from '@superapp/ui'
 import { appRoute } from '@/components/layout'
 import {
   deleteWorkflowStep,
@@ -34,7 +35,7 @@ function JobDetailPage() {
     },
   })
   const [bookingAt, setBookingAt] = useState('')
-  const [notes, setNotes] = useState('')
+  const [notes, setNotes] = useState<string | null>(null)
   const [paymentAmount, setPaymentAmount] = useState('')
   const [activeTab, setActiveTab] = useState<'overview' | 'workflow' | 'payment' | 'updates'>('overview')
 
@@ -47,7 +48,7 @@ function JobDetailPage() {
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['job-detail', jobId] }),
   })
   const notesMutation = useMutation({
-    mutationFn: () => updateJobNotes(jobId, notes),
+    mutationFn: () => updateJobNotes(jobId, notes ?? detailQuery.data?.job.notes ?? ''),
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['job-detail', jobId] }),
   })
   const paymentStateMutation = useMutation({
@@ -121,7 +122,8 @@ function JobDetailPage() {
   }
 
   const detail = detailQuery.data
-  if (!detail) return <AppCard>Loading job...</AppCard>
+  if (detailQuery.isPending || detailQuery.isError) return <AppCard><QueryFeedback query={detailQuery} /></AppCard>
+  if (!detail) return <AppCard>Job not found.</AppCard>
 
   return (
     <div className="space-y-4">
@@ -133,7 +135,7 @@ function JobDetailPage() {
         <div className="flex flex-wrap gap-2">
           {(['overview', 'workflow', 'payment', 'updates'] as const).map((tab) => (
             <AppButton key={tab} variant={activeTab === tab ? 'primary' : 'ghost'} onClick={() => setActiveTab(tab)}>
-              {tab}
+              {({ overview: 'Overview', workflow: 'Steps', payment: 'Money', updates: 'Updates' })[tab]}
             </AppButton>
           ))}
         </div>
@@ -143,24 +145,26 @@ function JobDetailPage() {
         <div className="grid gap-4 xl:grid-cols-[1fr_1fr]">
           <AppCard className="space-y-4">
             <SectionHeading eyebrow="Overview" title="Appointment and notes" />
-            <AppInput type="datetime-local" value={bookingAt} onChange={(event) => setBookingAt(event.target.value)} />
-            <AppButton onClick={() => bookingMutation.mutate()}>Set appointment</AppButton>
-            <AppTextarea value={notes} onChange={(event) => setNotes(event.target.value)} className="min-h-28" placeholder={detail.job.notes ?? 'Internal notes'} />
+            <FieldLabel>Appointment<AppInput type="datetime-local" value={bookingAt} onChange={(event) => setBookingAt(event.target.value)} /></FieldLabel>
+            <AppButton disabled={!bookingAt || bookingMutation.isPending} onClick={() => bookingMutation.mutate()}>Set appointment</AppButton>
+            <MutationFeedback mutation={bookingMutation} success="Appointment saved." /><FieldLabel>Internal notes<AppTextarea value={notes ?? detail.job.notes ?? ''} onChange={(event) => setNotes(event.target.value)} className="min-h-28" /></FieldLabel>
             <AppButton variant="secondary" onClick={() => notesMutation.mutate()}>
               Save notes
             </AppButton>
+            <MutationFeedback mutation={notesMutation} success="Notes saved." />
           </AppCard>
           <AppCard className="space-y-4">
-            <SectionHeading eyebrow="Status" title="Quick updates" />
+            <SectionHeading eyebrow="Status" title="Job status" />
             <div className="flex flex-wrap gap-2">
               {(['today', 'upcoming', 'waiting', 'delayed', 'completed'] as const).map((status) => (
                 <AppButton key={status} variant={detail.job.status === status ? 'primary' : 'ghost'} onClick={() => statusMutation.mutate(status)}>
-                  {status}
+                  {({ today: 'Today', upcoming: 'Upcoming', waiting: 'Waiting on customer', delayed: 'Delayed', completed: 'Completed', todo: 'To do', doing: 'In progress', done: 'Done' })[status]}
                 </AppButton>
               ))}
             </div>
+            <MutationFeedback mutation={statusMutation} />
             {detail.job.linked_project_id ? (
-              <p className="text-sm text-ink/65">Linked project: {detail.job.linked_project_id}</p>
+              <Link to="/app/projects/$projectId/conversation" params={{ projectId: detail.job.linked_project_id }} className="text-sm underline">Open linked project</Link>
             ) : (
               <p className="text-sm text-ink/65">Not linked to a shared project yet.</p>
             )}
@@ -170,7 +174,9 @@ function JobDetailPage() {
 
       {activeTab === 'workflow' ? (
         <AppCard className="space-y-4">
-          <SectionHeading eyebrow="Workflow" title="Business-specific stages" />
+          <SectionHeading eyebrow="Workflow" title="Job steps" />
+          {!detail.steps.length ? <p className="text-sm text-ink/65">No steps for this job.</p> : null}
+          <MutationFeedback mutation={stepMutation} /><MutationFeedback mutation={deleteStepMutation} />
           <div className="grid gap-3">
             {detail.steps.map((step) => (
               <AppPanel key={step.id}>
@@ -200,11 +206,11 @@ function JobDetailPage() {
                   <div className="flex flex-wrap gap-2">
                     {(['todo', 'doing', 'done'] as const).map((status) => (
                       <AppButton key={status} variant={step.status === status ? 'primary' : 'ghost'} onClick={() => stepMutation.mutate({ stepId: step.id, status })}>
-                        {status}
+                        {({ today: 'Today', upcoming: 'Upcoming', waiting: 'Waiting on customer', delayed: 'Delayed', completed: 'Completed', todo: 'To do', doing: 'In progress', done: 'Done' })[status]}
                       </AppButton>
                     ))}
                     <AppButton variant="secondary" onClick={() => stepMutation.mutate({ stepId: step.id, customerVisible: !step.customer_visible })}>
-                      {step.customer_visible ? 'Hide' : 'Expose'}
+                      {step.customer_visible ? 'Hide from customer' : 'Share with customer'}
                     </AppButton>
                     {deleteConfirmStepId === step.id ? (
                       <>
@@ -226,22 +232,23 @@ function JobDetailPage() {
       {activeTab === 'payment' ? (
         <div className="grid gap-4 xl:grid-cols-[1fr_1fr]">
           <AppCard className="space-y-4">
-            <SectionHeading eyebrow="Payment" title="Status and request" />
+            <SectionHeading eyebrow="Payment" title="Payment status" />
             <div className="flex flex-wrap gap-2">
               {(['unpaid', 'deposit due', 'paid'] as const).map((state) => (
                 <AppButton key={state} variant={detail.job.payment_state === state ? 'primary' : 'ghost'} onClick={() => paymentStateMutation.mutate(state)}>
-                  {state}
+                  {state.charAt(0).toUpperCase() + state.slice(1)}
                 </AppButton>
               ))}
             </div>
-            <AppInput value={paymentAmount} onChange={(event) => setPaymentAmount(event.target.value)} placeholder="Amount" />
-            <AppButton onClick={() => requestPaymentMutation.mutate()} disabled={!session}>
-              Request payment
+            <FieldLabel>Amount (AUD)<AppInput type="number" min="0.01" step="0.01" value={paymentAmount} onChange={(event) => setPaymentAmount(event.target.value)} /></FieldLabel>
+            <AppButton onClick={() => requestPaymentMutation.mutate()} disabled={!session || requestPaymentMutation.isPending || !Number.isFinite(Number(paymentAmount)) || Number(paymentAmount) <= 0}>
+              Record amount owed
             </AppButton>
+            <MutationFeedback mutation={requestPaymentMutation} success="Amount recorded." /><MutationFeedback mutation={paymentStateMutation} />
           </AppCard>
           <AppCard className="space-y-4">
-            <SectionHeading eyebrow="Customer update" title="Payment linked to wallet" />
-            <p className="text-sm text-ink/70">Requesting payment here creates a wallet request and a business message thread.</p>
+            <SectionHeading eyebrow="Customer update" title="Payment record" />
+            <p className="text-sm text-ink/70">Creates an IOU and a customer conversation. No money is transferred.</p>
           </AppCard>
         </div>
       ) : null}
@@ -250,12 +257,15 @@ function JobDetailPage() {
         <div className="grid gap-4 xl:grid-cols-[1fr_1fr]">
           <AppCard className="space-y-4">
             <SectionHeading eyebrow="Customer-visible" title="Shared updates" />
-            <AppButton onClick={() => updateMutation.mutate()} disabled={!detail.job.linked_project_id}>
-              Post structured update
+            <AppButton onClick={() => updateMutation.mutate()} disabled={!detail.job.linked_project_id || updateMutation.isPending}>
+              Post update
             </AppButton>
+            <MutationFeedback mutation={updateMutation} success="Update posted." />
           </AppCard>
           <AppCard className="space-y-4">
-            <SectionHeading eyebrow="Feed" title="What the customer sees" />
+            <SectionHeading eyebrow="Feed" title="Customer activity" />
+            <QueryFeedback query={updatesQuery} />
+            {updatesQuery.isSuccess && !updatesQuery.data.length ? <p className="text-sm text-ink/65">No updates yet.</p> : null}
             <div className="grid gap-3">
               {(updatesQuery.data ?? []).map((update) => (
                 <AppPanel key={update.id}>

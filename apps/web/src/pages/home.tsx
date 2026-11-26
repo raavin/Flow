@@ -2,7 +2,7 @@ import { Link, createRoute } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import { AppCard, AppButton, AppPanel, SectionHeading } from '@superapp/ui'
 import { appRoute } from '@/components/layout'
-import { HeroPanel, Pill, TwoColumnGrid } from '@/components/page-primitives'
+import { HeroPanel, TwoColumnGrid } from '@/components/page-primitives'
 import { useAppStore } from '@/hooks/useAppStore'
 import { fetchProjects } from '@/lib/projects'
 import { fetchWalletEntries } from '@/lib/wallet'
@@ -47,11 +47,10 @@ function HomePage() {
     return keyDay.slice(0, 10) >= new Date().toISOString().slice(0, 10)
   })
   const recentPosts = feedPosts.slice(0, 5)
-  const nextProject = projects[0]
   const nextActionLink =
     profile.active_mode === 'business'
-      ? { to: '/app/jobs', label: jobs.length ? 'Open jobs board' : 'Create your first job' }
-      : { to: '/app/projects', label: projects.length ? 'Open project board' : 'Create your first project' }
+      ? { to: '/app/jobs', label: jobs.length ? 'View jobs' : 'Create your first job' }
+      : { to: '/app/projects', label: projects.length ? 'View projects' : 'Create your first project' }
 
   return (
     <div className="space-y-4">
@@ -62,53 +61,48 @@ function HomePage() {
             ? `Hello, ${businessProfile?.business_name || profile.first_name}`
             : `Hello, ${profile.first_name}`
         }
-        subtitle="Today’s coordination board keeps your plans, people, and useful nudges gathered in one bright place."
+        subtitle="Your projects, plans and recent activity."
       >
-        <div className="mt-5 flex flex-wrap gap-2">
-          <Pill tone="peach">Quick add</Pill>
-          <Pill tone="teal">AI assistant</Pill>
-          <Pill>Structured updates</Pill>
-        </div>
       </HeroPanel>
 
       <TwoColumnGrid>
         <div className="space-y-4">
           <AppCard className="space-y-4">
-            <SectionHeading eyebrow="Today" title="What needs your sparkle" />
+            <SectionHeading eyebrow="Today" title="Overview" />
             <div className="grid gap-3 sm:grid-cols-2">
               <AppPanel>
-                <p className="text-lg font-extrabold text-ink">{projects.length} active projects</p>
+                <p className="text-lg font-extrabold text-ink">{projects.length} projects</p>
                 <p className="text-sm text-ink/65">
-                  {projects.length ? 'Projects are live and ready for planning.' : 'Create your first project to get started.'}
+                  {projects.length ? 'View tasks, dates and costs.' : 'Create your first project to get started.'}
                 </p>
               </AppPanel>
               <AppPanel>
-                <p className="text-lg font-extrabold text-ink">{coordinationObjects.length} coordination objects</p>
-                <p className="text-sm text-ink/65">Flows, reminders, asks, bookings, and plans now share one backbone.</p>
+                <p className="text-lg font-extrabold text-ink">{coordinationObjects.length} plans</p>
+                <p className="text-sm text-ink/65">Plans, reminders, requests and bookings.</p>
               </AppPanel>
               <AppPanel>
                 <p className="text-lg font-extrabold text-ink">
-                  {profile.active_mode === 'business' ? todayJobs.length : recentPosts.length} live updates
+                  {profile.active_mode === 'business' ? todayJobs.length : recentPosts.length} recent updates
                 </p>
                 <p className="text-sm text-ink/65">
                   {profile.active_mode === 'business'
                     ? 'Jobs marked for today show up here.'
                     : recentPosts.length
-                      ? 'Posts from people and topics you follow are bubbling here.'
-                      : 'Follow people or topics to shape this stream.'}
+                      ? 'Recent posts from people and topics you follow.'
+                      : 'Follow people or topics to see their posts.'}
                 </p>
               </AppPanel>
               <AppPanel>
                 <p className="text-lg font-extrabold text-ink">
-                  {profile.active_mode === 'business' ? pendingWallet.length : dmThreads.length} {profile.active_mode === 'business' ? 'pending money items' : 'open DMs'}
+                  {profile.active_mode === 'business' ? pendingWallet.length : dmThreads.length} {profile.active_mode === 'business' ? 'outstanding payments' : 'conversations'}
                 </p>
                 <p className="text-sm text-ink/65">
                   {profile.active_mode === 'business'
                     ? pendingWallet.length
-                      ? 'Reimbursements and requests are waiting in wallet.'
-                      : 'No pending wallet items right now.'
+                      ? 'Review outstanding payments and IOUs.'
+                      : 'No outstanding payments or IOUs.'
                     : dmThreads.length
-                      ? 'Private conversations are active and ready to pick back up.'
+                      ? 'Continue a private conversation.'
                       : 'No direct messages yet.'}
                 </p>
               </AppPanel>
@@ -116,22 +110,22 @@ function HomePage() {
           </AppCard>
 
           <AppCard className="space-y-4">
-            <SectionHeading eyebrow="Suggestions" title="Next best nudges" />
+            <SectionHeading eyebrow="Suggestions" title="To do" />
             <div className="space-y-3 text-sm">
               {projects.length === 0 ? (
-                <AppPanel tone="butter">Create a project so the planner can start shaping dates, tasks, and messages.</AppPanel>
+                <AppPanel tone="butter">Create a project to organise tasks, dates and costs.</AppPanel>
               ) : null}
               {coordinationObjects.length === 0 ? (
-                <AppPanel tone="peach">Start with one lightweight flow and let it grow only if life actually needs more structure.</AppPanel>
+                <AppPanel tone="peach">Add a plan or choose a template.</AppPanel>
               ) : null}
               {pendingWallet.length > 0 ? (
-                <AppPanel tone="teal">You have money items waiting; settling them will clean up your project budgets.</AppPanel>
+                <AppPanel tone="teal">Review your outstanding payments and IOUs.</AppPanel>
               ) : null}
               {dueSoonCoordination.length > 0 && (
-                <AppPanel tone="teal">You have {dueSoonCoordination.length} flows with time attached. The timeline editor can now treat those as clips, not just projects.</AppPanel>
+                <AppPanel tone="teal">You have {dueSoonCoordination.length} scheduled plans. View your calendar.</AppPanel>
               )}
               {projects.length > 0 && coordinationObjects.length > 0 && pendingWallet.length === 0 && dueSoonCoordination.length === 0 ? (
-                <AppPanel tone="teal">Your current data looks healthy. The next high-value move is probably in participants, templates, or marketplace.</AppPanel>
+                <AppPanel tone="teal">No upcoming plans or outstanding payments.</AppPanel>
               ) : null}
             </div>
           </AppCard>
@@ -139,7 +133,7 @@ function HomePage() {
 
         <div className="space-y-4">
           <AppCard className="space-y-4">
-            <SectionHeading eyebrow="Recent updates" title="Little ripples" />
+            <SectionHeading eyebrow="Recent updates" title="Notifications" />
             <div className="space-y-3 text-sm">
               {unreadNotifications.slice(0, 3).map((item) => (
                 <AppPanel key={item.id} className="rounded-control">
@@ -151,30 +145,28 @@ function HomePage() {
           </AppCard>
 
           <AppCard className="space-y-4">
-            <SectionHeading eyebrow="Quick start" title="Pick a path" />
+            <SectionHeading eyebrow="Quick start" title="Shortcuts" />
             <div className="grid gap-3">
               <Link to={nextActionLink.to}>
                 <AppButton className="w-full">{nextActionLink.label}</AppButton>
               </Link>
               <Link to="/app/coordination">
                 <AppButton className="w-full" variant="secondary">
-                  {coordinationObjects.length ? 'Open coordination board' : 'Capture your first flow'}
+                  {coordinationObjects.length ? 'View plans' : 'Create a plan'}
                 </AppButton>
               </Link>
               <Link to="/app/gantt">
                 <AppButton className="w-full" variant="secondary">
-                  {nextProject ? `View ${nextProject.title} timeline` : 'Open the Gantt planner'}
+                  View timeline
                 </AppButton>
               </Link>
               <Link to={profile.active_mode === 'business' ? '/app/marketplace/services' : '/app/marketplace/templates'}>
                 <AppButton className="w-full" variant="ghost">
-                  {profile.active_mode === 'business' ? 'Manage marketplace offers' : 'Browse templates and services'}
+                  {profile.active_mode === 'business' ? 'Browse services' : 'Browse templates'}
                 </AppButton>
               </Link>
             </div>
-            <p className="text-xs text-ink/60">
-              The dashboard now derives its summaries from your actual projects, coordination objects, wallet entries, feed activity, DMs, jobs, and notifications.
-            </p>
+
           </AppCard>
         </div>
       </TwoColumnGrid>

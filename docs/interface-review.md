@@ -34,4 +34,6 @@ Automated regression coverage checks the event editor opens and focuses on deman
 
 ## Live release boundary
 
-This interface change adds no database migration. Receipt storage and supplier quotes still require `20261126090000_budget_receipts_supplier_requests.sql` from the preceding PR. The Supabase integration was found but was not yet connected when this review was written. Live uploads, device camera capture and authenticated production flows still require a smoke test after that connection and migration.
+This interface change adds no database migration. Receipt storage and supplier quotes still require `20261126015336_budget_receipts_supplier_requests.sql` from the preceding PR. The Supabase integration was found but was not yet connected when this review was written. Live uploads, device camera capture and authenticated production flows still require a smoke test after that connection and migration.
+
+Update, 26 November 2026: Supabase is connected and the budget/receipt/quote migration has been applied. Its filename now matches the hosted migration history. See security-and-page-review.md for the subsequent audit.

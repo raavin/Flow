@@ -11,6 +11,6 @@ describe('previewStructuredImpact', () => {
     })
 
     expect(result.deltaMinutes).toBe(210)
-    expect(result.affected).toContain('helper arrival')
+    expect(result.affected).toContain('selected milestone')
   })
 })
