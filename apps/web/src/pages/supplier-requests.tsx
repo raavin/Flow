@@ -137,7 +137,7 @@ export function RequestsPage() {
       <AppCard className="space-y-3">
         <SectionHeading
           eyebrow="Marketplace · Requests & quotes"
-          title="Find help to make it happen"
+          title="Requests & quotes"
           action={
             <Link to="/app/marketplace" className="underline">
               Browse marketplace
@@ -209,7 +209,7 @@ export function RequestsPage() {
               }}
             >
               <FieldLabel>
-                What do you need?
+                Request title
                 <AppInput
                   required
                   maxLength={160}

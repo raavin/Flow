@@ -1,3 +1,4 @@
+import { ScheduleViews } from '@/components/section-views'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createRoute } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -43,10 +44,10 @@ type DragState = {
 }
 
 const zoomConfig: Record<ZoomLevel, { label: string; cellWidth: number; labelEvery: number }> = {
-  detail: { label: 'Detail', cellWidth: 54, labelEvery: 1 },
-  comfortable: { label: 'Comfortable', cellWidth: 34, labelEvery: 2 },
-  overview: { label: 'Overview', cellWidth: 22, labelEvery: 5 },
-  strategic: { label: 'Strategic', cellWidth: 14, labelEvery: 10 },
+  detail: { label: 'Daily', cellWidth: 54, labelEvery: 1 },
+  comfortable: { label: 'Every 2 days', cellWidth: 34, labelEvery: 2 },
+  overview: { label: 'Every 5 days', cellWidth: 22, labelEvery: 5 },
+  strategic: { label: 'Every 10 days', cellWidth: 14, labelEvery: 10 },
 }
 
 const TRACK_COLORS = [
@@ -440,20 +441,21 @@ export function GanttPage({ linkedProjectId }: { linkedProjectId?: string | null
 
   return (
     <div className="space-y-4">
+      {!linkedProjectId ? <ScheduleViews active="timeline"/> : null}
       <AppCard className="space-y-4">
         <SectionHeading
-          eyebrow="Planning view"
-          title="Interactive Gantt"
+          eyebrow=""
+          title="Timeline"
           action={
             <div className="flex flex-wrap gap-2">
               <AppButton variant="ghost" onClick={() => jogTimeline(scrollRef.current, -1)}>
-                Back
+                Earlier
               </AppButton>
               <AppButton variant="ghost" onClick={() => centerToday(scrollRef.current, timeline.todayLeft)}>
                 Today
               </AppButton>
               <AppButton variant="ghost" onClick={() => jogTimeline(scrollRef.current, 1)}>
-                Forward
+                Later
               </AppButton>
             </div>
           }
@@ -463,10 +465,10 @@ export function GanttPage({ linkedProjectId }: { linkedProjectId?: string | null
           {!linkedProjectId ? (
             <div className="flex flex-wrap gap-2">
               <AppButton variant={timelineMode === 'coordination' ? 'primary' : 'ghost'} onClick={() => setTimelineMode('coordination')}>
-                Coordination mode
+                Plans & events
               </AppButton>
               <AppButton variant={timelineMode === 'project' ? 'primary' : 'ghost'} onClick={() => setTimelineMode('project')}>
-                Project mode
+                Project tasks
               </AppButton>
             </div>
           ) : <div />}
@@ -490,11 +492,11 @@ export function GanttPage({ linkedProjectId }: { linkedProjectId?: string | null
                 ))}
               </AppSelect>
             ) : null}
-            {(Object.keys(zoomConfig) as ZoomLevel[]).map((level) => (
-              <AppButton key={level} variant={zoom === level ? 'primary' : 'ghost'} onClick={() => setZoom(level)}>
-                {zoomConfig[level].label}
-              </AppButton>
-            ))}
+            <label className="flex items-center gap-2 text-sm">Scale
+              <AppSelect aria-label="Timeline scale" value={zoom} onChange={e=>setZoom(e.target.value as ZoomLevel)}>
+                {(Object.keys(zoomConfig) as ZoomLevel[]).map(level=><option key={level} value={level}>{zoomConfig[level].label}</option>)}
+              </AppSelect>
+            </label>
           </div>
         </div>
 
@@ -563,7 +565,7 @@ export function GanttPage({ linkedProjectId }: { linkedProjectId?: string | null
                   style={{ width: LABEL_WIDTH, borderRight: '1px solid #e5e7eb' }}
                 >
                   <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-ink/40">
-                    {timelineMode === 'coordination' ? 'Clips' : 'Tasks'}
+                    {timelineMode === 'coordination' ? 'Plans & events' : 'Tasks'}
                   </span>
                 </div>
 
@@ -770,7 +772,7 @@ export function GanttPage({ linkedProjectId }: { linkedProjectId?: string | null
         ) : (
           <AppPanel className="text-sm text-ink/60">
             {timelineMode === 'coordination'
-              ? 'Create a coordination object or apply a reusable flow template first and the timeline clips will appear here.'
+              ? 'No dated plans yet. Add a plan or use a template from Plans.'
               : 'Create or import a project first and the planning timeline will appear here.'}
           </AppPanel>
         )}
@@ -855,14 +857,14 @@ function Handle({
   )
 }
 
-function buildTimeline(items: GanttItem[], zoom: ZoomLevel) {
+export function buildTimeline(items: GanttItem[], zoom: ZoomLevel) {
   const config = zoomConfig[zoom]
   const today = startOfDay(new Date())
   const earliest = items.length
-    ? startOfDay(new Date(Math.min(...items.map((item) => new Date(item.startsOn).getTime()))))
+    ? startOfDay(new Date(Math.min(today.getTime(), ...items.map((item) => new Date(`${item.startsOn}T00:00:00`).getTime()))))
     : today
   const latest = items.length
-    ? startOfDay(new Date(Math.max(...items.map((item) => new Date(item.endsOn).getTime()))))
+    ? startOfDay(new Date(Math.max(today.getTime(), ...items.map((item) => new Date(`${item.endsOn}T00:00:00`).getTime()))))
     : today
 
   const timelineStart = addDays(earliest, -2)
@@ -910,8 +912,8 @@ function getItemGeometry(
   dragDays: number,
   dragMode?: 'move' | 'start' | 'end',
 ) {
-  let start = differenceInDays(new Date(item.startsOn), timeline.timelineStart)
-  let end = differenceInDays(new Date(item.endsOn), timeline.timelineStart)
+  let start = differenceInDays(new Date(`${item.startsOn}T00:00:00`), timeline.timelineStart)
+  let end = differenceInDays(new Date(`${item.endsOn}T00:00:00`), timeline.timelineStart)
 
   if (dragMode === 'move') {
     start += dragDays
@@ -973,7 +975,7 @@ function differenceInDays(left: Date, right: Date) {
 }
 
 function toIsoDate(input: Date) {
-  return startOfDay(input).toISOString().slice(0, 10)
+  return `${input.getFullYear()}-${String(input.getMonth() + 1).padStart(2, '0')}-${String(input.getDate()).padStart(2, '0')}`
 }
 
 function shiftIsoDay(day: string, days: number) {
@@ -985,7 +987,7 @@ function shiftIsoDay(day: string, days: number) {
 function defaultTimelineDay(offset = 0) {
   const date = new Date()
   date.setDate(date.getDate() + offset)
-  return date.toISOString().slice(0, 10)
+  return toIsoDate(date)
 }
 
 export const ganttRoute = createRoute({

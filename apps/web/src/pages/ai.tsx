@@ -29,7 +29,7 @@ function PlanningHelperPage() {
   const matches = (templates.data ?? []).filter(template => `${template.title} ${template.summary ?? ''}`.toLowerCase().includes(search.trim().toLowerCase()))
   return <div className="space-y-4">
     <AppCard className="space-y-4">
-      <SectionHeading eyebrow="Planning helper" title="Find the steps around your idea" action={<AppButton variant="ghost" disabled={!session || seed.isPending} onClick={() => seed.mutate()}>Add starter plans</AppButton>} />
+      <SectionHeading eyebrow="Planning helper" title="Choose a template" action={<AppButton variant="ghost" disabled={!session || seed.isPending} onClick={() => seed.mutate()}>Add starter plans</AppButton>} />
       <p className="text-sm text-ink/70">Use a reusable plan to work backwards from a date. Preview the preparation and follow-up, then add the steps to your calendar and timeline. This helper uses saved templates, not AI-generated advice.</p>
       <FieldLabel>Find a starting point<AppInput value={search} onChange={e => setSearch(e.target.value)} placeholder="Birthday, appointment, move…" /></FieldLabel>
       <div className="grid gap-3 sm:grid-cols-2">

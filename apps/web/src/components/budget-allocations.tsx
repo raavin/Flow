@@ -66,8 +66,8 @@ export function BudgetAllocations({
   return (
     <AppCard className="space-y-3">
       <SectionHeading
-        eyebrow="Budget allocations"
-        title="Give each part a limit"
+
+        title="Allocations"
       />
       <p className="text-sm">
         Divide the project budget between things such as venue, food and

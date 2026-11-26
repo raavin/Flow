@@ -1,3 +1,4 @@
+import { MoneyViews } from '@/components/section-views'
 import { parseBudgetAmount } from '@/lib/budget'
 import { useMemo, useState, type ReactNode } from 'react'
 import { createRoute, Link } from '@tanstack/react-router'
@@ -131,40 +132,40 @@ function WalletPage() {
 
   return (
     <div className="space-y-4">
-      <Link to="/app/budgets" className="inline-block text-sm underline">View project budgets and forecast costs →</Link>
+      <MoneyViews active="records"/>
       {(entriesQuery.error || createMutation.error || settleMutation.error || editMutation.error || deleteMutation.error) ? <p role="alert" className="ui-panel">{String((entriesQuery.error || createMutation.error || settleMutation.error || editMutation.error || deleteMutation.error)?.message || 'Could not save this record.')}</p> : null}
       <AppCard className="space-y-4">
-        <SectionHeading eyebrow="Money records" title="Keep track of what was paid and what is owed" />
+        <SectionHeading eyebrow="Money" title="Payments & IOUs" />
         <p className="text-sm text-ink/65">
-          Record payments made elsewhere and amounts owed. These records do not send money, charge anyone, or connect to a bank account.
+          Log payments and amounts owed. Recording an entry does not transfer money.
         </p>
         <div className="flex flex-wrap gap-2">
           <AppButton onClick={() => openDraft('transfer')}>Record payment</AppButton>
           <AppButton variant="secondary" onClick={() => openDraft('request')}>
-            Record money owed to you
+            Owed to me
           </AppButton>
           <AppButton variant="ghost" onClick={() => openDraft('manual')}>
-            Record amount you owe
+            I owe
           </AppButton>
         </div>
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <SummaryCard icon={<Repeat className="h-5 w-5" />} label="Pending in" value={formatCurrency(summary.pendingIn)} tone="teal" />
           <SummaryCard icon={<Landmark className="h-5 w-5" />} label="Pending out" value={formatCurrency(summary.pendingOut)} tone="peach" />
           <SummaryCard icon={<Receipt className="h-5 w-5" />} label="Marketplace spend" value={formatCurrency(summary.marketplaceSpent)} tone="butter" />
-          <SummaryCard icon={<WalletCards className="h-5 w-5" />} label="Recorded net (paid only)" value={formatCurrency(summary.settledNet)} tone="surface" />
+          <SummaryCard icon={<WalletCards className="h-5 w-5" />} label="Net paid" value={formatCurrency(summary.settledNet)} tone="surface" />
         </div>
       </AppCard>
 
       <AppCard className="space-y-4">
         <SectionHeading
-          eyebrow="Transactions"
-          title="Transaction ledger"
+          eyebrow=""
+          title="History"
           action={<AppPill tone={pending.length ? 'butter' : 'teal'}>{pending.length ? `${pending.length} pending` : 'All clear'}</AppPill>}
         />
         <AppPanel tone="surface" className="flex flex-wrap items-center justify-between gap-3 text-sm text-ink/65">
-          <span>Keep supporting payment records here. Plan estimates and limits in project budgets.</span>
+          <span>Payments made elsewhere and marketplace orders.</span>
           <span>
-            Pending movement {formatCurrency(summary.pendingIn + summary.pendingOut)} · Marketplace spend {formatCurrency(summary.marketplaceSpent)}
+            Pending total {formatCurrency(summary.pendingIn + summary.pendingOut)} · Marketplace spend {formatCurrency(summary.marketplaceSpent)}
           </span>
         </AppPanel>
         <div className="flex flex-wrap items-center gap-2">
@@ -201,7 +202,7 @@ function WalletPage() {
           onDelete={(entryId) => deleteMutation.mutate(entryId)}
           onEdit={(entryId, input) => editMutation.mutate({ entryId, input })}
           highlightOrderId={highlight}
-          emptyMessage="No transactions match this filter yet. Marketplace orders and manual transfers will show here."
+          emptyMessage="No records match this filter."
         />
       </AppCard>
 
@@ -210,7 +211,7 @@ function WalletPage() {
           <AppCard className="w-full max-w-lg space-y-4">
             <SectionHeading
               eyebrow="New transaction"
-              title={draftKind === 'transfer' ? 'Record a payment made elsewhere' : draftKind === 'request' ? 'Record money owed to you' : 'Record an amount you owe'}
+              title={draftKind === 'transfer' ? 'Record payment' : draftKind === 'request' ? 'Owed to me' : 'I owe'}
               action={
                 <button type="button" className="ui-soft-icon-button" onClick={resetDraft}>
                   <X className="h-4 w-4" />
@@ -328,6 +329,7 @@ function TransactionLedgerTable({
   highlightOrderId?: string
   emptyMessage: string
 }) {
+  const [showDetails, setShowDetails] = useState(false)
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
   const [editingEntryId, setEditingEntryId] = useState<string | null>(null)
   const [editDesc, setEditDesc] = useState('')
@@ -357,22 +359,23 @@ function TransactionLedgerTable({
   return (
     <div className="ui-ledger-shell">
       {editError ? <p role="alert" className="p-3 text-sm">{editError}</p> : null}
-      <table className="ui-ledger-table min-w-[1180px]">
+      <label className="flex items-center gap-2 p-3 text-sm"><input type="checkbox" checked={showDetails} onChange={e=>setShowDetails(e.target.checked)}/>Show accounting details</label>
+      <table className={`ui-ledger-table ${showDetails ? 'min-w-[1180px]' : 'min-w-[640px]'}`}>
         <thead className="ui-ledger-head">
           <tr>
             <th className="ui-ledger-head-cell">Date</th>
             <th className="ui-ledger-head-cell">Description</th>
-            <th className="ui-ledger-head-cell">Counterparty</th>
-            <th className="ui-ledger-head-cell">Tags</th>
-            <th className="ui-ledger-head-cell">Product / item</th>
-            <th className="ui-ledger-head-cell">Linked work</th>
-            <th className="ui-ledger-head-cell text-right">Subtotal</th>
-            <th className="ui-ledger-head-cell text-right">Tax</th>
-            <th className="ui-ledger-head-cell text-right">Fee</th>
+            <th className="ui-ledger-head-cell">Person / business</th>
+            <th hidden={!showDetails} className="ui-ledger-head-cell">Tags</th>
+            <th hidden={!showDetails} className="ui-ledger-head-cell">Product / item</th>
+            <th hidden={!showDetails} className="ui-ledger-head-cell">Linked work</th>
+            <th hidden={!showDetails} className="ui-ledger-head-cell text-right">Subtotal</th>
+            <th hidden={!showDetails} className="ui-ledger-head-cell text-right">Tax</th>
+            <th hidden={!showDetails} className="ui-ledger-head-cell text-right">Fee</th>
             <th className="ui-ledger-head-cell text-right">Total</th>
-            <th className="ui-ledger-head-cell text-right">Net</th>
+            <th hidden={!showDetails} className="ui-ledger-head-cell text-right">Net</th>
             <th className="ui-ledger-head-cell">Status</th>
-            <th className="ui-ledger-head-cell">Reference</th>
+            <th hidden={!showDetails} className="ui-ledger-head-cell">Reference</th>
             <th className="ui-ledger-head-cell">Action</th>
           </tr>
         </thead>
@@ -399,7 +402,7 @@ function TransactionLedgerTable({
                 ) : (
                   <p className="font-bold text-ink">{entry.description}</p>
                 )}
-                <p className="ui-ledger-meta">{entry.direction === 'in' ? 'Incoming' : 'Outgoing'} movement</p>
+                <p className="ui-ledger-meta">{entry.direction === 'in' ? 'Received' : 'Sent'}{entry.project ? ` · ${entry.project.title}` : ''}</p>
               </td>
               <td className="ui-ledger-cell">
                 {entry.counterpartyProfileId ? (
@@ -411,7 +414,7 @@ function TransactionLedgerTable({
                 )}
                 {entry.counterpartyHandle ? <p className="ui-ledger-meta">{entry.counterpartyHandle}</p> : null}
               </td>
-              <td className="ui-ledger-cell">
+              <td hidden={!showDetails} className="ui-ledger-cell">
                 <div className="flex flex-wrap gap-2">
                   <AppPill tone={entry.transactionRole === 'seller' ? 'peach' : entry.sourceKind === 'marketplace' ? 'teal' : 'butter'}>
                     {entry.transactionType}
@@ -421,7 +424,7 @@ function TransactionLedgerTable({
                 </div>
                 <p className="ui-ledger-meta mt-2 capitalize">{entry.transactionRole}</p>
               </td>
-              <td className="ui-ledger-cell">
+              <td hidden={!showDetails} className="ui-ledger-cell">
                 {entry.listing ? (
                   <>
                     <p className="font-bold text-ink">{entry.listing.title}</p>
@@ -431,7 +434,7 @@ function TransactionLedgerTable({
                   <span className="text-ink/45">-</span>
                 )}
               </td>
-              <td className="ui-ledger-cell">
+              <td hidden={!showDetails} className="ui-ledger-cell">
                 {entry.project ? (
                   <Link to="/app/projects/$projectId/conversation" params={{ projectId: entry.project.id }} className="font-bold text-ink">
                     {entry.project.title}
@@ -440,20 +443,20 @@ function TransactionLedgerTable({
                   <span className="text-ink/45">-</span>
                 )}
               </td>
-              <td className="ui-ledger-cell--numeric">{formatCurrency(entry.subtotalCents, entry.currencyCode)}</td>
-              <td className="ui-ledger-cell--numeric">{formatCurrency(entry.taxCents, entry.currencyCode)}</td>
-              <td className="ui-ledger-cell--numeric">{formatCurrency(entry.platformFeeCents, entry.currencyCode)}</td>
+              <td hidden={!showDetails} className="ui-ledger-cell--numeric">{formatCurrency(entry.subtotalCents, entry.currencyCode)}</td>
+              <td hidden={!showDetails} className="ui-ledger-cell--numeric">{formatCurrency(entry.taxCents, entry.currencyCode)}</td>
+              <td hidden={!showDetails} className="ui-ledger-cell--numeric">{formatCurrency(entry.platformFeeCents, entry.currencyCode)}</td>
               <td className={`ui-ledger-cell--numeric font-bold ${entry.direction === 'in' ? 'text-teal' : 'text-berry'}`}>
                 {entry.direction === 'in' ? '+' : '-'}{formatCurrency(entry.totalCents, entry.currencyCode)}
               </td>
-              <td className="ui-ledger-cell--numeric">{formatCurrency(entry.sellerNetCents, entry.currencyCode)}</td>
+              <td hidden={!showDetails} className="ui-ledger-cell--numeric">{formatCurrency(entry.sellerNetCents, entry.currencyCode)}</td>
               <td className="ui-ledger-cell">
                 <div className="flex flex-wrap gap-2">
                   <AppPill tone={entry.status === 'paid' || entry.status === 'settled' ? 'teal' : 'butter'}>{entry.status}</AppPill>
                   {entry.payoutStatus !== 'not_applicable' ? <AppPill tone={entry.payoutStatus === 'paid' ? 'teal' : 'peach'}>{entry.payoutStatus}</AppPill> : null}
                 </div>
               </td>
-              <td className="ui-ledger-cell text-ink/65">{entry.referenceNumber ?? entry.orderId ?? '-'}</td>
+              <td hidden={!showDetails} className="ui-ledger-cell text-ink/65">{entry.referenceNumber ?? entry.orderId ?? '-'}</td>
               <td className="ui-ledger-cell">
                 <div className="flex flex-col gap-1">
                   {onSettle && entry.transactionRole === 'manual' && entry.status === 'pending' ? (
@@ -506,7 +509,7 @@ function TransactionLedgerTable({
           })}
           {!entries.length ? (
             <tr>
-              <td colSpan={14} className="ui-ledger-cell py-6 text-sm text-ink/60">
+              <td colSpan={showDetails ? 14 : 6} className="ui-ledger-cell py-6 text-sm text-ink/60">
                 {emptyMessage}
               </td>
             </tr>

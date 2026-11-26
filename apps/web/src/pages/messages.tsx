@@ -478,13 +478,13 @@ export function MessagesFeedPage({ linkedProjectId }: { linkedProjectId?: string
             >
               <AvatarBadge label={profile?.first_name || 'Y'} />
               <div className="min-w-0 flex-1">
-                <p className="text-base font-bold text-ink/65">Share an idea or start a conversation…</p>
+                <p className="text-base font-bold text-ink/65">Start a conversation…</p>
               </div>
               <Sparkles className="h-5 w-5 text-berry" />
             </button>
             <div className="flex flex-wrap items-center gap-3 text-sm">
-              <AppButton variant="ghost" onClick={() => { setPostVisibility('private'); setContentKind('note'); setComposerOpen(true) }}>Save a private note</AppButton>
-              <Link to="/app/coordination" className="text-ink/70 underline">Flows & templates</Link>
+              <AppButton variant="ghost" onClick={() => { setPostVisibility('private'); setContentKind('note'); setComposerOpen(true) }}>Private note</AppButton>
+              <Link to="/app/coordination" className="text-ink/70 underline">Plans</Link>
               <span className="text-xs text-ink/70">Use “Turn into a plan” on a message when an idea is ready.</span>
             </div>
           </AppCard>

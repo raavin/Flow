@@ -1,3 +1,4 @@
+import { ScheduleViews } from '@/components/section-views'
 import { createRoute, Link } from '@tanstack/react-router'
 import { useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -60,6 +61,7 @@ export function CalendarPage({ linkedProjectId }: { linkedProjectId?: string | n
   const queryClient = useQueryClient()
 
   // ── Navigation state
+  const [editorOpen, setEditorOpen] = useState(false)
   const [view, setView] = useState<CalendarView>('month')
   const [cursor, setCursor] = useState(() => startOfMonth(new Date()))
   const [selectedDay, setSelectedDay] = useState(() => toIsoDate(new Date()))
@@ -268,6 +270,7 @@ export function CalendarPage({ linkedProjectId }: { linkedProjectId?: string | n
 
   // ── Helpers
   function resetEditor() {
+    setEditorOpen(false)
     setEditingOccurrence(null)
     setTitle('')
     setIsAllDay(false)
@@ -281,6 +284,7 @@ export function CalendarPage({ linkedProjectId }: { linkedProjectId?: string | n
   }
 
   function loadOccurrence(occ: CalendarOccurrence) {
+    setEditorOpen(true)
     setEditingOccurrence(occ)
     setTitle(occ.title)
     setIsAllDay(occ.isAllDay)
@@ -348,6 +352,7 @@ export function CalendarPage({ linkedProjectId }: { linkedProjectId?: string | n
     setMilestoneStart(day)
     setMilestoneEnd(day)
     if (focusComposer) {
+      setEditorOpen(true)
       window.setTimeout(() => titleInputRef.current?.focus(), 40)
     }
   }
@@ -355,17 +360,19 @@ export function CalendarPage({ linkedProjectId }: { linkedProjectId?: string | n
   // ── Render
   return (
     <>
-      <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
+      {!linkedProjectId ? <ScheduleViews active="calendar"/> : null}
+      <div className={`mt-4 grid gap-4 ${editorOpen ? 'xl:grid-cols-[1.6fr_1fr]' : ''}`}>
         {/* LEFT: calendar grid + selected day panel */}
         <div className="space-y-4">
           <AppCard className="space-y-4">
             <SectionHeading
-              eyebrow={linkedProjectId ? 'Project calendar' : 'Calendar'}
-              title={linkedProjectId ? 'Project planner' : 'Interactive planner'}
+              eyebrow={undefined}
+              title={linkedProjectId ? 'Project calendar' : 'Calendar'}
               action={
                 <div className="flex flex-wrap gap-2">
+                  <AppButton disabled={editorOpen} onClick={() => { resetEditor(); setEditorOpen(true) }}>New event</AppButton>
                   <AppButton variant="ghost" onClick={() => setCursor(stepCursor(cursor, view, -1))}>
-                    Back
+                    Previous
                   </AppButton>
                   <AppButton
                     variant="ghost"
@@ -378,7 +385,7 @@ export function CalendarPage({ linkedProjectId }: { linkedProjectId?: string | n
                     Today
                   </AppButton>
                   <AppButton variant="ghost" onClick={() => setCursor(stepCursor(cursor, view, 1))}>
-                    Forward
+                    Next
                   </AppButton>
                 </div>
               }
@@ -408,17 +415,7 @@ export function CalendarPage({ linkedProjectId }: { linkedProjectId?: string | n
                     </AppButton>
                   </>
                 ) : null}
-                {!linkedProjectId ? (
-                  <Link to="/app/coordination">
-                    <AppButton variant="secondary">Open flows</AppButton>
-                  </Link>
-                ) : null}
-                <Link
-                  to={linkedProjectId ? '/app/projects/$projectId/timeline' : '/app/gantt'}
-                  params={linkedProjectId ? { projectId: linkedProjectId } : (undefined as never)}
-                >
-                  <AppButton variant="ghost">Open timeline</AppButton>
-                </Link>
+
               </div>
             </div>
 
@@ -432,11 +429,9 @@ export function CalendarPage({ linkedProjectId }: { linkedProjectId?: string | n
                       ? selectedDay
                       : monthLabel(cursor)}
                 </p>
-                <p className="text-sm text-ink/65">
-                  Move between calendar, flows, timeline, and linked projects without losing context.
-                </p>
+
               </div>
-              <AppPill tone="teal">{selectedDay}</AppPill>
+
             </AppPanel>
 
             {view === 'month' ? (
@@ -478,7 +473,7 @@ export function CalendarPage({ linkedProjectId }: { linkedProjectId?: string | n
 
           {/* Selected day panel */}
           <AppCard className="space-y-4">
-            <SectionHeading eyebrow="Selected day" title={selectedDay} />
+            <SectionHeading eyebrow="Selected day" title={new Date(`${selectedDay}T12:00:00`).toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })} />
             <div className="grid gap-4 lg:grid-cols-2">
               {/* Calendar events for this day */}
               <div className="space-y-3">
@@ -538,9 +533,9 @@ export function CalendarPage({ linkedProjectId }: { linkedProjectId?: string | n
                 ) : null}
               </div>
 
-              {/* Coordination clips */}
+              {/* Plans */}
               <div className="space-y-3">
-                <p className="text-sm font-bold text-ink/60">Coordination clips</p>
+                <p className="text-sm font-bold text-ink/60">Plans</p>
                 {selectedDayFlows.map((item) => (
                   <AppPanel key={item.id} className="space-y-2">
                     <div className="flex items-center justify-between gap-3">
@@ -557,7 +552,7 @@ export function CalendarPage({ linkedProjectId }: { linkedProjectId?: string | n
                         to="/app/coordination/$coordinationId"
                         params={{ coordinationId: item.id }}
                       >
-                        <AppButton variant="secondary">Open flow</AppButton>
+                        <AppButton variant="secondary">Open plan</AppButton>
                       </Link>
                       <Link to="/app/gantt">
                         <AppButton variant="ghost">Timeline</AppButton>
@@ -575,7 +570,7 @@ export function CalendarPage({ linkedProjectId }: { linkedProjectId?: string | n
                 ))}
                 {!selectedDayFlows.length ? (
                   <AppPanel className="text-sm text-ink/60">
-                    No extra flow clips landing on this day.
+                    No plans on this day.
                   </AppPanel>
                 ) : null}
                 <AppButton
@@ -586,23 +581,23 @@ export function CalendarPage({ linkedProjectId }: { linkedProjectId?: string | n
                     applyDay(selectedDay, true)
                   }}
                 >
-                  Quick add for this day
+                  Add event on this day
                 </AppButton>
               </div>
             </div>
           </AppCard>
         </div>
 
-        {/* RIGHT: event editor */}
-        <AppCard className="space-y-4">
+        {/* Event editor opens on demand. */}
+        {editorOpen ? <AppCard className="space-y-4">
           <SectionHeading
-            eyebrow={editingOccurrence ? 'Edit event' : 'Add event'}
+            eyebrow={undefined}
             title={
               editingOccurrence
-                ? 'Update calendar event'
+                ? 'Edit event'
                 : linkedProjectId
-                  ? 'Add to project calendar'
-                  : 'Create calendar event'
+                  ? 'New project event'
+                  : 'New event'
             }
           />
 
@@ -610,6 +605,7 @@ export function CalendarPage({ linkedProjectId }: { linkedProjectId?: string | n
             Title
             <AppInput
               ref={titleInputRef}
+              autoFocus
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               className="mt-2"
@@ -659,9 +655,9 @@ export function CalendarPage({ linkedProjectId }: { linkedProjectId?: string | n
             />
           </FieldLabel>
 
-          {/* Color picker */}
+          {/* Colour picker */}
           <div>
-            <p className="mb-2 text-sm font-bold text-ink">Color</p>
+            <p className="mb-2 text-sm font-bold text-ink">Colour</p>
             <div className="flex flex-wrap gap-2">
               {COLOR_SWATCHES.map((swatch) => (
                 <button
@@ -710,7 +706,7 @@ export function CalendarPage({ linkedProjectId }: { linkedProjectId?: string | n
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               className="mt-2 min-h-24"
-              placeholder="Anything that should travel with this event?"
+              placeholder="Add notes"
             />
           </FieldLabel>
 
@@ -737,7 +733,7 @@ export function CalendarPage({ linkedProjectId }: { linkedProjectId?: string | n
               {editingOccurrence ? 'Save changes' : 'Add event'}
             </AppButton>
             <AppButton variant="ghost" onClick={resetEditor}>
-              {editingOccurrence ? 'Cancel' : 'Reset'}
+              Close
             </AppButton>
             {editingOccurrence ? (
               <AppButton
@@ -749,7 +745,7 @@ export function CalendarPage({ linkedProjectId }: { linkedProjectId?: string | n
               </AppButton>
             ) : null}
           </div>
-        </AppCard>
+        </AppCard> : null}
       </div>
 
       {/* ── Scope modal for recurring events */}

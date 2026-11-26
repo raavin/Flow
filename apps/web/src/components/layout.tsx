@@ -1,8 +1,8 @@
+import { navSection } from './section-views'
 import { useEffect } from 'react'
-import { Link, Outlet, createRootRoute, createRoute, useNavigate } from '@tanstack/react-router'
+import { Link, Outlet, createRootRoute, createRoute, useNavigate, useRouterState } from '@tanstack/react-router'
 import {
   Bell,
-  Bot,
   BriefcaseBusiness,
   CalendarDays,
   CircleHelp,
@@ -32,6 +32,7 @@ function RootComponent() {
 
 function AppLayout() {
   const { session, profile, businessProfile, signOut, setActiveMode, loading } = useAppStore()
+  const activeSection = useRouterState({ select: state => navSection(state.location.pathname) })
   const navigate = useNavigate()
   const { theme, cycleTheme } = useTheme()
 
@@ -76,29 +77,25 @@ function AppLayout() {
       ? [
           { to: '/app/messages', label: 'Messages', icon: MessageCircleMore },
           { to: '/app/projects', label: 'Projects', icon: BriefcaseBusiness },
-          { to: '/app/coordination', label: 'Flows & templates', icon: LayoutGrid },
+          { to: '/app/coordination', label: 'Plans', icon: LayoutGrid },
           { to: '/app/jobs', label: 'Jobs', icon: BriefcaseBusiness },
           { to: '/app/calendar', label: 'Calendar', icon: CalendarDays },
-          { to: '/app/gantt', label: 'Timeline', icon: LayoutGrid },
         ]
       : [
           { to: '/app/messages', label: 'Messages', icon: MessageCircleMore },
           { to: '/app/calendar', label: 'Calendar', icon: CalendarDays },
-          { to: '/app/gantt', label: 'Timeline', icon: LayoutGrid },
           { to: '/app/projects', label: 'Projects', icon: BriefcaseBusiness },
-          { to: '/app/coordination', label: 'Flows & templates', icon: LayoutGrid },
+          { to: '/app/coordination', label: 'Plans', icon: LayoutGrid },
         ]
   const commerceNavItems =
     profile?.active_mode === 'business'
       ? [
           { to: '/app/marketplace', label: 'Marketplace', icon: ShoppingBag },
-          { to: '/app/budgets', label: 'Budgets', icon: Wallet },
-          { to: '/app/wallet', label: 'Money records', icon: Wallet },
+          { to: '/app/budgets', label: 'Money', icon: Wallet },
         ]
       : [
           { to: '/app/marketplace', label: 'Marketplace', icon: ShoppingBag },
-          { to: '/app/budgets', label: 'Budgets', icon: Wallet },
-          { to: '/app/wallet', label: 'Money records', icon: Wallet },
+          { to: '/app/budgets', label: 'Money', icon: Wallet },
         ]
   const utilityNavItems = [
     { to: '/app/search', label: 'Search', icon: Search },
@@ -106,7 +103,6 @@ function AppLayout() {
     { to: '/app/notifications', label: 'Notifications', icon: Bell },
     { to: '/app/settings', label: profile?.active_mode === 'business' ? 'Profile & Admin' : 'Profile', icon: CircleUserRound },
     { to: '/app/integrations', label: 'Integrations', icon: Plug },
-    { to: '/app/ai', label: 'Planning helper', icon: Bot },
   ] as const
 
   return (
@@ -122,7 +118,7 @@ function AppLayout() {
                 <span className="hidden text-base font-bold tracking-[0.18em] sm:block" style={{ color: '#F5F2ED', fontFamily: "'Space Grotesk', system-ui, sans-serif" }}>flow</span>
               </>
             ) : theme === 'mono' ? (
-              <img src="/logo-flow.png" alt="flow" className="w-full px-2" />
+              <img src="/logo-flow.png" alt="flow" className="w-28 px-2 py-2" />
             ) : (
               <span className="flex h-11 w-11 items-center justify-center bg-butter text-lg font-black text-ink shadow-sm" style={{ borderRadius: 'var(--radius-control)' }}>F</span>
             )}
@@ -158,7 +154,9 @@ function AppLayout() {
                 <Link
                   key={to}
                   to={to}
-                  className="ui-nav-link !flex-row !justify-start !gap-3 !text-sm"
+                  aria-label={label}
+                  title={label}
+                  className={`ui-nav-link !flex-row !justify-start !gap-3 !text-sm ${activeSection === to ? 'ui-nav-link--active' : ''}`}
                   activeProps={{
                     className: 'ui-nav-link ui-nav-link--active !flex-row !justify-start !gap-3 !text-sm',
                   }}
@@ -169,12 +167,14 @@ function AppLayout() {
               ))}
             </div>
             <div className="grid gap-2">
-              <p className={`hidden px-3 text-[10px] font-bold uppercase tracking-[0.18em] sm:block ${theme === 'flow' ? 'text-white/30' : 'text-ink/30'}`}>Commerce</p>
+              <p className={`hidden px-3 text-[10px] font-bold uppercase tracking-[0.18em] sm:block ${theme === 'flow' ? 'text-white/30' : 'text-ink/30'}`}>Marketplace &amp; money</p>
               {commerceNavItems.map(({ to, label, icon: Icon }) => (
                 <Link
                   key={to}
                   to={to}
-                  className="ui-nav-link !flex-row !justify-start !gap-3 !text-sm"
+                  aria-label={label}
+                  title={label}
+                  className={`ui-nav-link !flex-row !justify-start !gap-3 !text-sm ${activeSection === to ? 'ui-nav-link--active' : ''}`}
                   activeProps={{
                     className: 'ui-nav-link ui-nav-link--active !flex-row !justify-start !gap-3 !text-sm',
                   }}
@@ -193,7 +193,9 @@ function AppLayout() {
                 <Link
                   key={to}
                   to={to}
-                  className="ui-nav-link !flex-row !justify-start !gap-3 !text-sm"
+                  aria-label={label}
+                  title={label}
+                  className={`ui-nav-link !flex-row !justify-start !gap-3 !text-sm ${activeSection === to ? 'ui-nav-link--active' : ''}`}
                   activeProps={{
                     className: 'ui-nav-link ui-nav-link--active !flex-row !justify-start !gap-3 !text-sm',
                   }}

@@ -162,7 +162,7 @@ function MarketplaceBrowsePage() {
       <AppCard className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="ui-eyebrow">Flow</p>
-          <h1 className="ui-section-title">Market</h1>
+          <h1 className="ui-section-title">Marketplace</h1>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {session ? (

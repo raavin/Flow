@@ -68,10 +68,10 @@ export function ExpenseReceipts({
             Private attachments · images or PDF, up to 10 MB. Uploading does not
             change the cost or mark it paid.
           </p>
-          <label className="block">
-            Attach receipt
+          <label className="ui-button ui-button--secondary relative cursor-pointer focus-within:ring-2 focus-within:ring-ink">
+            Choose image or PDF
             <input
-              className="block max-w-full"
+              className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
               type="file"
               accept="image/jpeg,image/png,image/webp,application/pdf"
               disabled={action.isPending}
@@ -81,6 +81,9 @@ export function ExpenseReceipts({
                 e.target.value = ''
               }}
             />
+          </label>
+          <label className="ui-button ui-button--secondary relative cursor-pointer focus-within:ring-2 focus-within:ring-ink">Take photo
+            <input className="absolute inset-0 h-full w-full cursor-pointer opacity-0" type="file" accept="image/jpeg,image/png,image/webp" capture="environment" disabled={action.isPending} onChange={e=>{const file=e.target.files?.[0];if(file)action.mutate({file});e.target.value=''}}/>
           </label>
           {receipts.isPending ? <p>Loading receipts…</p> : null}
           {receipts.data?.map((r) => (
