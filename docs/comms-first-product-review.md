@@ -50,6 +50,10 @@ The feed remains the default after sign-in. Calendar, timeline, notes, budgets a
 
 Automated tests cover theme persistence, currency parsing and budget forecasts, budget editing interactions with mocked services, manual ledger persistence and template date calculations. TypeScript and the production build are checked. These tests do not verify live Supabase permissions, writes or real provider payments.
 
-No database migrations, credentials, live accounts or payment-provider configuration are changed. Budget access retains the existing owner-only policies. The new aggregate screen does not introduce bank balances or a standalone global budget table.
+The follow-up in `marketplace-budget-workflow.md` adds a database migration for private allocations/receipts and marketplace requests/quotes. No credentials, live accounts or payment-provider configuration are changed. Budget access retains the existing owner-only policies. The new aggregate screen does not introduce bank balances or a standalone global budget table.
 
 Existing multi-write flows (project creation, template instantiation and activity recording) should move into transactional database functions with retry-safe operation identifiers. A downstream failure can currently leave partial results. Route-level code splitting should also be considered: the production application still loads a large JavaScript bundle.
+
+## Implemented follow-up
+
+Project category allocations, private receipt uploads, supplier-facing brief previews, private quotes/discussions and atomic quote selection are now implemented. See [the workflow and rollout plan](marketplace-budget-workflow.md). The remaining roadmap items above describe later improvements; supplier requests no longer depend on that roadmap. The new SQL tests execute the migration and policies in an isolated PostgreSQL harness; live Supabase Storage and authenticated production flows still require a deployment smoke test.

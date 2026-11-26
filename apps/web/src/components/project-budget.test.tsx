@@ -10,6 +10,9 @@ import { updateProject } from '@/lib/projects'
 vi.mock('./project-shell', () => ({ ProjectShell: ({ children }: { children: ReactNode }) => <div>{children}</div> }))
 vi.mock('@tanstack/react-router', () => ({ Link: ({ children }: { children: ReactNode }) => <a>{children}</a> }))
 vi.mock('@/hooks/useAppStore', () => ({ useAppStore: () => ({ session: { user: { id: 'owner' } } }) }))
+vi.mock('./budget-allocations', () => ({ BudgetAllocations: () => null }))
+vi.mock('./expense-receipts', () => ({ ExpenseReceipts: () => null }))
+vi.mock('@/lib/supplier-requests', () => ({ fetchAllocations: async () => [], featureError: (e: Error) => e.message }))
 vi.mock('@/lib/projects', () => ({ fetchProjectDetail: vi.fn(async () => ({ project: { budgetCents: 10000 } })), updateProject: vi.fn(async () => {}) }))
 vi.mock('@/lib/planning', () => ({ fetchExpenses: vi.fn(async () => []), createExpense: vi.fn(async () => {}), updateExpense: vi.fn(async () => {}), deleteExpense: vi.fn(async () => {}) }))
 
@@ -44,7 +47,7 @@ describe('project budget editing', () => {
     await waitFor(() => expect(updateProject).toHaveBeenCalledWith('party', { budgetCents: null }))
   })
   it('edits the estimate, actual cost and status of an existing item', async () => {
-    vi.mocked(fetchExpenses).mockResolvedValue([{ id: 'cost-1', project_id: 'party', category: 'Food', title: 'Drinks', estimate_cents: 5000, actual_cents: 0, payment_status: 'unpaid', linked_listing_id: null }])
+    vi.mocked(fetchExpenses).mockResolvedValue([{ id: 'cost-1', project_id: 'party', category: 'Food', title: 'Drinks', estimate_cents: 5000, actual_cents: 0, payment_status: 'unpaid', allocation_id: null, linked_listing_id: null }])
     open()
     fireEvent.click(await screen.findByRole('button', { name: 'Edit cost' }))
     fireEvent.change(screen.getByLabelText('Actual cost (AUD)'), { target: { value: '47.50' } })

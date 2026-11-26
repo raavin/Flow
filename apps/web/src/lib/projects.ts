@@ -78,7 +78,7 @@ export async function createProject(input: {
 }) {
   if (!supabase) throw new Error('Supabase is not configured.')
   const normalizedCategory = input.category.trim() || 'General'
-  const normalizedTargetDate = input.targetDate || todayDate()
+  const normalizedTargetDate = input.targetDate || null
 
   const { data: project, error } = await supabase
     .from('projects')
@@ -95,35 +95,7 @@ export async function createProject(input: {
 
   if (error) throw error
 
-  const seedMilestones = [
-    {
-      project_id: project.id,
-      title: 'Kickoff',
-      starts_on: normalizedTargetDate,
-      ends_on: normalizedTargetDate,
-      lane: 'Planning',
-      progress: 0,
-    },
-    {
-      project_id: project.id,
-      title: 'Mid-point review',
-      starts_on: shiftDate(normalizedTargetDate, 30),
-      ends_on: shiftDate(normalizedTargetDate, 30),
-      lane: 'Planning',
-      progress: 0,
-    },
-    {
-      project_id: project.id,
-      title: 'Delivery',
-      starts_on: shiftDate(normalizedTargetDate, 60),
-      ends_on: shiftDate(normalizedTargetDate, 60),
-      lane: 'Planning',
-      progress: 0,
-    },
-  ]
-
-  const { error: milestoneError } = await supabase.from('milestones').insert(seedMilestones)
-  if (milestoneError) throw milestoneError
+  // A blank project stays lightweight; templates create intentional dated steps.
 
   await createNotification({
     profileId: input.ownerId,

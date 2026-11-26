@@ -1129,7 +1129,7 @@ export function MessagesFeedPage({ linkedProjectId }: { linkedProjectId?: string
                         {(projectId || linkedProjectId) ? <option value="project">Project members</option> : null}
                       </select>
                     </label>
-                    <AppButton disabled={(createPostMutation.isPending || updatePostMutation.isPending) || !body.trim()} onClick={() => {
+                    <AppButton disabled={(createPostMutation.isPending || updatePostMutation.isPending) || !(body.replace(/<[^>]*>/g, '').trim() || selectedImages.length || selectedVideoFiles.length || selectedAudioFiles.length || editingMediaPaths.length || videoLinkInput.trim() || audioLinkInput.trim())} onClick={() => {
                       if (postVisibility === 'project' && !projectId && !linkedProjectId) return
                       if (postVisibility !== 'private') setPublicWarningPending(postVisibility)
                       else if (editingPost) updatePostMutation.mutate('private')

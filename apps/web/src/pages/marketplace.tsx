@@ -170,6 +170,7 @@ function MarketplaceBrowsePage() {
               <AppButton variant="ghost">Sell</AppButton>
             </Link>
           ) : null}
+          <Link to="/app/marketplace/requests" search={{}}><AppButton variant="secondary">Requests &amp; quotes</AppButton></Link>
           <Link to="/app/marketplace/cart">
             <AppButton variant="secondary" className="flex items-center gap-2">
               <ShoppingCart className="h-4 w-4" />

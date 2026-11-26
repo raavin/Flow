@@ -1,3 +1,6 @@
+import { BudgetAllocations } from './budget-allocations'
+import { ExpenseReceipts } from './expense-receipts'
+import { featureError, fetchAllocations } from '@/lib/supplier-requests'
 import { useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -9,12 +12,13 @@ import { parseBudgetAmount, summarizeCosts } from '@/lib/budget'
 import { formatCurrency } from '@/lib/commerce'
 import { ProjectShell } from './project-shell'
 
-const emptyDraft = { title: '', category: 'General', estimate: '', actual: '', status: 'unpaid' as 'unpaid' | 'pending' | 'paid' }
+const emptyDraft = { allocationId: '', title: '', category: 'General', estimate: '', actual: '', status: 'unpaid' as 'unpaid' | 'pending' | 'paid' }
 
 export function ProjectBudget({ projectId }: { projectId: string }) {
   const { session } = useAppStore()
   const client = useQueryClient()
   const project = useQuery({ queryKey: ['project-detail', projectId], queryFn: () => fetchProjectDetail(projectId) })
+  const allocations = useQuery({ queryKey: ['allocations', session?.user.id, projectId], queryFn: () => fetchAllocations(projectId), enabled: !!session })
   const costs = useQuery({ queryKey: ['expenses', projectId], queryFn: () => fetchExpenses(projectId) })
   const [draft, setDraft] = useState(emptyDraft)
   const [editing, setEditing] = useState<string | null>(null)
@@ -29,7 +33,7 @@ export function ProjectBudget({ projectId }: { projectId: string }) {
     mutationFn: async () => {
       if (!session || !draft.title.trim()) throw new Error('Give this cost a name.')
       if (draft.status === 'paid' && !draft.actual.trim()) throw new Error('Enter the actual amount paid, including zero if there was no cost.')
-      const input = { title: draft.title.trim(), category: draft.category.trim() || 'General', estimateCents: parseBudgetAmount(draft.estimate), actualCents: parseBudgetAmount(draft.actual), paymentStatus: draft.status }
+      const input = { ...(allocations.data ? {allocationId: draft.allocationId || null} : {}), title: draft.title.trim(), category: draft.category.trim() || 'General', estimateCents: parseBudgetAmount(draft.estimate), actualCents: parseBudgetAmount(draft.actual), paymentStatus: draft.status }
       if (editing) await updateExpense(editing, input)
       else await createExpense({ ...input, ownerId: session.user.id, projectId })
     },
@@ -67,12 +71,15 @@ export function ProjectBudget({ projectId }: { projectId: string }) {
             </div>
           </> : null}
         </AppCard>
-        {error ? <div role="alert" className="ui-panel">{error instanceof Error ? error.message : 'Could not load or save the budget. Please try again.'}</div> : null}
+        {error ? <div role="alert" className="ui-panel">{featureError(error)}</div> : null}
+        {session ? <BudgetAllocations projectId={projectId} ownerId={session.user.id} budget={budget} costs={costs.data ?? []}/> : null}
+        <Link to="/app/marketplace/requests" search={{projectId}} className="inline-block underline">Request supplier quotes for this project</Link>
         <div className="grid gap-4 lg:grid-cols-2">
           <AppCard className="space-y-4">
             <SectionHeading eyebrow={editing ? 'Edit cost' : 'Plan a cost'} title={editing ? 'Update cost' : 'What will you need?'} />
             <form className="space-y-3" onSubmit={e => { e.preventDefault(); save.mutate() }}>
               <FieldLabel>Cost name<AppInput required value={draft.title} onChange={e => setDraft({ ...draft, title: e.target.value })} placeholder="Gift, venue, supplies…" /></FieldLabel>
+              {allocations.data ? <FieldLabel>Budget allocation<AppSelect value={draft.allocationId} onChange={e=>setDraft({...draft,allocationId:e.target.value})}><option value="">Unallocated</option>{allocations.data.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}</AppSelect></FieldLabel> : null}
               <FieldLabel>Category<AppInput value={draft.category} onChange={e => setDraft({ ...draft, category: e.target.value })} /></FieldLabel>
               <div className="grid grid-cols-2 gap-3">
                 <FieldLabel>Estimate (AUD)<AppInput inputMode="decimal" value={draft.estimate} onChange={e => setDraft({ ...draft, estimate: e.target.value })} placeholder="0.00" /></FieldLabel>
@@ -90,9 +97,10 @@ export function ProjectBudget({ projectId }: { projectId: string }) {
               <p className="font-bold">{cost.title}</p><p className="text-sm text-ink/70">{cost.category} · {cost.payment_status === 'paid' ? 'Paid' : cost.payment_status === 'pending' ? 'Committed' : 'Planned'}</p>
               <p className="mt-2 text-sm">Estimate {formatCurrency(cost.estimate_cents)} · Actual {formatCurrency(cost.actual_cents)}</p>
               <div className="mt-3 flex flex-wrap gap-2">
-                <AppButton variant="ghost" disabled={save.isPending || remove.isPending} onClick={() => { setEditing(cost.id); setDraft({ title: cost.title, category: cost.category, estimate: String(cost.estimate_cents / 100), actual: String(cost.actual_cents / 100), status: cost.payment_status }); save.reset() }}>Edit cost</AppButton>
+                <AppButton variant="ghost" disabled={save.isPending || remove.isPending} onClick={() => { setEditing(cost.id); setDraft({ allocationId: cost.allocation_id ?? '', title: cost.title, category: cost.category, estimate: String(cost.estimate_cents / 100), actual: String(cost.actual_cents / 100), status: cost.payment_status }); save.reset() }}>Edit cost</AppButton>
                 {deleting === cost.id ? <><AppButton variant="secondary" disabled={remove.isPending || editing === cost.id} onClick={() => remove.mutate(cost.id)}>Confirm delete</AppButton><AppButton variant="ghost" onClick={() => setDeleting(null)}>Keep cost</AppButton></> : <AppButton variant="ghost" disabled={editing === cost.id || save.isPending} onClick={() => setDeleting(cost.id)}>Delete</AppButton>}
               </div>
+              {session ? <ExpenseReceipts expenseId={cost.id} ownerId={session.user.id}/> : null}
             </AppPanel>)}
           </AppCard>
         </div>
