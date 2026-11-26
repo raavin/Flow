@@ -107,7 +107,7 @@ function AppLayout() {
 
   return (
     <div className="mx-auto flex min-h-screen max-w-7xl gap-3 px-3 py-3 sm:px-4">
-      <aside className="ui-shell-surface sticky top-3 flex h-[calc(100vh-1.5rem)] w-[76px] shrink-0 flex-col overflow-hidden sm:w-60">
+      <aside className="ui-shell-surface sticky top-3 flex h-[calc(100vh-1.5rem)] w-[76px] shrink-0 flex-col overflow-hidden !px-0 sm:!px-4 sm:w-60">
 
         {/* Frozen header — stays put while nav scrolls underneath */}
         <div className="shrink-0 px-2.5 pt-1 pb-2 sm:px-3">
@@ -151,7 +151,7 @@ function AppLayout() {
           </select>
         </label>}
         {/* Scrollable nav — slides under the frozen header */}
-        <div className="ui-scrollbar-hidden flex flex-1 flex-col overflow-y-auto px-2.5 pb-4 sm:px-3">
+        <div className="ui-scrollbar-hidden flex flex-1 flex-col overflow-y-auto px-1 pb-4 sm:px-3">
           <nav className="grid gap-4">
             <div className="grid gap-2">
               <p className={`hidden px-3 text-[10px] font-bold uppercase tracking-[0.18em] sm:block ${theme === 'flow' ? 'text-white/30' : 'text-ink/30'}`}>Flow</p>
@@ -161,9 +161,9 @@ function AppLayout() {
                   to={to}
                   aria-label={label}
                   title={label}
-                  className={`ui-nav-link !flex-col sm:!flex-row !justify-start !gap-1 sm:!gap-3 !text-sm ${activeSection === to ? 'ui-nav-link--active' : ''}`}
+                  className={`ui-nav-link !px-1 sm:!px-3 !flex-col sm:!flex-row !justify-start !gap-1 sm:!gap-3 !text-sm ${activeSection === to ? 'ui-nav-link--active' : ''}`}
                   activeProps={{
-                    className: 'ui-nav-link ui-nav-link--active !flex-col sm:!flex-row !justify-start !gap-1 sm:!gap-3 !text-sm',
+                    className: 'ui-nav-link ui-nav-link--active !px-1 sm:!px-3 !flex-col sm:!flex-row !justify-start !gap-1 sm:!gap-3 !text-sm',
                   }}
                 >
                   <Icon className="h-5 w-5 shrink-0" />
@@ -179,9 +179,9 @@ function AppLayout() {
                   to={to}
                   aria-label={label}
                   title={label}
-                  className={`ui-nav-link !flex-col sm:!flex-row !justify-start !gap-1 sm:!gap-3 !text-sm ${activeSection === to ? 'ui-nav-link--active' : ''}`}
+                  className={`ui-nav-link !px-1 sm:!px-3 !flex-col sm:!flex-row !justify-start !gap-1 sm:!gap-3 !text-sm ${activeSection === to ? 'ui-nav-link--active' : ''}`}
                   activeProps={{
-                    className: 'ui-nav-link ui-nav-link--active !flex-col sm:!flex-row !justify-start !gap-1 sm:!gap-3 !text-sm',
+                    className: 'ui-nav-link ui-nav-link--active !px-1 sm:!px-3 !flex-col sm:!flex-row !justify-start !gap-1 sm:!gap-3 !text-sm',
                   }}
                 >
                   <Icon className="h-5 w-5 shrink-0" />
@@ -200,9 +200,9 @@ function AppLayout() {
                   to={to}
                   aria-label={label}
                   title={label}
-                  className={`ui-nav-link !flex-col sm:!flex-row !justify-start !gap-1 sm:!gap-3 !text-sm ${activeSection === to ? 'ui-nav-link--active' : ''}`}
+                  className={`ui-nav-link !px-1 sm:!px-3 !flex-col sm:!flex-row !justify-start !gap-1 sm:!gap-3 !text-sm ${activeSection === to ? 'ui-nav-link--active' : ''}`}
                   activeProps={{
-                    className: 'ui-nav-link ui-nav-link--active !flex-col sm:!flex-row !justify-start !gap-1 sm:!gap-3 !text-sm',
+                    className: 'ui-nav-link ui-nav-link--active !px-1 sm:!px-3 !flex-col sm:!flex-row !justify-start !gap-1 sm:!gap-3 !text-sm',
                   }}
                 >
                   <Icon className="h-5 w-5 shrink-0" />
@@ -215,7 +215,7 @@ function AppLayout() {
             <button
               type="button"
               onClick={cycleTheme}
-              className="ui-nav-link !flex-col sm:!flex-row !justify-start !gap-1 sm:!gap-3 !text-sm w-full text-left"
+              className="ui-nav-link !px-1 sm:!px-3 !flex-col sm:!flex-row !justify-start !gap-1 sm:!gap-3 !text-sm w-full text-left"
               aria-label={`Change theme. Current: ${THEME_LABELS[theme]}`}
               title={`Current: ${THEME_LABELS[theme]} — click to cycle`}
             >

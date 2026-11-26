@@ -37,3 +37,9 @@ Automated regression coverage checks the event editor opens and focuses on deman
 This interface change adds no database migration. Receipt storage and supplier quotes still require `20261126015336_budget_receipts_supplier_requests.sql` from the preceding PR. The Supabase integration was found but was not yet connected when this review was written. Live uploads, device camera capture and authenticated production flows still require a smoke test after that connection and migration.
 
 Update, 26 November 2026: Supabase is connected and the budget/receipt/quote migration has been applied. Its filename now matches the hosted migration history. See security-and-page-review.md for the subsequent audit.
+
+## Budget table revision
+
+Following feedback, replaced project budget cards, allocation cards and individual cost cards with tables. Amounts use right alignment and tabular numerals; project and cost tables include totals. Missing budget limits remain distinct from zero, and negative balances have an explicit over-budget label. The cost table uses the full page width, with the add/edit form below it. Receipt controls expand beneath the relevant cost, and editing focuses the form.
+
+Tables have captions, row/column headers and keyboard-focusable scroll regions, following [W3C table guidance](https://www.w3.org/WAI/tutorials/tables/). Checked desktop and a 390-pixel iframe viewport with synthetic over-budget, unset-limit, zero-budget and paid/planned/committed examples. Fixed clipped mobile navigation and hidden table headings causing page overflow; the narrow document now fits its viewport while tables scroll independently. Camera/file transfer was not exercised against production. Existing 80 tests, production build and lint on changed TypeScript files pass.

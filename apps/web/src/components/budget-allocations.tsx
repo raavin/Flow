@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   AppCard,
@@ -27,6 +27,7 @@ export function BudgetAllocations({
   costs: Awaited<ReturnType<typeof fetchExpenses>>
 }) {
   const client = useQueryClient()
+  const nameRef = useRef<HTMLInputElement>(null)
   const [name, setName] = useState('')
   const [amount, setAmount] = useState('')
   const [editing, setEditing] = useState<string | null>(null)
@@ -64,15 +65,13 @@ export function BudgetAllocations({
     0,
   )
   return (
-    <AppCard className="space-y-3">
+    <AppCard className="min-w-0 space-y-3">
       <SectionHeading
 
         title="Allocations"
       />
       <p className="text-sm">
-        Divide the project budget between things such as venue, food and
-        supplies. Allocations reserve room in your plan; they are not extra
-        costs.
+        Set aside amounts for food, venue or other parts of the project.
       </p>
       {query.isPending ? (
         <p>Loading allocations…</p>
@@ -84,39 +83,29 @@ export function BudgetAllocations({
               ? ` · ${allocated > budget ? 'Overallocated' : 'Unallocated'} ${formatCurrency(Math.abs(budget - allocated))}`
               : ''}
           </p>
-          <div className="grid gap-2 sm:grid-cols-2">
-            {query.data.map((a) => {
-              const total = summarizeCosts(
-                costs.filter((c) => c.allocation_id === a.id),
-              )
-              return (
-                <div key={a.id} className="ui-panel">
-                  <strong>{a.name}</strong>
-                  <p>
-                    Limit {formatCurrency(a.limit_cents)} · Forecast{' '}
-                    {formatCurrency(total.forecast)} · Paid{' '}
-                    {formatCurrency(total.paid)}
-                  </p>
-                  <p>
-                    {total.forecast > a.limit_cents
-                      ? 'Over allocation'
-                      : 'Remaining'}{' '}
-                    {formatCurrency(Math.abs(a.limit_cents - total.forecast))}
-                  </p>
-                  <AppButton
-                    variant="ghost"
-                    onClick={() => {
-                      setEditing(a.id)
-                      setName(a.name)
-                      setAmount(String(a.limit_cents / 100))
-                    }}
-                  >
-                    Edit allocation
-                  </AppButton>
-                </div>
-              )
-            })}
-          </div>
+          {query.data.length ? <div className="ui-ledger-shell relative" role="region" aria-label="Allocations table" tabIndex={0}>
+            <table className="ui-budget-table min-w-[640px]">
+              <caption className="sr-only">Budget allocations in Australian dollars</caption>
+              <thead><tr><th scope="col">Allocation</th><th scope="col" className="budget-money">Limit</th><th scope="col" className="budget-money">Forecast</th><th scope="col" className="budget-money">Paid</th><th scope="col" className="budget-money">Left</th><th scope="col"><span className="sr-only">Actions</span></th></tr></thead>
+              <tbody>{query.data.map((a) => {
+                const total = summarizeCosts(costs.filter((c) => c.allocation_id === a.id))
+                const balance = a.limit_cents - total.forecast
+                return <tr key={a.id}>
+                  <th scope="row" className="font-semibold">{a.name}</th>
+                  <td className="budget-money">{formatCurrency(a.limit_cents)}</td>
+                  <td className="budget-money">{formatCurrency(total.forecast)}</td>
+                  <td className="budget-money">{formatCurrency(total.paid)}</td>
+                  <td className={`budget-money ${balance < 0 ? 'text-berry font-semibold' : ''}`}>{formatCurrency(balance)}{balance < 0 ? <span className="block text-xs">Over allocation</span> : null}</td>
+                  <td className="budget-actions"><AppButton variant="ghost" aria-label={`Edit ${a.name} allocation`} onClick={() => {
+                    setEditing(a.id)
+                    setName(a.name)
+                    setAmount(String(a.limit_cents / 100))
+                    nameRef.current?.focus()
+                  }}>Edit</AppButton></td>
+                </tr>
+              })}</tbody>
+            </table>
+          </div> : <p className="text-sm text-ink/65">No allocations yet.</p>}
           <p className="text-sm">
             Costs without an allocation:{' '}
             {formatCurrency(
@@ -130,16 +119,17 @@ export function BudgetAllocations({
               save.mutate()
             }}
           >
-            <FieldLabel>
+            <FieldLabel className="min-w-0 max-w-full">
               Name
               <AppInput
+                ref={nameRef}
                 required
                 maxLength={100}
                 value={name}
                 onChange={(e) => setName(e.target.value)}
               />
             </FieldLabel>
-            <FieldLabel>
+            <FieldLabel className="min-w-0 max-w-full">
               Allocation (AUD)
               <AppInput
                 required

@@ -9,13 +9,11 @@ export function ExpenseReceipts({
   expenseId: string
   ownerId: string
 }) {
-  const [open, setOpen] = useState(false)
   const [url, setUrl] = useState<{ id: string; href: string } | null>(null)
   const client = useQueryClient()
   const queryKey = ['expense-receipts', ownerId, expenseId]
   const receipts = useQuery({
     queryKey,
-    enabled: open,
     queryFn: async () => {
       const { data, error } = await database()
         .from('expense_receipts')
@@ -58,12 +56,7 @@ export function ExpenseReceipts({
     },
   })
   return (
-    <div className="mt-3 border-t border-border pt-3">
-      <AppButton variant="ghost" onClick={() => setOpen(!open)}>
-        {open ? 'Hide receipts' : 'Receipts'}
-      </AppButton>
-      {open ? (
-        <div className="space-y-2 text-sm">
+    <div className="space-y-2 text-sm">
           <p>
             Private attachments · images or PDF, up to 10 MB. Uploading does not
             change the cost or mark it paid.
@@ -127,8 +120,6 @@ export function ExpenseReceipts({
           {receipts.error || action.error ? (
             <p role="alert">{featureError(receipts.error || action.error)}</p>
           ) : null}
-        </div>
-      ) : null}
     </div>
   )
 }
