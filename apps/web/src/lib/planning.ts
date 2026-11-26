@@ -106,7 +106,7 @@ export function previewStructuredImpact(input: {
     return {
       deltaMinutes: 0,
       message: input.note || 'This update will be recorded in the project activity feed.',
-      affected: ['participants', 'calendar', 'linked bookings'],
+      affected: ['project activity'],
     }
   }
 
@@ -119,8 +119,8 @@ export function previewStructuredImpact(input: {
     message:
       deltaMinutes === 0
         ? 'No timing shift detected.'
-        : `Expected schedule shift of ${deltaMinutes} minutes across related milestones.`,
-    affected: ['helper arrival', 'van pickup timing', 'cleaner access window'],
+        : `Time change: ${deltaMinutes} minutes. A selected milestone moves by the nearest whole day.`,
+    affected: ['selected milestone'],
   }
 }
 

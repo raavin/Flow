@@ -1,8 +1,9 @@
+import { QueryFeedback, MutationFeedback } from '@/components/request-feedback'
 import { ProjectBudget } from '@/components/project-budget'
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { Link, createRoute } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { AppButton, AppCard, AppInput, AppPanel, AppSelect, AppTextarea, SectionHeading } from '@superapp/ui'
+import { AppButton, AppCard, AppInput, AppPanel, AppSelect, AppTextarea, FieldLabel, SectionHeading } from '@superapp/ui'
 import { appRoute } from '@/components/layout'
 import { useAppStore } from '@/hooks/useAppStore'
 import { fetchProjectDetail } from '@/lib/projects'
@@ -38,7 +39,7 @@ function AvailabilityPage() {
   return (
     <div className="grid gap-4 xl:grid-cols-[1fr_1fr]">
       <AppCard className="space-y-4">
-        <SectionHeading eyebrow="Availability" title="Matching replies" />
+        <SectionHeading eyebrow="Availability" title="Availability" />
         <div className="grid gap-3">
           {(participantsQuery.data ?? []).map((participant) => (
             <AppPanel key={participant.id}>
@@ -65,7 +66,7 @@ function AvailabilityPage() {
       </AppCard>
 
       <AppCard className="space-y-4">
-        <SectionHeading eyebrow="System proposal" title="Best slot" />
+        <SectionHeading eyebrow="" title="Suggested time" />
         <AppPanel tone="butter" className="p-5">
           <p className="text-lg font-extrabold text-ink">{suggestionQuery.data?.recommendation ?? 'Gathering replies...'}</p>
           <p className="mt-2 text-sm text-ink/70">
@@ -85,7 +86,7 @@ function BudgetPage() {
   return <ProjectBudget projectId={projectId} />
 }
 
-function UpdatesPage() {
+export function UpdatesPage() {
   const { projectId } = structuredUpdatesRoute.useParams()
   const { session } = useAppStore()
   const queryClient = useQueryClient()
@@ -102,7 +103,6 @@ function UpdatesPage() {
   const [previousTime, setPreviousTime] = useState('')
   const [nextTime, setNextTime] = useState('')
   const [note, setNote] = useState('')
-  const [aiReplan, setAiReplan] = useState(true)
   const impact = previewStructuredImpact({ updateType, previousTime, nextTime, note })
   const mutation = useMutation({
     mutationFn: () =>
@@ -111,10 +111,10 @@ function UpdatesPage() {
         projectId,
         updateType,
         affectedMilestoneId: milestoneId || null,
-        previousTime: new Date(previousTime).toISOString(),
-        nextTime: new Date(nextTime).toISOString(),
+        previousTime: previousTime ? new Date(previousTime).toISOString() : undefined,
+        nextTime: nextTime ? new Date(nextTime).toISOString() : undefined,
         note,
-        aiReplan,
+        aiReplan: false,
       }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['structured-updates', projectId] })
@@ -136,40 +136,40 @@ function UpdatesPage() {
   return (
     <div className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
       <AppCard className="space-y-4">
-        <SectionHeading eyebrow="Structured update" title="Preview impact" />
-        <AppSelect value={updateType} onChange={(event) => setUpdateType(event.target.value)}>
+        <SectionHeading eyebrow="Project" title="Post an update" />
+        <FieldLabel>Update type<AppSelect value={updateType} onChange={(event) => setUpdateType(event.target.value)}>
           {['delay', 'confirmed', 'completed', 'unavailable', 'payment sent', 'item purchased', 'access changed', 'booking changed'].map((option) => (
             <option key={option} value={option}>
               {option}
             </option>
           ))}
-        </AppSelect>
-        <AppSelect value={milestoneId} onChange={(event) => setMilestoneId(event.target.value)}>
+        </AppSelect></FieldLabel>
+        <FieldLabel>Milestone<AppSelect value={milestoneId} onChange={(event) => setMilestoneId(event.target.value)}>
           <option value="">No milestone selected</option>
           {(detailQuery.data?.milestones ?? []).map((milestone) => (
             <option key={milestone.id} value={milestone.id}>
               {milestone.title}
             </option>
           ))}
-        </AppSelect>
-        <AppInput type="datetime-local" value={previousTime} onChange={(event) => setPreviousTime(event.target.value)} />
-        <AppInput type="datetime-local" value={nextTime} onChange={(event) => setNextTime(event.target.value)} />
-        <AppTextarea value={note} onChange={(event) => setNote(event.target.value)} className="min-h-24" />
-        <label className="flex items-center gap-3 rounded-2xl bg-cloud px-4 py-3 text-sm font-bold text-ink">
-          <input type="checkbox" checked={aiReplan} onChange={(event) => setAiReplan(event.target.checked)} />
-          Ask for replan suggestion
-        </label>
+        </AppSelect></FieldLabel>
+        <FieldLabel>Previous date and time (optional)<AppInput type="datetime-local" value={previousTime} onChange={(event) => setPreviousTime(event.target.value)} /></FieldLabel>
+        <FieldLabel>New date and time (optional)<AppInput type="datetime-local" value={nextTime} onChange={(event) => setNextTime(event.target.value)} /></FieldLabel>
+        <FieldLabel>Notes<AppTextarea value={note} onChange={(event) => setNote(event.target.value)} className="min-h-24" /></FieldLabel>
+
         <AppPanel tone="butter" className="text-sm">
           <p className="font-extrabold text-ink">{impact.message}</p>
-          <p className="mt-2 text-ink/70">Affected: {impact.affected.join(', ')}</p>
+          <p className="mt-2 text-ink/70">Only the selected milestone can change. Other tasks and bookings stay as they are.</p>
         </AppPanel>
         <AppButton disabled={!session || mutation.isPending} onClick={() => mutation.mutate()}>
-          Send update and apply
+          Apply update
         </AppButton>
+        <MutationFeedback mutation={mutation} success="Update saved." />
       </AppCard>
 
       <AppCard className="space-y-4">
-        <SectionHeading eyebrow="Update feed" title="Recent structured updates" />
+        <SectionHeading title="Updates" />
+        <QueryFeedback query={updatesQuery} />
+        <MutationFeedback mutation={deleteUpdateMutation} />
         <div className="grid gap-3">
           {(updatesQuery.data ?? []).map((update) => (
             <AppPanel key={update.id}>
@@ -192,7 +192,7 @@ function UpdatesPage() {
               </div>
             </AppPanel>
           ))}
-          {!updatesQuery.data?.length ? <p className="text-sm text-ink/60">Structured updates will show how live changes affect the project timeline.</p> : null}
+          {!updatesQuery.isPending && !updatesQuery.isError && !updatesQuery.data?.length ? <p className="text-sm text-ink/60">No updates yet.</p> : null}
         </div>
       </AppCard>
     </div>

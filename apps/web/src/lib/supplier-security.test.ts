@@ -42,7 +42,7 @@ beforeAll(async () => {
   await db.exec(
     readFileSync(
       new URL(
-        '../../../../supabase/migrations/20261126090000_budget_receipts_supplier_requests.sql',
+        '../../../../supabase/migrations/20261126015336_budget_receipts_supplier_requests.sql',
         import.meta.url,
       ),
       'utf8',

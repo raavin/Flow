@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { ChevronLeft, ChevronRight, MapPin, RotateCcw, Truck } from 'lucide-react'
 import { Link, createRoute, useNavigate } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { AppButton, AppCard, AppInput, AppPanel, AppPill, AppSelect, AppTextarea, SectionHeading } from '@superapp/ui'
+import { AppButton, AppCard, AppInput, AppPanel, AppPill, AppSelect, AppTextarea, FieldLabel, SectionHeading } from '@superapp/ui'
 import type { TemplatePayload } from '@superapp/types'
 import { appRoute } from '@/components/layout'
 import { createProjectFromTemplate, fetchProjects, attachListingToProject } from '@/lib/projects'
@@ -313,7 +313,7 @@ function WriteReviewSection({ listingId, sellerId, listingTitle }: { listingId: 
 
   return (
     <AppCard className="space-y-4">
-      <SectionHeading eyebrow="Your review" title="Share your experience" />
+      <SectionHeading eyebrow="Your review" title="Write a review" />
       <StarPicker value={rating} onChange={setRating} />
       <AppTextarea
         value={body}
@@ -771,7 +771,7 @@ function SellerProfilePage() {
       {/* Reviews preview */}
       {reviews.length > 0 ? (
         <AppCard className="space-y-4">
-          <SectionHeading eyebrow="Reviews" title={`All reviews from this shop (${profile?.totalReviewCount ?? 0})`} />
+          <SectionHeading eyebrow="Reviews" title={`Shop reviews (${profile?.totalReviewCount ?? 0})`} />
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {reviews.slice(0, 3).map((review) => (
               <div key={review.id} className="ui-panel space-y-2">
@@ -820,7 +820,7 @@ function BusinessProfilePage() {
   return null
 }
 
-// ─── Listings management ──────────────────────────────────────────────────────
+// ─── Your listings ──────────────────────────────────────────────────────
 
 function ListingsManagementPage() {
   const { session } = useAppStore()
@@ -860,7 +860,7 @@ function ListingsManagementPage() {
         summary: newSummary,
         priceLabel: newPriceLabel,
         workspaceProjectId: newWorkspaceProjectId || null,
-        whimsicalNote: 'Crafted from your business dashboard.',
+        whimsicalNote: '',
         templatePayload: kind === 'template' ? parseTemplatePayload(newTemplatePayload) : undefined,
       }),
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['business-listings', ownerId] }),
@@ -920,24 +920,24 @@ function ListingsManagementPage() {
   return (
     <div className="space-y-4">
       <AppCard className="space-y-4">
-        <SectionHeading eyebrow="Business" title="Listings management" />
+        <SectionHeading eyebrow="Business" title="Your listings" />
         <p className="text-sm text-ink/65">Create and manage your listings. Add images to make them stand out in the marketplace.</p>
         <div className="grid gap-3 md:grid-cols-2">
-          <AppSelect value={kind} onChange={(e) => setKind(e.target.value as typeof kind)}>
+          <FieldLabel>Listing type<AppSelect value={kind} onChange={(e) => setKind(e.target.value as typeof kind)}>
             <option value="service">Service</option>
             <option value="product">Product</option>
             <option value="template">Template</option>
-          </AppSelect>
-          <AppInput value={newCategory} onChange={(e) => setNewCategory(e.target.value)} placeholder="Category" />
-          <AppInput value={newTitle} onChange={(e) => setNewTitle(e.target.value)} placeholder="Title" />
-          <AppInput value={newPriceLabel} onChange={(e) => setNewPriceLabel(e.target.value)} placeholder="Price (e.g. $120)" />
-          <AppSelect value={newWorkspaceProjectId} onChange={(e) => setNewWorkspaceProjectId(e.target.value)}>
+          </AppSelect></FieldLabel>
+          <FieldLabel>Category<AppInput value={newCategory} onChange={(e) => setNewCategory(e.target.value)} placeholder="Category" /></FieldLabel>
+          <FieldLabel>Title<AppInput value={newTitle} onChange={(e) => setNewTitle(e.target.value)} placeholder="Title" /></FieldLabel>
+          <FieldLabel>Price<AppInput value={newPriceLabel} onChange={(e) => setNewPriceLabel(e.target.value)} placeholder="Price (e.g. $120)" /></FieldLabel>
+          <FieldLabel>Project (optional)<AppSelect value={newWorkspaceProjectId} onChange={(e) => setNewWorkspaceProjectId(e.target.value)}>
             <option value="">No workspace project</option>
             {(projectsQuery.data ?? []).map((p) => (
               <option key={p.id} value={p.id}>{p.title}</option>
             ))}
-          </AppSelect>
-          <AppTextarea value={newSummary} onChange={(e) => setNewSummary(e.target.value)} className="min-h-24 md:col-span-2" placeholder="Summary" />
+          </AppSelect></FieldLabel>
+          <FieldLabel className="md:col-span-2">Description<AppTextarea value={newSummary} onChange={(e) => setNewSummary(e.target.value)} className="min-h-24 md:col-span-2" placeholder="Summary" /></FieldLabel>
           {kind === 'template' ? (
             <AppTextarea
               value={newTemplatePayload}
@@ -957,15 +957,15 @@ function ListingsManagementPage() {
       {editingId ? (
         <AppCard className="space-y-4">
           <SectionHeading eyebrow="Edit" title="Update listing" />
-          <AppInput value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Title" />
-          <AppInput value={priceLabel} onChange={(e) => setPriceLabel(e.target.value)} placeholder="Price label" />
-          <AppSelect value={workspaceProjectId} onChange={(e) => setWorkspaceProjectId(e.target.value)}>
+          <FieldLabel>Title<AppInput value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Title" /></FieldLabel>
+          <FieldLabel>Price<AppInput value={priceLabel} onChange={(e) => setPriceLabel(e.target.value)} placeholder="Price label" /></FieldLabel>
+          <FieldLabel>Project (optional)<AppSelect value={workspaceProjectId} onChange={(e) => setWorkspaceProjectId(e.target.value)}>
             <option value="">No workspace project</option>
             {(projectsQuery.data ?? []).map((p) => (
               <option key={p.id} value={p.id}>{p.title}</option>
             ))}
-          </AppSelect>
-          <AppTextarea value={summary} onChange={(e) => setSummary(e.target.value)} className="min-h-28" placeholder="Summary" />
+          </AppSelect></FieldLabel>
+          <FieldLabel>Description<AppTextarea value={summary} onChange={(e) => setSummary(e.target.value)} className="min-h-28" placeholder="Summary" /></FieldLabel>
           {editingKind === 'template' ? (
             <AppTextarea
               value={templatePayloadText}

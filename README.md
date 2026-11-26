@@ -21,3 +21,5 @@ Create an `.env.local` in `apps/web` with:
 VITE_SUPABASE_URL=http://127.0.0.1:54321
 VITE_SUPABASE_ANON_KEY=your-local-anon-key
 ```
+
+Development and test commands require Node.js 22.12 or newer (Node 24 LTS recommended).

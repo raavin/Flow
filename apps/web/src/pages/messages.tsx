@@ -433,16 +433,13 @@ export function MessagesFeedPage({ linkedProjectId }: { linkedProjectId?: string
 
   return (
     <>
-      <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_248px]">
+      <div className={linkedProjectId ? "grid gap-3" : "grid gap-3 xl:grid-cols-[minmax(0,1fr)_248px]"}>
         <div className="relative z-20 min-w-0 space-y-3">
           <AppCard className="space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               {linkedProjectId ? (
                 <div className="flex flex-wrap items-center gap-2">
-                  <AppPill tone="teal">Project view</AppPill>
-                  <Link to="/app/projects/$projectId" params={{ projectId: linkedProjectId }}>
-                    <AppButton variant="ghost">Open project</AppButton>
-                  </Link>
+                  <p className="font-bold">Project conversation</p>
                 </div>
               ) : (
                 <div className="flex flex-wrap gap-2">
@@ -804,7 +801,7 @@ export function MessagesFeedPage({ linkedProjectId }: { linkedProjectId?: string
           </div>
         </div>
 
-        <div className="relative z-0 space-y-3 xl:sticky xl:top-3 xl:self-start">
+        {!linkedProjectId && <div className="relative z-0 space-y-3 xl:sticky xl:top-3 xl:self-start">
           <AppCard className="space-y-3">
             <div className="relative">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink/40" />
@@ -851,7 +848,7 @@ export function MessagesFeedPage({ linkedProjectId }: { linkedProjectId?: string
               {!dmThreadsQuery.data?.length ? <p className="text-sm text-ink/60">No direct messages yet.</p> : null}
             </div>
           </AppCard>
-        </div>
+        </div>}
       </div>
 
       {composerOpen ? (
@@ -1146,7 +1143,7 @@ export function MessagesFeedPage({ linkedProjectId }: { linkedProjectId?: string
       {publicWarningPending ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/35 px-4 backdrop-blur-sm">
           <AppCard className="w-full max-w-sm space-y-4">
-            <SectionHeading eyebrow="Heads up" title="Share this message?" />
+            <SectionHeading eyebrow="" title="Share this message?" />
             <p className="text-sm text-ink/70">
               This will be visible to {publicWarningPending === 'project' ? 'all project members' : publicWarningPending === 'public' ? 'everyone who can browse the public feed' : 'your followers'}.
               You can always edit or delete it afterwards.
@@ -1168,7 +1165,7 @@ export function MessagesFeedPage({ linkedProjectId }: { linkedProjectId?: string
       {flowDraft ? (
         <div className="fixed inset-0 z-40 flex items-start justify-center bg-ink/35 px-4 py-10 backdrop-blur-sm">
           <AppCard className="w-full max-w-xl space-y-4">
-            <SectionHeading eyebrow="Create project" title="Turn this conversation into a plan" action={<button type="button" className="ui-soft-icon-button" onClick={() => setFlowDraft(null)}><X className="h-4 w-4" /></button>} />
+            <SectionHeading eyebrow="Create project" title="Create a plan from this message" action={<button type="button" className="ui-soft-icon-button" onClick={() => setFlowDraft(null)}><X className="h-4 w-4" /></button>} />
             <AppPanel tone="butter" className="text-sm text-ink/70">{flowDraft.body}</AppPanel>
             <AppInput value={flowTitle} onChange={(event) => setFlowTitle(event.target.value)} placeholder="Project title" />
             <label className="block text-sm font-semibold">Target date (optional)<AppInput type="date" value={flowDate} onChange={(event) => setFlowDate(event.target.value)} /></label>
@@ -1208,7 +1205,7 @@ export function MessagesFeedPage({ linkedProjectId }: { linkedProjectId?: string
       {labelReviewDraft ? (
         <div className="fixed inset-0 z-40 flex items-start justify-center bg-ink/35 px-4 py-10 backdrop-blur-sm">
           <AppCard className="w-full max-w-md space-y-4">
-            <SectionHeading eyebrow="Review label" title="Does this look mislabeled?" action={<button type="button" className="ui-soft-icon-button" onClick={() => setLabelReviewDraft(null)}><X className="h-4 w-4" /></button>} />
+            <SectionHeading eyebrow="Review label" title="Report an incorrect label" action={<button type="button" className="ui-soft-icon-button" onClick={() => setLabelReviewDraft(null)}><X className="h-4 w-4" /></button>} />
             <AppPanel className="text-sm text-ink/75">
               Current label: <span className="font-bold">{labelForKind(labelReviewDraft.currentKind)}</span>. If it looks off, suggest a better fit below.
             </AppPanel>

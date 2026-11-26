@@ -144,7 +144,7 @@ export function SectionHeading({
   return (
     <div className="ui-section-heading">
       <div>
-        {eyebrow ? <p className="ui-eyebrow">{eyebrow}</p> : null}
+        {eyebrow && eyebrow.trim().toLowerCase() !== title.trim().toLowerCase() ? <p className="ui-eyebrow">{eyebrow}</p> : null}
         <h2 className="ui-section-title">{title}</h2>
       </div>
       {action}

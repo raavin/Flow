@@ -2,9 +2,9 @@
   {
     "id": "messages-basics",
     "slug": "messages-basics",
-    "title": "Messages and feed basics",
-    "summary": "How the social feed, replies, reposts, follows, and DMs work together.",
-    "body": "Messages is the front door of the app. The main feed shows posts from people you follow, plus reposts from trusted connections. Replies stay attached to a post thread. DMs are private and separate from the public feed. Use the action row to reply, repost, like, bookmark, share, DM, or convert a post into a flow.",
+    "title": "Messages",
+    "summary": "Posts, replies and private messages.",
+    "body": "Use Following for posts from people you follow, or Discover to browse more widely. Reply under a post to keep the discussion together. Direct messages are private conversations.",
     "tags": [
       "messages",
       "feed",
@@ -27,9 +27,9 @@
   {
     "id": "convert-post-to-flow",
     "slug": "convert-post-to-flow",
-    "title": "Convert a post into a flow",
-    "summary": "Turn chatter into one coordination object with time, intent, and state.",
-    "body": "Each post can become a single coordination object. Use the water-like flow action on a message to prefill a flow. From there you can add a title, intent, timing, and project linkage. The flow then shows up in the Flows board, timeline, and any connected project views.",
+    "title": "Create a plan from a message",
+    "summary": "Add dates and tasks to an idea from a discussion.",
+    "body": "Choose \u201cTurn into a plan\u201d on a message. Review the title, dates and project before saving. Find it afterwards in Plans. The original message keeps its audience.",
     "tags": [
       "flows",
       "coordination",
@@ -47,9 +47,9 @@
   {
     "id": "calendar-timeline-link",
     "slug": "calendar-timeline-link",
-    "title": "Calendar and timeline together",
-    "summary": "How calendar events and timed flows connect to the timeline.",
-    "body": "Calendar and Timeline are different views over scheduled coordination. Calendar is best for day, week, and month planning. Timeline is best for seeing sequences, dependencies, and stretchable time blocks. Timed flows can appear in both views so you do not lose context when moving between them.",
+    "title": "Calendar and Timeline",
+    "summary": "Choose a date view or a schedule view.",
+    "body": "Calendar shows events by month, week, day or agenda. Timeline shows plans and project tasks across dates. Switch between them from Calendar.",
     "tags": [
       "calendar",
       "timeline",
@@ -116,9 +116,9 @@
   {
     "id": "templates-and-reusable-blocks",
     "slug": "templates-and-reusable-blocks",
-    "title": "Templates as reusable flow blocks",
-    "summary": "Save repeatable sequences so you can reuse them later.",
-    "body": "Templates are stored as structured blocks that can be reapplied later. They work best for repeatable sequences like birthdays, appointments, moving, or release workflows. When applied, they create real coordination objects that can appear in the board and timeline.",
+    "title": "Templates",
+    "summary": "Reuse a set of planning steps.",
+    "body": "Open Plans to create a template or choose an existing one. Select the event date, check the dates of each step, then create the plan.",
     "tags": [
       "templates",
       "flows",
@@ -137,9 +137,9 @@
   {
     "id": "feed-ranking-principles",
     "slug": "feed-ranking-principles",
-    "title": "How feed ranking works",
-    "summary": "The feed favors trusted, relevant, and actionable posts over raw virality.",
-    "body": "The app uses a central feed ranking profile with editable weights. Following emphasizes people you follow, your own posts, trusted reposts, bookmarks, freshness, and coordination relevance. Discover is broader but still avoids pure popularity-first ranking. The goal is to promote useful, healthy communication rather than attention-seeking content.",
+    "title": "Post order",
+    "summary": "How posts are sorted.",
+    "body": "Following prioritises people you follow, recent posts, bookmarks and reposts from your connections. Discover includes a wider selection.",
     "tags": [
       "messages",
       "ranking",
@@ -159,9 +159,9 @@
   {
     "id": "support-and-search",
     "slug": "support-and-search",
-    "title": "Support and search",
-    "summary": "Use live search or slash commands to find help quickly.",
-    "body": "The Support area is a structured knowledge base for the current app. It is searchable directly from the support page and also through inline slash suggestions while composing messages. The support data is stored in a structured format so it can later be indexed or ingested by AI support tools.",
+    "title": "Find help",
+    "summary": "Search Help or type / in a message.",
+    "body": "Search this page for a feature or task. While writing a message, type / to find related help.",
     "shortcut": "/support",
     "tags": [
       "support",
@@ -182,9 +182,9 @@
   {
     "id": "project-budgets",
     "slug": "project-budgets",
-    "title": "Plan project costs and see your overall budget",
-    "summary": "Set limits, estimate costs and track actual spending without making payments.",
-    "body": "Open Budget inside a project to set a limit and add costs. New costs start planned and unpaid. Edit estimates, actual amounts and payment status as quotes and receipts arrive. Forecast uses actual amounts when recorded, otherwise estimates; paid items use their actual amount. Budgets combines the selected projects across their full lifetimes. Money records are separate supporting records and are not added again. These planning records are private to their owner.",
+    "title": "Budgets and receipts",
+    "summary": "Plan costs and record spending.",
+    "body": "Open a project\u2019s Budget to set a limit, allocate amounts and add costs. Record estimates, actual spending and payment status. Attach a receipt image or PDF to a saved cost. Money shows budgets across projects; Payments & IOUs are separate records and are not counted again.",
     "tags": [
       "budgets",
       "projects",
@@ -203,9 +203,9 @@
   {
     "id": "planning-helper",
     "slug": "planning-helper",
-    "title": "Use a template to plan around a date",
-    "summary": "Preview preparation and follow-up before adding a reusable plan.",
-    "body": "Planning helper searches your saved templates; it does not generate AI advice. Choose a main date or day zero and optionally an existing project. Preview every dated step before adding the plan. Negative offsets schedule preparation before day zero. Create reusable steps in Flows & templates using names and day offsets; the advanced editor remains available for custom block types.",
+    "title": "Schedule a template",
+    "summary": "Set the date and preview the steps.",
+    "body": "Choose a saved template and its event date. Review the scheduled steps before adding the plan. Steps with negative day offsets happen before the event. You can also link the plan to an existing project.",
     "tags": [
       "templates",
       "planning"

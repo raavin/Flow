@@ -1,8 +1,9 @@
+import { QueryFeedback, MutationFeedback } from '@/components/request-feedback'
 import { useRef, useState } from 'react'
 import { createRoute } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Pencil } from 'lucide-react'
-import { AppButton, AppCard, AppInput, AppPanel, AppSelect, AppTextarea, SectionHeading } from '@superapp/ui'
+import { AppButton, AppCard, AppInput, AppPanel, AppSelect, AppTextarea, FieldLabel, SectionHeading } from '@superapp/ui'
 import { appRoute } from '@/components/layout'
 import { useAppStore } from '@/hooks/useAppStore'
 import { fetchParticipants, inviteParticipant, removeParticipant, updateParticipant } from '@/lib/participants'
@@ -39,6 +40,9 @@ function ParticipantsPage() {
       }),
     onSuccess: () => {
       setInviteError(null)
+      setName('')
+      setContactHint('')
+      setNote('')
       void queryClient.invalidateQueries({ queryKey: ['participants', projectId] })
       void queryClient.invalidateQueries({ queryKey: ['project-activity', projectId] })
     },
@@ -101,30 +105,33 @@ function ParticipantsPage() {
   return (
     <div className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
       <AppCard className="space-y-4">
-        <SectionHeading eyebrow="Invite" title={`Participants for ${detailQuery.data?.project.title ?? 'project'}`} />
-        <AppInput value={name} onChange={(event) => setName(event.target.value)} placeholder="Name or business" />
-        <AppSelect value={participantKind} onChange={(event) => setParticipantKind(event.target.value as typeof participantKind)}>
+        <SectionHeading eyebrow="Invite" title={`Add people to ${detailQuery.data?.project.title ?? 'project'}`} />
+        <FieldLabel>Name<AppInput value={name} onChange={(event) => setName(event.target.value)} placeholder="Name or business" /></FieldLabel>
+        <FieldLabel>Type<AppSelect value={participantKind} onChange={(event) => setParticipantKind(event.target.value as typeof participantKind)}>
           <option value="person">Person</option>
           <option value="business">Business/provider</option>
-        </AppSelect>
-        <AppSelect value={role} onChange={(event) => setRole(event.target.value as typeof role)}>
+        </AppSelect></FieldLabel>
+        <FieldLabel>Role<AppSelect value={role} onChange={(event) => setRole(event.target.value as typeof role)}>
           <option value="owner">Owner</option>
           <option value="collaborator">Collaborator</option>
           <option value="helper">Helper</option>
           <option value="guest">Guest</option>
           <option value="provider">Provider</option>
           <option value="viewer">Viewer only</option>
-        </AppSelect>
-        <AppInput value={contactHint} onChange={(event) => setContactHint(event.target.value)} placeholder="Email / phone / username" />
-        <AppTextarea value={note} onChange={(event) => setNote(event.target.value)} className="min-h-24" />
-        <AppButton disabled={!session || inviteMutation.isPending} onClick={() => { setInviteError(null); inviteMutation.mutate() }}>
+        </AppSelect></FieldLabel>
+        <FieldLabel>Contact details<AppInput value={contactHint} onChange={(event) => setContactHint(event.target.value)} placeholder="Email / phone / username" /></FieldLabel>
+        <FieldLabel>Notes<AppTextarea value={note} onChange={(event) => setNote(event.target.value)} className="min-h-24" /></FieldLabel>
+        <AppButton disabled={!session || !name.trim() || inviteMutation.isPending} onClick={() => { setInviteError(null); inviteMutation.mutate() }}>
           Send invite
         </AppButton>
         {inviteError ? <p className="text-xs font-bold text-berry">{inviteError}</p> : null}
       </AppCard>
 
       <AppCard className="space-y-4">
-        <SectionHeading eyebrow="Team" title="People and providers" />
+        <SectionHeading title="People" />
+        <QueryFeedback query={participantsQuery} />
+        <MutationFeedback mutation={updateMutation} />
+        <MutationFeedback mutation={removeMutation} />
         <div className="grid gap-3">
           {(participantsQuery.data ?? []).map((participant) => (
             <AppPanel key={participant.id}>
@@ -191,7 +198,7 @@ function ParticipantsPage() {
               </div>
             </AppPanel>
           ))}
-          {!participantsQuery.data?.length ? <p className="text-sm text-ink/60">Invite helpers, guests, and providers to make the project collaborative.</p> : null}
+          {!participantsQuery.isPending && !participantsQuery.isError && !participantsQuery.data?.length ? <p className="text-sm text-ink/60">No people added yet.</p> : null}
         </div>
       </AppCard>
     </div>

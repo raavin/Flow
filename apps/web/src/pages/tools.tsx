@@ -1,7 +1,8 @@
+import { MutationFeedback } from '@/components/request-feedback'
 import { useEffect, useMemo, useState } from 'react'
 import { Link, createRoute } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { AppButton, AppCard, AppInput, AppPanel, AppSelect, AppTextarea, SectionHeading } from '@superapp/ui'
+import { AppButton, AppCard, AppInput, AppPanel, AppSelect, AppTextarea, FieldLabel, SectionHeading } from '@superapp/ui'
 import { appRoute } from '@/components/layout'
 import { useAppStore } from '@/hooks/useAppStore'
 import { addToCart, fetchCartCount, fetchCartItems, placeOrderFromCart, removeCartItem, summarizeCart, updateCartItem } from '@/lib/cart'
@@ -61,14 +62,14 @@ function CategoryBrowsePage() {
             </Link>
           }
         />
-        <AppSelect value={projectId} onChange={(event) => setProjectId(event.target.value)} className="max-w-sm">
+        <FieldLabel>Project<AppSelect value={projectId} onChange={(event) => setProjectId(event.target.value)} className="max-w-sm">
           <option value="">No project context</option>
           {(projectsQuery.data ?? []).map((project) => (
             <option key={project.id} value={project.id}>
               {project.title}
             </option>
           ))}
-        </AppSelect>
+        </AppSelect></FieldLabel>
       </AppCard>
       <div className="grid gap-4 md:grid-cols-2">
         {(listingsQuery.data ?? []).map((listing) => (
@@ -145,7 +146,7 @@ function CartReviewPage() {
   return (
     <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
       <AppCard className="space-y-4">
-        <SectionHeading eyebrow="Cart" title="Review your draft order" />
+        <SectionHeading eyebrow="Cart" title="Cart" />
         <div className="grid gap-3">
           {(cartQuery.data ?? []).map((item) => {
             const listing = item.listing
@@ -246,7 +247,7 @@ function CartReviewPage() {
       </AppCard>
 
       <AppCard className="space-y-4">
-        <SectionHeading eyebrow="Checkout" title={sellerHasStripe ? 'Payment' : 'Mock payment confirmation'} />
+        <SectionHeading eyebrow="Checkout" title={sellerHasStripe ? 'Payment' : 'Demo checkout'} />
         <AppPanel tone="butter">
           <div className="flex items-center justify-between gap-3">
             <p className="text-xs font-bold uppercase text-ink/50">Subtotal</p>
@@ -264,7 +265,7 @@ function CartReviewPage() {
         <p className="text-sm text-ink/70">
           {sellerHasStripe
             ? 'Stripe is connected — payment will be confirmed with Stripe before the order is placed.'
-            : 'Checkout is mocked for now, but it follows the real pattern: cart draft to placed order, then buyer transaction and seller financial entry.'}
+            : 'Demo checkout records an order and marks it paid. No money is transferred.'}
         </p>
         <AppButton disabled={!session || !(cartQuery.data ?? []).length || checkoutMutation.isPending} onClick={() => checkoutMutation.mutate()}>
           {checkoutMutation.isPending ? 'Placing order...' : 'Place order'}
@@ -329,12 +330,12 @@ function SearchPage() {
   return (
     <div className="space-y-4">
       <AppCard className="space-y-4">
-        <SectionHeading eyebrow="Search" title="Universal command" />
+        <SectionHeading eyebrow="Search" title="Search" />
         <AppInput
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           className="py-4 text-base"
-          placeholder="plan a move next month, find cleaner, who hasn't replied?"
+          placeholder="Search projects, listings, messages or jobs"
         />
       </AppCard>
       <div className="grid gap-4 md:grid-cols-2">
@@ -393,12 +394,12 @@ function SettingsPage() {
   return (
     <div className="grid gap-4 xl:grid-cols-[0.85fr_1.15fr]">
       <AppCard className="space-y-4">
-        <SectionHeading eyebrow={isBusiness ? 'Profile & Admin' : 'Profile'} title={isBusiness ? 'Business profile and defaults' : 'Profile and defaults'} />
-        <AppInput value={firstName} onChange={(event) => setFirstName(event.target.value)} placeholder="First name" />
-        <AppInput value={lastName} onChange={(event) => setLastName(event.target.value)} placeholder="Last name" />
-        <AppInput value={location} onChange={(event) => setLocation(event.target.value)} placeholder="Location" />
-        <AppInput value={timeZone} onChange={(event) => setTimeZone(event.target.value)} placeholder="Time zone" />
-        <div className="relative">
+        <SectionHeading eyebrow={isBusiness ? 'Profile & Admin' : 'Profile'} title={isBusiness ? 'Business profile' : 'Profile'} />
+        <FieldLabel>First name<AppInput value={firstName} onChange={(event) => setFirstName(event.target.value)} placeholder="First name" /></FieldLabel>
+        <FieldLabel>Last name<AppInput value={lastName} onChange={(event) => setLastName(event.target.value)} placeholder="Last name" /></FieldLabel>
+        <FieldLabel>Location<AppInput value={location} onChange={(event) => setLocation(event.target.value)} placeholder="Location" /></FieldLabel>
+        <FieldLabel>Time zone<AppInput value={timeZone} onChange={(event) => setTimeZone(event.target.value)} placeholder="Time zone" /></FieldLabel>
+        <FieldLabel>Username<div className="relative">
           <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-ink/40">@</span>
           <AppInput
             value={handle}
@@ -406,12 +407,22 @@ function SettingsPage() {
             style={{ paddingLeft: '1.75rem' }}
             placeholder="yourhandle"
           />
-        </div>
-        <AppTextarea value={bio} onChange={(event) => setBio(event.target.value)} className="min-h-24" placeholder="Bio" />
+        </div></FieldLabel>
+        <FieldLabel>Bio<AppTextarea value={bio} onChange={(event) => setBio(event.target.value)} className="min-h-24" placeholder="Bio" /></FieldLabel>
+        <AppButton disabled={!session || mutation.isPending} onClick={() => mutation.mutate()}>
+          {mutation.isPending ? 'Saving…' : 'Save profile'}
+        </AppButton>
+        <MutationFeedback mutation={mutation} success="Profile saved." />
+      </AppCard>
+
+      <AppCard className="space-y-4">
+        <SectionHeading title="Preferences" />
+        <p className="text-sm text-ink/65">Features you want to use. Save changes with your profile.</p>
         <div className="flex flex-wrap gap-2">
           {['calendar', 'contacts', 'notifications', 'payments'].map((item) => (
             <button
               key={item}
+              aria-pressed={integrations.includes(item)}
               onClick={() =>
                 setIntegrations((current) =>
                   current.includes(item) ? current.filter((value) => value !== item) : [...current, item],
@@ -419,28 +430,16 @@ function SettingsPage() {
               }
               className={integrations.includes(item) ? 'ui-chip-toggle ui-chip-toggle--active' : 'ui-chip-toggle ui-chip-toggle--inactive'}
             >
-              {item}
+              {item.charAt(0).toUpperCase() + item.slice(1)}
             </button>
           ))}
         </div>
-        <AppButton disabled={!session || mutation.isPending} onClick={() => mutation.mutate()}>
-          Save settings
-        </AppButton>
-      </AppCard>
-
-      <AppCard className="space-y-4">
-        <SectionHeading eyebrow={isBusiness ? 'Admin' : 'Integrations'} title={isBusiness ? 'Current setup and controls' : 'Current setup'} />
-        <div className="grid gap-3">
-          <AppPanel>Connected calendars: {integrations.includes('calendar') ? 'enabled' : 'not yet'}</AppPanel>
-          <AppPanel>Contacts permission: {integrations.includes('contacts') ? 'enabled' : 'not yet'}</AppPanel>
-          <AppPanel>Notifications: {integrations.includes('notifications') ? 'enabled' : 'not yet'}</AppPanel>
-          <AppPanel>Payment methods: {integrations.includes('payments') ? 'connected later' : 'not connected'}</AppPanel>
-        </div>
-        {isBusiness ? (
+        {(
           <AppPanel tone="surface" className="text-sm text-ink/65">
-            Business mode collects the profile, integration defaults, and light admin controls in one place for now.
+            These preferences do not connect external accounts. Manage connections in Integrations.
+            <Link to="/app/integrations" className="mt-2 block underline">Manage integrations</Link>
           </AppPanel>
-        ) : null}
+        )}
       </AppCard>
     </div>
   )

@@ -38,8 +38,8 @@ function OnboardingPage() {
       setLastName(profile.last_name ?? '')
       setLocation(profile.location)
       setTimeZone(profile.time_zone)
-      setUseCases(profile.use_cases)
-      setIntegrations(profile.integrations)
+      setUseCases(profile.use_cases ?? [])
+      setIntegrations(profile.integrations ?? [])
     }
     if (businessProfile) {
       setBusinessName(businessProfile.business_name)
@@ -90,7 +90,7 @@ function OnboardingPage() {
     <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
       <div className="grid gap-4 lg:grid-cols-[0.95fr_1.05fr]">
         <AppCard className="space-y-5">
-          <SectionHeading eyebrow="Step 1" title="Choose your orbit" />
+          <SectionHeading eyebrow="Step 1" title="Account type" />
           <div className="grid gap-3">
             {(['individual', 'business', 'both'] as AccountMode[]).map((option) => (
               <button
@@ -103,8 +103,8 @@ function OnboardingPage() {
                 <p className="text-lg font-extrabold capitalize text-ink">{option}</p>
                 <p className="text-sm text-ink/65">
                   {option === 'individual' && 'Plan your life, events, and shared projects.'}
-                  {option === 'business' && 'Offer services, products, and client coordination.'}
-                  {option === 'both' && 'Float gracefully between personal planning and business delivery.'}
+                  {option === 'business' && 'Manage customer work and offer services or products.'}
+                  {option === 'both' && 'Use personal and business features in one account.'}
                 </p>
               </button>
             ))}
@@ -153,7 +153,7 @@ function OnboardingPage() {
 
         <div className="space-y-4">
           <AppCard className="space-y-4">
-            <SectionHeading eyebrow="Individual" title="Use cases and integrations" />
+            <SectionHeading eyebrow="Individual" title="Interests and preferences" />
             <div className="flex flex-wrap gap-2">
               {personalUseCases.map((item) => (
                 <button key={item} onClick={() => setUseCases(toggleItem(useCases, item))}>
@@ -172,7 +172,7 @@ function OnboardingPage() {
 
           {(mode === 'business' || mode === 'both') ? (
             <AppCard className="space-y-4">
-              <SectionHeading eyebrow="Business" title="Offerings and visibility" />
+              <SectionHeading eyebrow="Business" title="Business details" />
               <FieldLabel>
                 Business name
                 <AppInput value={businessName} onChange={(event) => setBusinessName(event.target.value)} className="mt-2" />
@@ -209,7 +209,7 @@ function OnboardingPage() {
 
           {error ? <p className="rounded-[24px] bg-berry/10 p-4 text-sm text-berry">{error}</p> : null}
           <AppButton className="w-full" onClick={() => void submit()}>
-            Save setup and open dashboard
+            Save and open messages
           </AppButton>
         </div>
       </div>

@@ -301,7 +301,7 @@ function CoordinationPage() {
           </AppCard>
 
           <BoardSection
-            title="Now"
+            title="Current"
             eyebrow="Live"
             description="Active, happening today, or ready to move."
             items={buckets.now}
@@ -310,7 +310,7 @@ function CoordinationPage() {
             onDelete={(id) => deleteObjectMutation.mutate(id)}
           />
           <BoardSection
-            title="Next"
+            title="Upcoming"
             eyebrow="Upcoming"
             description="Scheduled for later."
             items={buckets.next}
@@ -319,7 +319,7 @@ function CoordinationPage() {
             onDelete={(id) => deleteObjectMutation.mutate(id)}
           />
           <BoardSection
-            title="Backlog"
+            title="Drafts & unscheduled"
             eyebrow="Flexible"
             description="Plans without a fixed date."
             items={buckets.backlog}
@@ -328,7 +328,7 @@ function CoordinationPage() {
             onDelete={(id) => deleteObjectMutation.mutate(id)}
           />
           <BoardSection
-            title="Done"
+            title="Completed"
             eyebrow="Completed"
             description="Completed plans."
             items={buckets.done}
@@ -720,7 +720,7 @@ function CoordinationDetailPage() {
     <div className="mx-auto max-w-4xl space-y-4">
       <AppCard className="space-y-4">
         <div className="flex items-center justify-between gap-3">
-          <SectionHeading eyebrow="Flow" title={flowQuery.data?.title ?? 'Flow detail'} />
+          <SectionHeading eyebrow="Plan" title={flowQuery.data?.title ?? 'Plan details'} />
           <div className="flex flex-wrap gap-2">
             {flowQuery.data?.linkedProjectId ? (
               <>
@@ -733,7 +733,7 @@ function CoordinationDetailPage() {
               </>
             ) : null}
             <Link to="/app/coordination">
-              <AppButton variant="ghost">Back to flows</AppButton>
+              <AppButton variant="ghost">Back to plans</AppButton>
             </Link>
           </div>
         </div>
@@ -751,7 +751,7 @@ function CoordinationDetailPage() {
 
       {!flowQuery.data?.linkedProjectId ? (
         <AppCard className="space-y-4">
-          <SectionHeading eyebrow="Project" title="Turn this flow into a project" />
+          <SectionHeading eyebrow="Project" title="Create project" />
           <div className="grid gap-3 md:grid-cols-2">
             <FieldLabel>
               Project title
@@ -779,7 +779,7 @@ function CoordinationDetailPage() {
       ) : null}
 
       <AppCard className="space-y-4">
-        <SectionHeading eyebrow="Participants" title="Add people to this flow" />
+        <SectionHeading eyebrow="Participants" title="Add people" />
         <div className="space-y-3">
           <AppInput
             value={participantQuery}
@@ -840,19 +840,19 @@ function CoordinationDetailPage() {
       <AppCard className="space-y-4">
         <SectionHeading eyebrow="Conversation" title="Discussion" />
         <p className="text-sm text-ink/70">
-          Keep the ongoing chatter attached to the flow so the plan and the conversation stay together. It uses the same visual language as the main feed, just scoped to this flow.
+          Discuss this plan with its participants.
         </p>
         <div className="space-y-3">
           {(messagesQuery.data ?? []).map((message) => (
             <FlowMessageCard key={message.id} message={message} />
           ))}
-          {!messagesQuery.data?.length ? <AppPanel className="text-sm text-ink/60">No flow messages yet. Add the first follow-up here.</AppPanel> : null}
+          {!messagesQuery.data?.length ? <AppPanel className="text-sm text-ink/60">No messages yet.</AppPanel> : null}
         </div>
         <div className="space-y-3">
-          <AppTextarea value={body} onChange={(event) => setBody(event.target.value)} className="min-h-24" placeholder="Add a message that belongs to this flow..." />
+          <AppTextarea value={body} onChange={(event) => setBody(event.target.value)} className="min-h-24" placeholder="Write a message…" />
           <div className="flex justify-end">
             <AppButton disabled={!session || messageMutation.isPending || !body.trim()} onClick={() => messageMutation.mutate()}>
-              {messageMutation.isPending ? 'Sending…' : 'Send to flow'}
+              {messageMutation.isPending ? 'Sending…' : 'Send message'}
             </AppButton>
           </div>
         </div>

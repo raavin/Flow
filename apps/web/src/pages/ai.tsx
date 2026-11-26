@@ -30,14 +30,14 @@ function PlanningHelperPage() {
   return <div className="space-y-4">
     <AppCard className="space-y-4">
       <SectionHeading eyebrow="Planning helper" title="Choose a template" action={<AppButton variant="ghost" disabled={!session || seed.isPending} onClick={() => seed.mutate()}>Add starter plans</AppButton>} />
-      <p className="text-sm text-ink/70">Use a reusable plan to work backwards from a date. Preview the preparation and follow-up, then add the steps to your calendar and timeline. This helper uses saved templates, not AI-generated advice.</p>
-      <FieldLabel>Find a starting point<AppInput value={search} onChange={e => setSearch(e.target.value)} placeholder="Birthday, appointment, move…" /></FieldLabel>
+      <p className="text-sm text-ink/70">Choose a template, set the event date and review the scheduled steps.</p>
+      <FieldLabel>Search templates<AppInput value={search} onChange={e => setSearch(e.target.value)} placeholder="Birthday, appointment, move…" /></FieldLabel>
       <div className="grid gap-3 sm:grid-cols-2">
-        <FieldLabel>Main date / day zero<AppInput type="date" value={anchorDate} onChange={e => setAnchorDate(e.target.value)} /></FieldLabel>
-        <FieldLabel>Attach to a project (optional)<AppSelect value={projectId} onChange={e => setProjectId(e.target.value)}><option value="">Keep as a standalone plan</option>{(projects.data ?? []).map(project => <option key={project.id} value={project.id}>{project.title}</option>)}</AppSelect></FieldLabel>
+        <FieldLabel>Event date<AppInput type="date" value={anchorDate} onChange={e => setAnchorDate(e.target.value)} /></FieldLabel>
+        <FieldLabel>Project (optional)<AppSelect value={projectId} onChange={e => setProjectId(e.target.value)}><option value="">Keep as a standalone plan</option>{(projects.data ?? []).map(project => <option key={project.id} value={project.id}>{project.title}</option>)}</AppSelect></FieldLabel>
       </div>
-      <p className="text-sm text-ink/70">Day zero is the template's reference date. Check the preview: birthday plans count back from the birthday; an appointment flow starts with the booking request.</p>
-      <Link to="/app/coordination" className="inline-block text-sm underline">Create your own reusable plan</Link>
+      <p className="text-sm text-ink/70">Check the preview before adding the plan. Each template schedules its steps around the event date.</p>
+      <Link to="/app/coordination" className="inline-block text-sm underline">Create a template</Link>
       {(apply.error || seed.error || templates.error || projects.error) ? <p role="alert">{(apply.error || seed.error || templates.error || projects.error)?.message}</p> : null}
     </AppCard>
     {templates.isPending ? <p role="status">Loading plans…</p> : null}

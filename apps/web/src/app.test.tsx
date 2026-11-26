@@ -15,6 +15,6 @@ describe('app shell', () => {
       </QueryClientProvider>,
     )
 
-    expect(await screen.findByText(/good conversations. real plans./i)).toBeInTheDocument()
+    expect(await screen.findByText(/messages, projects and plans/i)).toBeInTheDocument()
   })
 })

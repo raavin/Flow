@@ -487,7 +487,7 @@ function QuoteEditor({
       >
         <SectionHeading
           eyebrow="Your private quote"
-          title={quote ? 'Revise your quote' : 'Offer to help'}
+          title={quote ? 'Revise your quote' : 'Submit a quote'}
         />
         <FieldLabel>
           Total price including fees (AUD)
