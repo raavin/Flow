@@ -331,6 +331,18 @@
   .ui-ledger-cell--numeric { @apply px-4 py-3 text-right; }
   .ui-ledger-meta     { @apply text-xs; color: rgb(var(--color-ink) / 0.5); }
 
+  /* Budget tables keep comparable amounts in aligned, readable rows. */
+  .ui-budget-table { @apply w-full table-auto text-left text-sm; color: rgb(var(--color-ink)); }
+  .ui-budget-table th, .ui-budget-table td { @apply px-4 py-3 align-middle; }
+  .ui-budget-table thead { background-color: rgb(var(--color-cloud) / 0.8); }
+  .ui-budget-table thead th { @apply whitespace-nowrap font-semibold; }
+  .ui-budget-table tbody tr { border-top: 1px solid rgb(var(--color-ink) / 0.1); }
+  .ui-budget-table tbody tr:hover { background-color: rgb(var(--color-ink) / 0.025); }
+  .ui-budget-table tfoot { @apply font-semibold; border-top: 2px solid rgb(var(--color-ink) / 0.15); background-color: rgb(var(--color-cloud) / 0.5); }
+  .ui-budget-table .budget-money { @apply text-right tabular-nums whitespace-nowrap; }
+  .ui-budget-table .budget-actions { @apply whitespace-nowrap text-right; }
+  .ui-budget-table .budget-actions button { @apply min-h-10 px-2 py-2 text-xs; }
+
   /* Timeline */
   .ui-timeline-shell {
     @apply p-3;
