@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { createRoute, Link, useNavigate } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ShoppingCart } from 'lucide-react'
-import { AppButton, AppCard, AppPanel, SectionHeading } from '@superapp/ui'
+import { AppButton, AppCard, AppPanel } from '@superapp/ui'
 import { appRoute } from '@/components/layout'
 import { useAppStore } from '@/hooks/useAppStore'
 import { fetchMarketplaceListingsBrowse, getListingImageUrl } from '@/lib/marketplace'
@@ -12,7 +12,15 @@ import type { BrowseListing, MarketplaceKind } from '@superapp/types'
 
 // ─── Star display ─────────────────────────────────────────────────────────────
 
-function StarRating({ ratingSum, reviewCount, size = 'sm' }: { ratingSum: number; reviewCount: number; size?: 'sm' | 'xs' }) {
+function StarRating({
+  ratingSum,
+  reviewCount,
+  size = 'sm',
+}: {
+  ratingSum: number
+  reviewCount: number
+  size?: 'sm' | 'xs'
+}) {
   if (reviewCount === 0) return null
   const avg = ratingSum / reviewCount
   const full = Math.floor(avg)
@@ -24,14 +32,20 @@ function StarRating({ ratingSum, reviewCount, size = 'sm' }: { ratingSum: number
       {'★'.repeat(full)}
       {hasHalf ? '½' : ''}
       {'☆'.repeat(empty)}
-      <span className="ml-1 tabular-nums text-ink/50">{formatRating(ratingSum, reviewCount)} ({reviewCount})</span>
+      <span className="ml-1 tabular-nums text-ink/50">
+        {formatRating(ratingSum, reviewCount)} ({reviewCount})
+      </span>
     </span>
   )
 }
 
 // ─── Listing card ─────────────────────────────────────────────────────────────
 
-function ListingCard({ listing, onAddToCart, addingId }: {
+function ListingCard({
+  listing,
+  onAddToCart,
+  addingId,
+}: {
   listing: BrowseListing
   onAddToCart: (id: string) => void
   addingId: string | null
@@ -51,7 +65,10 @@ function ListingCard({ listing, onAddToCart, addingId }: {
             />
           ) : (
             <div className="flex h-full w-full items-center justify-center">
-              <span className="text-xs text-ink/30 uppercase tracking-widest">No image</span>
+              <div className="p-6">
+                <p className="text-sm font-semibold capitalize">{listing.kind}</p>
+                <p className="mt-3 text-lg font-semibold">{listing.title}</p>
+              </div>
             </div>
           )}
           {listing.locationLabel ? (
@@ -65,7 +82,9 @@ function ListingCard({ listing, onAddToCart, addingId }: {
       {/* Meta */}
       <div className="mt-2 space-y-0.5">
         <Link to="/app/marketplace/listings/$listingId" params={{ listingId: listing.id }}>
-          <p className="text-sm font-medium text-ink line-clamp-2 leading-snug hover:underline">{listing.title}</p>
+          <p className="text-sm font-medium text-ink line-clamp-2 leading-snug hover:underline">
+            {listing.title}
+          </p>
         </Link>
         <Link to="/app/marketplace/seller/$sellerId" params={{ sellerId: listing.sellerId }}>
           <p className="text-xs text-ink/55 hover:text-ink hover:underline">{listing.sellerName}</p>
@@ -81,7 +100,11 @@ function ListingCard({ listing, onAddToCart, addingId }: {
           params={{ listingId: listing.id }}
           className="flex-1 border border-border py-1.5 text-center text-xs font-medium text-ink/70 hover:border-ink hover:text-ink transition"
         >
-          View details
+          {listing.kind === 'template'
+            ? 'View template'
+            : listing.kind === 'service'
+              ? 'View service'
+              : 'View item'}
         </Link>
         <button
           type="button"
@@ -89,7 +112,7 @@ function ListingCard({ listing, onAddToCart, addingId }: {
           disabled={addingId === listing.id}
           onClick={() => onAddToCart(listing.id)}
         >
-          {addingId === listing.id ? 'Adding…' : 'Add to cart'}
+          {addingId === listing.id ? 'Adding…' : 'Save item'}
         </button>
       </div>
     </div>
@@ -107,7 +130,15 @@ const KIND_LABELS: Record<KindFilter, string> = {
   product: 'Products',
 }
 
-function FilterChip({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+function FilterChip({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean
+  onClick: () => void
+  children: React.ReactNode
+}) {
   return (
     <button
       type="button"
@@ -121,11 +152,11 @@ function FilterChip({ active, onClick, children }: { active: boolean; onClick: (
 
 // ─── Browse page ──────────────────────────────────────────────────────────────
 
-function MarketplaceBrowsePage() {
+function MarketplaceBrowsePage({ initialKind = 'all' }: { initialKind?: KindFilter } = {}) {
   const { session } = useAppStore()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const [kindFilter, setKindFilter] = useState<KindFilter>('all')
+  const [kindFilter, setKindFilter] = useState<KindFilter>(initialKind)
   const [sort, setSort] = useState<'newest' | 'rating' | 'price_asc' | 'price_desc'>('newest')
   const [addingId, setAddingId] = useState<string | null>(null)
 
@@ -167,14 +198,17 @@ function MarketplaceBrowsePage() {
         <div className="flex flex-wrap items-center gap-2">
           {session ? (
             <Link to="/app/marketplace/manage">
-              <AppButton variant="ghost">Sell</AppButton>
+              <AppButton variant="ghost">My listings</AppButton>
             </Link>
           ) : null}
-          <Link to="/app/marketplace/requests" search={{}}><AppButton variant="secondary">Requests &amp; quotes</AppButton></Link>
+          <Link to="/app/marketplace/requests" search={{}}>
+            <AppButton variant="secondary">Requests &amp; quotes</AppButton>
+          </Link>
           <Link to="/app/marketplace/cart">
             <AppButton variant="secondary" className="flex items-center gap-2">
               <ShoppingCart className="h-4 w-4" />
-              Cart{cartCountQuery.data ? ` (${cartCountQuery.data})` : ''}
+              Saved items
+              {cartCountQuery.data ? ` (${cartCountQuery.data})` : ''}
             </AppButton>
           </Link>
         </div>
@@ -211,7 +245,11 @@ function MarketplaceBrowsePage() {
           <AppPanel className="text-sm text-ink/60">
             No listings match these filters yet. Check back soon or{' '}
             {session ? (
-              <button type="button" className="underline" onClick={() => void navigate({ to: '/app/marketplace/manage' })}>
+              <button
+                type="button"
+                className="underline"
+                onClick={() => void navigate({ to: '/app/marketplace/manage' })}
+              >
                 publish one yourself
               </button>
             ) : (
@@ -225,7 +263,9 @@ function MarketplaceBrowsePage() {
               <ListingCard
                 key={listing.id}
                 listing={listing}
-                onAddToCart={(id) => { if (session) addToCartMutation.mutate(id) }}
+                onAddToCart={(id) => {
+                  if (session) addToCartMutation.mutate(id)
+                }}
                 addingId={addingId}
               />
             ))}
@@ -243,14 +283,12 @@ export const marketplaceBrowseRoute = createRoute({
 })
 
 // Keep legacy routes redirecting to the unified browse page
-function LegacyRedirect({ to }: { to: string }) {
-  const navigate = useNavigate()
-  void navigate({ to, replace: true })
-  return null
+function LegacyTemplatesPage() {
+  return <MarketplaceBrowsePage initialKind="template" />
 }
-
-function LegacyTemplatesPage() { return <LegacyRedirect to="/app/marketplace" /> }
-function LegacyServicesPage() { return <LegacyRedirect to="/app/marketplace" /> }
+function LegacyServicesPage() {
+  return <MarketplaceBrowsePage initialKind="service" />
+}
 
 export const templateMarketplaceRoute = createRoute({
   getParentRoute: () => appRoute,

@@ -8,8 +8,13 @@ import { homeRoute } from '@/pages/home'
 import { coordinationDetailRoute, coordinationRoute } from '@/pages/coordination'
 import { calendarRoute } from '@/pages/calendar'
 import { ganttRoute } from '@/pages/gantt'
-import { marketplaceBrowseRoute, servicesMarketplaceRoute, templateMarketplaceRoute } from '@/pages/marketplace'
 import {
+  marketplaceBrowseRoute,
+  servicesMarketplaceRoute,
+  templateMarketplaceRoute,
+} from '@/pages/marketplace'
+import {
+  projectTasksRoute,
   projectCalendarRoute,
   projectConversationRoute,
   projectDetailRoute,
@@ -20,15 +25,29 @@ import {
   projectsRoute,
 } from '@/pages/projects'
 import { jobsRoute } from '@/pages/jobs'
-import { dmInboxRoute, dmThreadRoute, messagesRoute, postRoute, projectMessagesRoute, socialProfileRoute, topicRoute } from '@/pages/messages'
+import {
+  dmInboxRoute,
+  dmThreadRoute,
+  messagesRoute,
+  postRoute,
+  projectMessagesRoute,
+  socialProfileRoute,
+  topicRoute,
+} from '@/pages/messages'
 import { walletRoute } from '@/pages/wallet'
 import { notificationsRoute } from '@/pages/notifications'
-import { businessProfileRoute, legacyListingsManagementRoute, listingDetailRoute, listingsManagementRoute, sellerProfileRoute } from '@/pages/listings'
+import {
+  businessProfileRoute,
+  legacyListingsManagementRoute,
+  listingDetailRoute,
+  listingsManagementRoute,
+  sellerProfileRoute,
+} from '@/pages/listings'
 import { participantsRoute } from '@/pages/participants'
 import { availabilityRoute, budgetRoute, structuredUpdatesRoute } from '@/pages/planning'
 import { cartRoute, categoryBrowseRoute, searchRoute, settingsRoute } from '@/pages/tools'
 import { jobDetailRoute } from '@/pages/business'
-import { aiRoute } from '@/pages/ai'
+import { aiRoute, templateEditorRoute } from '@/pages/ai'
 import { supportRoute } from '@/pages/support'
 import { integrationsRoute } from '@/pages/integrations'
 
@@ -56,6 +75,7 @@ const routeTree = rootRoute.addChildren([
     projectsRoute,
     projectDetailRoute,
     projectConversationRoute,
+    projectTasksRoute,
     projectCalendarRoute,
     projectTimelineRoute,
     projectNotesRoute,
@@ -82,6 +102,7 @@ const routeTree = rootRoute.addChildren([
     settingsRoute,
     integrationsRoute,
     aiRoute,
+    templateEditorRoute,
   ]),
 ])
 

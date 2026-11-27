@@ -5,6 +5,7 @@ import { createNotification } from './coordination'
 
 type TransactionRow = {
   id: string
+  expense_id?: string | null
   profile_id: string
   counterparty_profile_id: string | null
   order_id: string | null
@@ -65,13 +66,14 @@ export async function fetchWalletEntries() {
   const { data, error } = await supabase
     .from('financial_transactions')
     .select(
-      'id, profile_id, counterparty_profile_id, order_id, linked_project_id, linked_listing_id, transaction_role, transaction_type, source_kind, direction, description, counterparty_label, counterparty_handle, reference_number, currency_code, subtotal_cents, tax_cents, platform_fee_cents, total_cents, seller_net_cents, status, payout_status, occurred_at, created_at, projects(id, title), marketplace_listings(id, title, kind, price_label)',
+      'id, expense_id, profile_id, counterparty_profile_id, order_id, linked_project_id, linked_listing_id, transaction_role, transaction_type, source_kind, direction, description, counterparty_label, counterparty_handle, reference_number, currency_code, subtotal_cents, tax_cents, platform_fee_cents, total_cents, seller_net_cents, status, payout_status, occurred_at, created_at, projects(id, title), marketplace_listings(id, title, kind, price_label)',
     )
     .order('occurred_at', { ascending: false })
   if (error) throw error
 
   return ((data as TransactionRow[]) ?? []).map((entry) => ({
     id: entry.id,
+    expenseId: entry.expense_id ?? null,
     profileId: entry.profile_id,
     counterpartyProfileId: entry.counterparty_profile_id,
     orderId: entry.order_id,
@@ -95,8 +97,10 @@ export async function fetchWalletEntries() {
     payoutStatus: entry.payout_status,
     occurredAt: entry.occurred_at,
     createdAt: entry.created_at,
-    project: Array.isArray(entry.projects) ? entry.projects[0] ?? null : entry.projects,
-    listing: Array.isArray(entry.marketplace_listings) ? entry.marketplace_listings[0] ?? null : entry.marketplace_listings,
+    project: Array.isArray(entry.projects) ? (entry.projects[0] ?? null) : entry.projects,
+    listing: Array.isArray(entry.marketplace_listings)
+      ? (entry.marketplace_listings[0] ?? null)
+      : entry.marketplace_listings,
   }))
 }
 
@@ -149,8 +153,8 @@ export async function fetchSellerLedgerRows() {
 
   const relevantProjectIds = [
     ...new Set(
-      ((items as OrderItemRow[]) ?? []).flatMap((item) =>
-        [item.linked_project_id, item.workspace_project_id].filter(Boolean) as string[],
+      ((items as OrderItemRow[]) ?? []).flatMap(
+        (item) => [item.linked_project_id, item.workspace_project_id].filter(Boolean) as string[],
       ),
     ),
   ]
@@ -161,27 +165,40 @@ export async function fetchSellerLedgerRows() {
   if (loadedProjectsError) throw loadedProjectsError
 
   const orderMap = new Map((orders as OrderRow[]).map((order) => [order.id, order]))
-  const transactionMap = new Map(((transactions as Array<{ id: string; order_id: string }>) ?? []).map((row) => [row.order_id, row.id]))
+  const transactionMap = new Map(
+    ((transactions as Array<{ id: string; order_id: string }>) ?? []).map((row) => [row.order_id, row.id]),
+  )
   const profileMap = new Map(
-    ((profiles as Array<{ id: string; first_name: string; last_name: string | null }>) ?? []).map((profile) => [
-      profile.id,
-      profile,
-    ]),
+    (
+      (profiles as Array<{
+        id: string
+        first_name: string
+        last_name: string | null
+      }>) ?? []
+    ).map((profile) => [profile.id, profile]),
   )
   const socialMap = new Map(
-    ((socialProfiles as Array<{ id: string; handle: string; display_name: string }>) ?? []).map((profile) => [
-      profile.id,
-      profile,
-    ]),
+    (
+      (socialProfiles as Array<{
+        id: string
+        handle: string
+        display_name: string
+      }>) ?? []
+    ).map((profile) => [profile.id, profile]),
   )
-  const projectMap = new Map((((projects as Array<{ id: string; title: string }>) ?? [])).map((project) => [project.id, project.title]))
+  const projectMap = new Map(
+    ((projects as Array<{ id: string; title: string }>) ?? []).map((project) => [project.id, project.title]),
+  )
 
   return ((items as OrderItemRow[]) ?? []).map((item) => {
     const order = orderMap.get(item.order_id)!
     const profile = profileMap.get(order.buyer_profile_id)
     const social = socialMap.get(order.buyer_profile_id)
     const customerDisplayName =
-      social?.display_name || [profile?.first_name, profile?.last_name].filter(Boolean).join(' ') || social?.handle || 'Customer'
+      social?.display_name ||
+      [profile?.first_name, profile?.last_name].filter(Boolean).join(' ') ||
+      social?.handle ||
+      'Customer'
 
     return {
       orderId: order.id,
@@ -196,9 +213,11 @@ export async function fetchSellerLedgerRows() {
       listingId: item.listing_id,
       listingCode: item.sku_snapshot,
       linkedProjectId: item.linked_project_id,
-      linkedProjectTitle: item.linked_project_id ? projectMap.get(item.linked_project_id) ?? null : null,
+      linkedProjectTitle: item.linked_project_id ? (projectMap.get(item.linked_project_id) ?? null) : null,
       workspaceProjectId: item.workspace_project_id,
-      workspaceProjectTitle: item.workspace_project_id ? projectMap.get(item.workspace_project_id) ?? null : null,
+      workspaceProjectTitle: item.workspace_project_id
+        ? (projectMap.get(item.workspace_project_id) ?? null)
+        : null,
       subtotalCents: item.subtotal_cents,
       taxCents: item.tax_cents,
       platformFeeCents: item.platform_fee_cents,
@@ -217,8 +236,7 @@ export async function createWalletEntry(input: {
   linkedListingId?: string | null
   relatedProfileId?: string | null
   entryKind: 'send' | 'request' | 'iou'
-  transactionType?:
-    'transfer' | 'purchase' | 'sale' | 'request' | 'refund' | 'payout'
+  transactionType?: 'transfer' | 'purchase' | 'sale' | 'request' | 'refund' | 'payout'
   sourceKind?: 'manual' | 'marketplace' | 'peer' | 'project'
   direction: 'in' | 'out'
   amountCents: number
@@ -233,11 +251,7 @@ export async function createWalletEntry(input: {
   if (!input.amountCents) throw new Error('Enter an amount greater than zero.')
   const transactionType =
     input.transactionType ??
-    (input.entryKind === 'request'
-      ? 'request'
-      : input.sourceKind === 'marketplace'
-        ? 'purchase'
-        : 'transfer')
+    (input.entryKind === 'request' ? 'request' : input.sourceKind === 'marketplace' ? 'purchase' : 'transfer')
   const sourceKind =
     input.sourceKind ??
     (input.linkedListingId
@@ -282,10 +296,7 @@ export async function createWalletEntry(input: {
 
   await createNotification({
     profileId: input.profileId,
-    title:
-      sourceKind === 'marketplace'
-        ? 'Purchase recorded'
-        : 'Transaction recorded',
+    title: sourceKind === 'marketplace' ? 'Purchase recorded' : 'Transaction recorded',
     body: `${input.counterparty} · $${(input.amountCents / 100).toFixed(2)}`,
     kind: 'payments',
     linkUrl: '/app/wallet',
@@ -307,15 +318,12 @@ export async function updateWalletEntry(
   if (!supabase) throw new Error('Supabase is not configured.')
   const payload: Record<string, unknown> = {}
   if (input.status !== undefined) payload.status = input.status
-  if (input.counterparty !== undefined)
-    payload.counterparty_label = input.counterparty
+  if (input.counterparty !== undefined) payload.counterparty_label = input.counterparty
   if (input.occurredAt !== undefined) payload.occurred_at = input.occurredAt
-  if (input.description !== undefined)
-    payload.description = input.description.trim()
+  if (input.description !== undefined) payload.description = input.description.trim()
   if (input.amountCents !== undefined) {
     assertBudgetAmount(input.amountCents)
-    if (!input.amountCents)
-      throw new Error('Enter an amount greater than zero.')
+    if (!input.amountCents) throw new Error('Enter an amount greater than zero.')
     payload.subtotal_cents = input.amountCents
     payload.total_cents = input.amountCents
     payload.seller_net_cents = input.amountCents

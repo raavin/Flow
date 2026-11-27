@@ -1,13 +1,30 @@
-import { MutationFeedback } from '@/components/request-feedback'
+import { PrivacySettings } from '@/components/privacy-settings'
+import { BusinessSettings } from '@/components/business-settings'
+import { QueryFeedback, MutationFeedback } from '@/components/request-feedback'
 import { useEffect, useMemo, useState } from 'react'
-import { Link, createRoute } from '@tanstack/react-router'
+import { Link, createRoute, useNavigate } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { AppButton, AppCard, AppInput, AppPanel, AppSelect, AppTextarea, FieldLabel, SectionHeading } from '@superapp/ui'
+import {
+  AppButton,
+  AppCard,
+  AppInput,
+  AppPanel,
+  AppSelect,
+  AppTextarea,
+  FieldLabel,
+  SectionHeading,
+} from '@superapp/ui'
 import { appRoute } from '@/components/layout'
 import { useAppStore } from '@/hooks/useAppStore'
-import { addToCart, fetchCartCount, fetchCartItems, placeOrderFromCart, removeCartItem, summarizeCart, updateCartItem } from '@/lib/cart'
+import {
+  addToCart,
+  fetchCartCount,
+  fetchCartItems,
+  removeCartItem,
+  summarizeCart,
+  updateCartItem,
+} from '@/lib/cart'
 import { formatCurrency, supportsCartQuantity } from '@/lib/commerce'
-import { fetchConnectedIntegrations } from '@/lib/integrations'
 import { fetchMarketplaceListings } from '@/lib/marketplace'
 import { fetchProjects } from '@/lib/projects'
 import { universalSearch } from '@/lib/search'
@@ -18,7 +35,10 @@ function CategoryBrowsePage() {
   const { category } = categoryBrowseRoute.useParams()
   const { session } = useAppStore()
   const queryClient = useQueryClient()
-  const projectsQuery = useQuery({ queryKey: ['projects'], queryFn: fetchProjects })
+  const projectsQuery = useQuery({
+    queryKey: ['projects'],
+    queryFn: fetchProjects,
+  })
   const cartCountQuery = useQuery({
     queryKey: ['cart-count'],
     queryFn: fetchCartCount,
@@ -30,9 +50,10 @@ function CategoryBrowsePage() {
       const templates = await fetchMarketplaceListings('template')
       const services = await fetchMarketplaceListings('service')
       const products = await fetchMarketplaceListings('product')
-      return [...(templates ?? []), ...(services ?? []), ...(products ?? [])].filter((item) =>
-        item.category.toLowerCase().includes(category.toLowerCase()) ||
-        item.kind.toLowerCase().includes(category.toLowerCase()),
+      return [...(templates ?? []), ...(services ?? []), ...(products ?? [])].filter(
+        (item) =>
+          item.category.toLowerCase().includes(category.toLowerCase()) ||
+          item.kind.toLowerCase().includes(category.toLowerCase()),
       )
     },
   })
@@ -58,18 +79,28 @@ function CategoryBrowsePage() {
           title={`Category: ${category}`}
           action={
             <Link to="/app/marketplace/cart">
-              <AppButton variant="secondary">Cart{cartCountQuery.data ? ` (${cartCountQuery.data})` : ''}</AppButton>
+              <AppButton variant="secondary">
+                Saved items
+                {cartCountQuery.data ? ` (${cartCountQuery.data})` : ''}
+              </AppButton>
             </Link>
           }
         />
-        <FieldLabel>Project<AppSelect value={projectId} onChange={(event) => setProjectId(event.target.value)} className="max-w-sm">
-          <option value="">No project context</option>
-          {(projectsQuery.data ?? []).map((project) => (
-            <option key={project.id} value={project.id}>
-              {project.title}
-            </option>
-          ))}
-        </AppSelect></FieldLabel>
+        <FieldLabel>
+          Project
+          <AppSelect
+            value={projectId}
+            onChange={(event) => setProjectId(event.target.value)}
+            className="max-w-sm"
+          >
+            <option value="">No project context</option>
+            {(projectsQuery.data ?? []).map((project) => (
+              <option key={project.id} value={project.id}>
+                {project.title}
+              </option>
+            ))}
+          </AppSelect>
+        </FieldLabel>
       </AppCard>
       <div className="grid gap-4 md:grid-cols-2">
         {(listingsQuery.data ?? []).map((listing) => (
@@ -82,8 +113,11 @@ function CategoryBrowsePage() {
               <Link to="/app/marketplace/listings/$listingId" params={{ listingId: listing.id }}>
                 <AppButton variant="ghost">Details</AppButton>
               </Link>
-              <AppButton onClick={() => addMutation.mutate(listing.id)} disabled={!session || addMutation.isPending}>
-                Add to cart
+              <AppButton
+                onClick={() => addMutation.mutate(listing.id)}
+                disabled={!session || addMutation.isPending}
+              >
+                Save item
               </AppButton>
             </div>
           </AppCard>
@@ -94,31 +128,14 @@ function CategoryBrowsePage() {
 }
 
 function CartReviewPage() {
-  const { session } = useAppStore()
   const queryClient = useQueryClient()
-  const cartQuery = useQuery({ queryKey: ['cart'], queryFn: () => fetchCartItems({ status: 'draft' }) })
-  const projectsQuery = useQuery({ queryKey: ['projects'], queryFn: fetchProjects })
-  const integrationsQuery = useQuery({
-    queryKey: ['connected-integrations'],
-    queryFn: fetchConnectedIntegrations,
-    enabled: Boolean(session),
+  const cartQuery = useQuery({
+    queryKey: ['cart'],
+    queryFn: () => fetchCartItems({ status: 'draft' }),
   })
-
-  // Whether the seller has Stripe connected is checked server-side by create-payment-intent.
-  // The SPA can't query the seller's connected_integrations (RLS). Placeholder for Stripe.js wiring.
-  void integrationsQuery
-  const sellerHasStripe = false
-
-  const checkoutMutation = useMutation({
-    mutationFn: () => placeOrderFromCart({ cartItemIds: (cartQuery.data ?? []).map((item) => item.id) }),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['cart'] })
-      void queryClient.invalidateQueries({ queryKey: ['cart-count'] })
-      void queryClient.invalidateQueries({ queryKey: ['wallet'] })
-      void queryClient.invalidateQueries({ queryKey: ['seller-ledger'] })
-      void queryClient.invalidateQueries({ queryKey: ['expenses'] })
-      void queryClient.invalidateQueries({ queryKey: ['notifications'] })
-    },
+  const projectsQuery = useQuery({
+    queryKey: ['projects'],
+    queryFn: fetchProjects,
   })
   const removeMutation = useMutation({
     mutationFn: (cartItemId: string) => removeCartItem(cartItemId),
@@ -141,12 +158,11 @@ function CartReviewPage() {
   })
 
   const summary = useMemo(() => summarizeCart(cartQuery.data ?? []), [cartQuery.data])
-  const orders = checkoutMutation.data ?? []
 
   return (
     <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
       <AppCard className="space-y-4">
-        <SectionHeading eyebrow="Cart" title="Cart" />
+        <SectionHeading title="Saved items" />
         <div className="grid gap-3">
           {(cartQuery.data ?? []).map((item) => {
             const listing = item.listing
@@ -156,12 +172,16 @@ function CartReviewPage() {
                   <div className="min-w-0">
                     <p className="font-extrabold text-ink">{listing?.title ?? 'Listing'}</p>
                     <p className="text-sm text-ink/65">
-                      {listing ? `${listing.kind} · ${listing.priceLabel}` : '$0'} · {item.linkedProjectId ? 'linked to project' : 'no project yet'}
+                      {listing ? `${listing.kind} · ${listing.priceLabel}` : '$0'} ·{' '}
+                      {item.linkedProjectId ? 'linked to project' : 'no project yet'}
                     </p>
                     {listing?.sku ? <p className="text-xs text-ink/50">Code: {listing.sku}</p> : null}
                   </div>
                   <p className="text-lg font-extrabold text-ink">
-                    {formatCurrency((listing?.priceCents ?? 0) * item.quantity, listing?.currencyCode ?? 'AUD')}
+                    {formatCurrency(
+                      (listing?.priceCents ?? 0) * item.quantity,
+                      listing?.currencyCode ?? 'AUD',
+                    )}
                   </p>
                 </div>
                 <div className="mt-3 grid gap-3 md:grid-cols-2">
@@ -242,52 +262,46 @@ function CartReviewPage() {
               </AppPanel>
             )
           })}
-          {!cartQuery.data?.length ? <p className="text-sm text-ink/60">Your selected services and products will appear here while you shop.</p> : null}
+          {!cartQuery.data?.length ? (
+            <p className="text-sm text-ink/60">
+              Your selected services and products will appear here while you shop.
+            </p>
+          ) : null}
         </div>
       </AppCard>
 
       <AppCard className="space-y-4">
-        <SectionHeading eyebrow="Checkout" title={sellerHasStripe ? 'Payment' : 'Demo checkout'} />
+        <SectionHeading title="Estimated cost" />
         <AppPanel tone="butter">
           <div className="flex items-center justify-between gap-3">
             <p className="text-xs font-bold uppercase text-ink/50">Subtotal</p>
-            <p className="text-lg font-extrabold text-ink">{formatCurrency(summary.subtotalCents, summary.currencyCode)}</p>
+            <p className="text-lg font-extrabold text-ink">
+              {formatCurrency(summary.subtotalCents, summary.currencyCode)}
+            </p>
           </div>
           <div className="mt-2 flex items-center justify-between gap-3">
             <p className="text-xs font-bold uppercase text-ink/50">Tax</p>
-            <p className="text-lg font-extrabold text-ink">{formatCurrency(summary.taxCents, summary.currencyCode)}</p>
+            <p className="text-lg font-extrabold text-ink">
+              {formatCurrency(summary.taxCents, summary.currencyCode)}
+            </p>
           </div>
           <div className="mt-2 flex items-center justify-between gap-3 border-t border-ink/10 pt-3">
             <p className="text-xs font-bold uppercase text-ink/50">Total</p>
-            <p className="text-2xl font-extrabold text-ink">{formatCurrency(summary.totalCents, summary.currencyCode)}</p>
+            <p className="text-2xl font-extrabold text-ink">
+              {formatCurrency(summary.totalCents, summary.currencyCode)}
+            </p>
           </div>
         </AppPanel>
         <p className="text-sm text-ink/70">
-          {sellerHasStripe
-            ? 'Stripe is connected — payment will be confirmed with Stripe before the order is placed.'
-            : 'Demo checkout records an order and marks it paid. No money is transferred.'}
+          These items are saved for planning. Contact the supplier to arrange a purchase.
         </p>
-        <AppButton disabled={!session || !(cartQuery.data ?? []).length || checkoutMutation.isPending} onClick={() => checkoutMutation.mutate()}>
-          {checkoutMutation.isPending ? 'Placing order...' : 'Place order'}
-        </AppButton>
-        {orders.length ? (
-          <AppPanel tone="teal" className="space-y-2 text-sm text-ink">
-            <p className="font-extrabold">Order placed</p>
-            {orders.map((order) => (
-              <p key={order.order_id}>
-                {order.order_number} · {formatCurrency(order.total_cents)}
-              </p>
-            ))}
-            <div className="flex flex-wrap gap-2 pt-1">
-              <Link to="/app/wallet" search={{ highlight: orders[0]?.order_id ?? undefined }}>
-                <AppButton variant="ghost">View transactions</AppButton>
-              </Link>
-              <Link to="/app/marketplace/services">
-                <AppButton variant="ghost">Keep shopping</AppButton>
-              </Link>
-            </div>
-          </AppPanel>
-        ) : null}
+        <Link
+          to="/app/marketplace/requests"
+          search={{}}
+          className="inline-flex min-h-11 items-center underline"
+        >
+          Requests and quotes
+        </Link>
       </AppCard>
     </div>
   )
@@ -295,10 +309,18 @@ function CartReviewPage() {
 
 function SearchPage() {
   const { session } = useAppStore()
-  const [query, setQuery] = useState('')
+  const { q } = searchRoute.useSearch()
+  const query = q ?? ''
+  const navigate = useNavigate({ from: searchRoute.fullPath })
+  const setQuery = (q: string) => void navigate({ search: { q: q || undefined }, replace: true })
+  const [debounced, setDebounced] = useState(query)
+  useEffect(() => {
+    const timer = setTimeout(() => setDebounced(query), 250)
+    return () => clearTimeout(timer)
+  }, [query])
   const searchQuery = useQuery({
-    queryKey: ['search', query, session?.user.id],
-    queryFn: () => universalSearch(query, session?.user.id),
+    queryKey: ['search', debounced, session?.user.id],
+    queryFn: () => universalSearch(debounced),
   })
 
   const projectItems = (searchQuery.data?.projects ?? []).map((item) => ({
@@ -314,7 +336,7 @@ function SearchPage() {
   const messageItems = (searchQuery.data?.messages ?? []).map((item) => ({
     id: item.id,
     label: item.title,
-    href: (item.kind === 'post' ? `/app/messages/post/${item.id}` : '/app/messages') as string,
+    href: (item.kind === 'post' ? `/app/messages/post/${item.id}` : `/app/messages/dm/${item.id}`) as string,
   }))
   const jobItems = (searchQuery.data?.jobs ?? []).map((item) => ({
     id: item.id,
@@ -324,21 +346,39 @@ function SearchPage() {
   const supportItems = (searchQuery.data?.support ?? []).map((item) => ({
     id: item.id,
     label: item.title,
-    href: '/app/support' as const,
+    href: `/app/support#${item.id}`,
   }))
 
   return (
     <div className="space-y-4">
       <AppCard className="space-y-4">
-        <SectionHeading eyebrow="Search" title="Search" />
+        <SectionHeading title="Explore" />
         <AppInput
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           className="py-4 text-base"
-          placeholder="Search projects, listings, messages or jobs"
+          aria-label="Search Flow"
+          placeholder="Search people, topics, posts or projects"
         />
       </AppCard>
+      <QueryFeedback query={searchQuery} />
       <div className="grid gap-4 md:grid-cols-2">
+        <ResultCard
+          title="People"
+          items={(searchQuery.data?.people ?? []).map((p) => ({
+            id: p.id,
+            label: `${p.display_name || p.handle} · @${p.handle}`,
+            href: `/app/messages/profile/${p.id}`,
+          }))}
+        />
+        <ResultCard
+          title="Topics"
+          items={(searchQuery.data?.topics ?? []).map((t) => ({
+            id: t.id,
+            label: `#${t.label}`,
+            href: `/app/messages/topics/${t.slug}`,
+          }))}
+        />
         <ResultCard title="Projects" items={projectItems} />
         <ResultCard title="Listings" items={listingItems} />
         <ResultCard title="Messages" items={messageItems} />
@@ -351,7 +391,6 @@ function SearchPage() {
 
 function SettingsPage() {
   const { session, profile } = useAppStore()
-  const isBusiness = profile?.active_mode === 'business'
   const queryClient = useQueryClient()
   const socialProfileQuery = useQuery({
     queryKey: ['social-profile', session?.user.id, session?.user.id],
@@ -387,28 +426,78 @@ function SettingsPage() {
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['profile'] })
-      void queryClient.invalidateQueries({ queryKey: ['social-profile', session?.user.id, session?.user.id] })
+      void queryClient.invalidateQueries({
+        queryKey: ['social-profile', session?.user.id, session?.user.id],
+      })
     },
   })
 
   return (
     <div className="grid gap-4 xl:grid-cols-[0.85fr_1.15fr]">
       <AppCard className="space-y-4">
-        <SectionHeading eyebrow={isBusiness ? 'Profile & Admin' : 'Profile'} title={isBusiness ? 'Business profile' : 'Profile'} />
-        <FieldLabel>First name<AppInput value={firstName} onChange={(event) => setFirstName(event.target.value)} placeholder="First name" /></FieldLabel>
-        <FieldLabel>Last name<AppInput value={lastName} onChange={(event) => setLastName(event.target.value)} placeholder="Last name" /></FieldLabel>
-        <FieldLabel>Location<AppInput value={location} onChange={(event) => setLocation(event.target.value)} placeholder="Location" /></FieldLabel>
-        <FieldLabel>Time zone<AppInput value={timeZone} onChange={(event) => setTimeZone(event.target.value)} placeholder="Time zone" /></FieldLabel>
-        <FieldLabel>Username<div className="relative">
-          <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-ink/40">@</span>
+        <SectionHeading title="Profile" />
+        <FieldLabel>
+          First name
           <AppInput
-            value={handle}
-            onChange={(event) => setHandle(event.target.value.toLowerCase().replace(/[^a-z0-9_.-]/g, '').slice(0, 30))}
-            style={{ paddingLeft: '1.75rem' }}
-            placeholder="yourhandle"
+            value={firstName}
+            onChange={(event) => setFirstName(event.target.value)}
+            placeholder="First name"
           />
-        </div></FieldLabel>
-        <FieldLabel>Bio<AppTextarea value={bio} onChange={(event) => setBio(event.target.value)} className="min-h-24" placeholder="Bio" /></FieldLabel>
+        </FieldLabel>
+        <FieldLabel>
+          Last name
+          <AppInput
+            value={lastName}
+            onChange={(event) => setLastName(event.target.value)}
+            placeholder="Last name"
+          />
+        </FieldLabel>
+        <FieldLabel>
+          Location
+          <AppInput
+            value={location}
+            onChange={(event) => setLocation(event.target.value)}
+            placeholder="Location"
+          />
+        </FieldLabel>
+        <FieldLabel>
+          Time zone
+          <AppInput
+            value={timeZone}
+            onChange={(event) => setTimeZone(event.target.value)}
+            placeholder="Time zone"
+          />
+        </FieldLabel>
+        <FieldLabel>
+          Username
+          <div className="relative">
+            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-ink/40">
+              @
+            </span>
+            <AppInput
+              value={handle}
+              onChange={(event) =>
+                setHandle(
+                  event.target.value
+                    .toLowerCase()
+                    .replace(/[^a-z0-9_.-]/g, '')
+                    .slice(0, 30),
+                )
+              }
+              style={{ paddingLeft: '1.75rem' }}
+              placeholder="yourhandle"
+            />
+          </div>
+        </FieldLabel>
+        <FieldLabel>
+          Bio
+          <AppTextarea
+            value={bio}
+            onChange={(event) => setBio(event.target.value)}
+            className="min-h-24"
+            placeholder="Bio"
+          />
+        </FieldLabel>
         <AppButton disabled={!session || mutation.isPending} onClick={() => mutation.mutate()}>
           {mutation.isPending ? 'Saving…' : 'Save profile'}
         </AppButton>
@@ -419,7 +508,7 @@ function SettingsPage() {
         <SectionHeading title="Preferences" />
         <p className="text-sm text-ink/65">Features you want to use. Save changes with your profile.</p>
         <div className="flex flex-wrap gap-2">
-          {['calendar', 'contacts', 'notifications', 'payments'].map((item) => (
+          {['calendar', 'contacts', 'notifications'].map((item) => (
             <button
               key={item}
               aria-pressed={integrations.includes(item)}
@@ -428,19 +517,27 @@ function SettingsPage() {
                   current.includes(item) ? current.filter((value) => value !== item) : [...current, item],
                 )
               }
-              className={integrations.includes(item) ? 'ui-chip-toggle ui-chip-toggle--active' : 'ui-chip-toggle ui-chip-toggle--inactive'}
+              className={
+                integrations.includes(item)
+                  ? 'ui-chip-toggle ui-chip-toggle--active'
+                  : 'ui-chip-toggle ui-chip-toggle--inactive'
+              }
             >
               {item.charAt(0).toUpperCase() + item.slice(1)}
             </button>
           ))}
         </div>
-        {(
+        {
           <AppPanel tone="surface" className="text-sm text-ink/65">
-            These preferences do not connect external accounts. Manage connections in Integrations.
-            <Link to="/app/integrations" className="mt-2 block underline">Manage integrations</Link>
+            These preferences do not connect external accounts. Manage external accounts in Connections.
+            <Link to="/app/integrations" className="mt-2 block underline">
+              Manage connections
+            </Link>
           </AppPanel>
-        )}
+        }
       </AppCard>
+      <BusinessSettings />
+      <PrivacySettings />
     </div>
   )
 }
@@ -448,14 +545,21 @@ function SettingsPage() {
 function settingsValidateHandle(handle: string) {
   if (!handle) return null
   if (handle.length < 3) return 'Handle must be at least 3 characters.'
-  if (!/^[a-z0-9][a-z0-9_.-]*$/.test(handle)) return 'Only lowercase letters, numbers, underscores, hyphens and dots.'
+  if (!/^[a-z0-9][a-z0-9_.-]*$/.test(handle))
+    return 'Only lowercase letters, numbers, underscores, hyphens and dots.'
   return null
 }
 
-function ResultCard({ title, items }: { title: string; items: Array<{ id: string; label: string; href: string }> }) {
+function ResultCard({
+  title,
+  items,
+}: {
+  title: string
+  items: Array<{ id: string; label: string; href: string }>
+}) {
   return (
     <AppCard className="space-y-4">
-      <SectionHeading eyebrow="Results" title={title} />
+      <SectionHeading title={title} />
       <div className="grid gap-2">
         {items.map((item) => (
           <Link key={item.id} to={item.href as never}>
@@ -485,6 +589,9 @@ export const cartRoute = createRoute({
 export const searchRoute = createRoute({
   getParentRoute: () => appRoute,
   path: 'search',
+  validateSearch: (search: Record<string, unknown>): { q?: string } => ({
+    q: typeof search.q === 'string' ? search.q.slice(0, 200) : undefined,
+  }),
   component: SearchPage,
 })
 

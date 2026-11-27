@@ -5,7 +5,12 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Pencil, Trash2, X } from 'lucide-react'
 import { AppButton, AppCard, AppInput, AppPanel, AppSelect, SectionHeading } from '@superapp/ui'
 import { appRoute } from '@/components/layout'
-import { deleteCoordinationObject, fetchCoordinationObjects, updateCoordinationObjectSchedule, updateCoordinationObjectTitle } from '@/lib/coordination-objects'
+import {
+  deleteCoordinationObject,
+  fetchCoordinationObjects,
+  updateCoordinationObjectSchedule,
+  updateCoordinationObjectTitle,
+} from '@/lib/coordination-objects'
 import {
   createMilestone,
   createTask,
@@ -50,16 +55,7 @@ const zoomConfig: Record<ZoomLevel, { label: string; cellWidth: number; labelEve
   strategic: { label: 'Every 10 days', cellWidth: 14, labelEvery: 10 },
 }
 
-const TRACK_COLORS = [
-  '#4A6FA5',
-  '#6B8E5E',
-  '#C45A3B',
-  '#9B7FA6',
-  '#C4883B',
-  '#5B8A8A',
-  '#A65B5B',
-  '#6B7B8A',
-]
+const TRACK_COLORS = ['#4A6FA5', '#6B8E5E', '#C45A3B', '#9B7FA6', '#C4883B', '#5B8A8A', '#A65B5B', '#6B7B8A']
 
 const LABEL_WIDTH = 240
 const ROW_HEIGHT = 44
@@ -67,7 +63,10 @@ const HEADER_HEIGHT = 72
 
 export function GanttPage({ linkedProjectId }: { linkedProjectId?: string | null } = {}) {
   const queryClient = useQueryClient()
-  const projectsQuery = useQuery({ queryKey: ['projects'], queryFn: fetchProjects })
+  const projectsQuery = useQuery({
+    queryKey: ['projects'],
+    queryFn: fetchProjects,
+  })
   const [selectedProjectId, setSelectedProjectId] = useState<string>(linkedProjectId ?? '')
   const [timelineMode, setTimelineMode] = useState<TimelineMode>(linkedProjectId ? 'project' : 'coordination')
   const [zoom, setZoom] = useState<ZoomLevel>('comfortable')
@@ -81,7 +80,9 @@ export function GanttPage({ linkedProjectId }: { linkedProjectId?: string | null
   const [taskDueOn, setTaskDueOn] = useState(defaultTimelineDay())
   const [addModal, setAddModal] = useState<null | 'milestone' | 'task'>(null)
   const scrollRef = useRef<HTMLDivElement | null>(null)
-  const [localOverrides, setLocalOverrides] = useState<Record<string, { startsOn: string; endsOn: string }>>({})
+  const [localOverrides, setLocalOverrides] = useState<Record<string, { startsOn: string; endsOn: string }>>(
+    {},
+  )
   const [editingItemId, setEditingItemId] = useState<string | null>(null)
   const [editItemValue, setEditItemValue] = useState('')
   const [deleteConfirmItemId, setDeleteConfirmItemId] = useState<string | null>(null)
@@ -116,7 +117,11 @@ export function GanttPage({ linkedProjectId }: { linkedProjectId?: string | null
   // Coordination objects linked to the selected project — shown alongside milestones in project mode
   const projectCoordinationQuery = useQuery({
     queryKey: ['coordination-objects', 'project', selectedProjectId],
-    queryFn: () => fetchCoordinationObjects({ onlyTimed: true, linkedProjectId: selectedProjectId }),
+    queryFn: () =>
+      fetchCoordinationObjects({
+        onlyTimed: true,
+        linkedProjectId: selectedProjectId,
+      }),
     enabled: timelineMode === 'project' && Boolean(selectedProjectId),
   })
 
@@ -130,8 +135,15 @@ export function GanttPage({ linkedProjectId }: { linkedProjectId?: string | null
           if (!startDay || !endDay) return null
 
           const metadata = item.metadata as Record<string, unknown> | undefined
-          const lane = String((metadata?.lane as string | undefined) ?? item.displayKind).replace(/^\w/, (value) => value.toUpperCase())
-          const dueOnly = !item.time.startsAt || !item.time.endsAt || item.displayKind === 'reminder' || item.displayKind === 'task'
+          const lane = String((metadata?.lane as string | undefined) ?? item.displayKind).replace(
+            /^\w/,
+            (value) => value.toUpperCase(),
+          )
+          const dueOnly =
+            !item.time.startsAt ||
+            !item.time.endsAt ||
+            item.displayKind === 'reminder' ||
+            item.displayKind === 'task'
           const linkedProjectId = item.linkedProjectId ?? undefined
 
           return {
@@ -148,7 +160,9 @@ export function GanttPage({ linkedProjectId }: { linkedProjectId?: string | null
           } satisfies GanttItem
         })
         .filter(Boolean)
-        .sort((left, right) => left!.lane.localeCompare(right!.lane) || left!.id.localeCompare(right!.id)) as GanttItem[]
+        .sort(
+          (left, right) => left!.lane.localeCompare(right!.lane) || left!.id.localeCompare(right!.id),
+        ) as GanttItem[]
     }
 
     const milestones = (detailQuery.data?.milestones ?? []).map((milestone) => ({
@@ -181,8 +195,14 @@ export function GanttPage({ linkedProjectId }: { linkedProjectId?: string | null
         const endDay = (item.time.endsAt ?? item.time.startsAt ?? item.time.dueAt)?.slice(0, 10)
         if (!startDay || !endDay) return null
         const metadata = item.metadata as Record<string, unknown> | undefined
-        const lane = String((metadata?.lane as string | undefined) ?? item.displayKind).replace(/^\w/, (v) => v.toUpperCase())
-        const dueOnly = !item.time.startsAt || !item.time.endsAt || item.displayKind === 'reminder' || item.displayKind === 'task'
+        const lane = String((metadata?.lane as string | undefined) ?? item.displayKind).replace(/^\w/, (v) =>
+          v.toUpperCase(),
+        )
+        const dueOnly =
+          !item.time.startsAt ||
+          !item.time.endsAt ||
+          item.displayKind === 'reminder' ||
+          item.displayKind === 'task'
         return {
           id: item.id,
           title: item.title,
@@ -199,7 +219,13 @@ export function GanttPage({ linkedProjectId }: { linkedProjectId?: string | null
     return [...milestones, ...tasks, ...coordItems].sort(
       (left, right) => left.lane.localeCompare(right.lane) || left.id.localeCompare(right.id),
     )
-  }, [coordinationQuery.data, detailQuery.data, projectCoordinationQuery.data, projectsQuery.data, timelineMode])
+  }, [
+    coordinationQuery.data,
+    detailQuery.data,
+    projectCoordinationQuery.data,
+    projectsQuery.data,
+    timelineMode,
+  ])
 
   // Derived filter options (coordination mode only)
   const availableProjectsInView = useMemo(() => {
@@ -224,7 +250,11 @@ export function GanttPage({ linkedProjectId }: { linkedProjectId?: string | null
     return allItems.filter((item) => {
       if (search) {
         const q = search.toLowerCase()
-        if (!item.title.toLowerCase().includes(q) && !(item.linkedProjectTitle ?? '').toLowerCase().includes(q)) return false
+        if (
+          !item.title.toLowerCase().includes(q) &&
+          !(item.linkedProjectTitle ?? '').toLowerCase().includes(q)
+        )
+          return false
       }
       if (filterProjectId !== 'all' && item.linkedProjectId !== filterProjectId) return false
       if (filterKind !== 'all' && item.lane !== filterKind) return false
@@ -249,13 +279,16 @@ export function GanttPage({ linkedProjectId }: { linkedProjectId?: string | null
   }, [selectedProjectId, timeline.todayLeft, timelineMode])
 
   const invalidateTimeline = () => {
-    void queryClient.invalidateQueries({ queryKey: ['project-detail', selectedProjectId] })
+    void queryClient.invalidateQueries({
+      queryKey: ['project-detail', selectedProjectId],
+    })
     void queryClient.invalidateQueries({ queryKey: ['projects'] })
     void queryClient.invalidateQueries({ queryKey: ['coordination-objects'] })
   }
 
   const shiftMutation = useMutation({
-    mutationFn: ({ milestoneId, days }: { milestoneId: string; days: number }) => shiftMilestone(milestoneId, days),
+    mutationFn: ({ milestoneId, days }: { milestoneId: string; days: number }) =>
+      shiftMilestone(milestoneId, days),
     onSuccess: invalidateTimeline,
   })
 
@@ -278,15 +311,7 @@ export function GanttPage({ linkedProjectId }: { linkedProjectId?: string | null
   })
 
   const moveCoordinationMutation = useMutation({
-    mutationFn: ({
-      item,
-      mode,
-      days,
-    }: {
-      item: GanttItem
-      mode: 'move' | 'start' | 'end'
-      days: number
-    }) => {
+    mutationFn: ({ item, mode, days }: { item: GanttItem; mode: 'move' | 'start' | 'end'; days: number }) => {
       if (item.scheduleMode === 'due') {
         const dueOn = shiftIsoDay(item.startsOn, days)
         return updateCoordinationObjectSchedule({
@@ -371,7 +396,10 @@ export function GanttPage({ linkedProjectId }: { linkedProjectId?: string | null
   }
 
   function commitLabelEdit(item: GanttItem) {
-    if (!editItemValue.trim()) { cancelLabelEdit(); return }
+    if (!editItemValue.trim()) {
+      cancelLabelEdit()
+      return
+    }
     if (editItemValue.trim() !== item.title) {
       updateItemMutation.mutate({ item, title: editItemValue.trim() })
     }
@@ -421,13 +449,21 @@ export function GanttPage({ linkedProjectId }: { linkedProjectId?: string | null
             },
           }))
           if (target.source === 'coordination') {
-            moveCoordinationMutation.mutate({ item: target, mode, days: liveDays })
+            moveCoordinationMutation.mutate({
+              item: target,
+              mode,
+              days: liveDays,
+            })
           } else if (target.source === 'task') {
             moveTaskMutation.mutate({ taskId: item.id, days: liveDays })
           } else if (mode === 'move') {
             shiftMutation.mutate({ milestoneId: item.id, days: liveDays })
           } else {
-            resizeMutation.mutate({ milestoneId: item.id, boundary: mode, days: liveDays })
+            resizeMutation.mutate({
+              milestoneId: item.id,
+              boundary: mode,
+              days: liveDays,
+            })
           }
         }
       }
@@ -441,7 +477,7 @@ export function GanttPage({ linkedProjectId }: { linkedProjectId?: string | null
 
   return (
     <div className="space-y-4">
-      {!linkedProjectId ? <ScheduleViews active="timeline"/> : null}
+      {!linkedProjectId ? <ScheduleViews active="timeline" /> : null}
       <AppCard className="space-y-4">
         <SectionHeading
           eyebrow=""
@@ -464,19 +500,27 @@ export function GanttPage({ linkedProjectId }: { linkedProjectId?: string | null
         <div className="flex flex-wrap items-center justify-between gap-3">
           {!linkedProjectId ? (
             <div className="flex flex-wrap gap-2">
-              <AppButton variant={timelineMode === 'coordination' ? 'primary' : 'ghost'} onClick={() => setTimelineMode('coordination')}>
-                Plans & events
+              <AppButton
+                variant={timelineMode === 'coordination' ? 'primary' : 'ghost'}
+                onClick={() => setTimelineMode('coordination')}
+              >
+                Tasks and events
               </AppButton>
-              <AppButton variant={timelineMode === 'project' ? 'primary' : 'ghost'} onClick={() => setTimelineMode('project')}>
+              <AppButton
+                variant={timelineMode === 'project' ? 'primary' : 'ghost'}
+                onClick={() => setTimelineMode('project')}
+              >
                 Project tasks
               </AppButton>
             </div>
-          ) : <div />}
+          ) : (
+            <div />
+          )}
           <div className="flex flex-wrap gap-2 justify-end">
             {timelineMode === 'project' && Boolean(selectedProjectId) ? (
               <>
                 <AppButton variant="secondary" onClick={() => setAddModal('milestone')}>
-                  Add block
+                  Add milestone
                 </AppButton>
                 <AppButton variant="ghost" onClick={() => setAddModal('task')}>
                   Add task
@@ -484,7 +528,11 @@ export function GanttPage({ linkedProjectId }: { linkedProjectId?: string | null
               </>
             ) : null}
             {timelineMode === 'project' && projectsQuery.data?.length && !linkedProjectId ? (
-              <AppSelect value={selectedProjectId} onChange={(event) => setSelectedProjectId(event.target.value)} className="min-w-[220px]">
+              <AppSelect
+                value={selectedProjectId}
+                onChange={(event) => setSelectedProjectId(event.target.value)}
+                className="min-w-[220px]"
+              >
                 {projectsQuery.data.map((project) => (
                   <option key={project.id} value={project.id}>
                     {project.title}
@@ -492,9 +540,18 @@ export function GanttPage({ linkedProjectId }: { linkedProjectId?: string | null
                 ))}
               </AppSelect>
             ) : null}
-            <label className="flex items-center gap-2 text-sm">Scale
-              <AppSelect aria-label="Timeline scale" value={zoom} onChange={e=>setZoom(e.target.value as ZoomLevel)}>
-                {(Object.keys(zoomConfig) as ZoomLevel[]).map(level=><option key={level} value={level}>{zoomConfig[level].label}</option>)}
+            <label className="flex items-center gap-2 text-sm">
+              Scale
+              <AppSelect
+                aria-label="Timeline scale"
+                value={zoom}
+                onChange={(e) => setZoom(e.target.value as ZoomLevel)}
+              >
+                {(Object.keys(zoomConfig) as ZoomLevel[]).map((level) => (
+                  <option key={level} value={level}>
+                    {zoomConfig[level].label}
+                  </option>
+                ))}
               </AppSelect>
             </label>
           </div>
@@ -516,7 +573,9 @@ export function GanttPage({ linkedProjectId }: { linkedProjectId?: string | null
               >
                 <option value="all">All projects</option>
                 {availableProjectsInView.map((p) => (
-                  <option key={p.id} value={p.id}>{p.title}</option>
+                  <option key={p.id} value={p.id}>
+                    {p.title}
+                  </option>
                 ))}
               </AppSelect>
             ) : null}
@@ -528,12 +587,21 @@ export function GanttPage({ linkedProjectId }: { linkedProjectId?: string | null
               >
                 <option value="all">All kinds</option>
                 {availableKinds.map((k) => (
-                  <option key={k} value={k}>{k}</option>
+                  <option key={k} value={k}>
+                    {k}
+                  </option>
                 ))}
               </AppSelect>
             ) : null}
-            {(search || filterProjectId !== 'all' || filterKind !== 'all') ? (
-              <AppButton variant="ghost" onClick={() => { setSearch(''); setFilterProjectId('all'); setFilterKind('all') }}>
+            {search || filterProjectId !== 'all' || filterKind !== 'all' ? (
+              <AppButton
+                variant="ghost"
+                onClick={() => {
+                  setSearch('')
+                  setFilterProjectId('all')
+                  setFilterKind('all')
+                }}
+              >
                 Clear filters
               </AppButton>
             ) : null}
@@ -543,7 +611,14 @@ export function GanttPage({ linkedProjectId }: { linkedProjectId?: string | null
         {items.length === 0 && allItems.length > 0 ? (
           <AppPanel className="text-sm text-ink/60 flex items-center justify-between gap-3">
             <span>No items match your filters.</span>
-            <AppButton variant="ghost" onClick={() => { setSearch(''); setFilterProjectId('all'); setFilterKind('all') }}>
+            <AppButton
+              variant="ghost"
+              onClick={() => {
+                setSearch('')
+                setFilterProjectId('all')
+                setFilterKind('all')
+              }}
+            >
               Clear filters
             </AppButton>
           </AppPanel>
@@ -553,19 +628,30 @@ export function GanttPage({ linkedProjectId }: { linkedProjectId?: string | null
           <div
             ref={scrollRef}
             className="overflow-x-auto rounded-lg border border-ink/8"
-            style={{ cursor: dragState ? 'grabbing' : undefined, touchAction: dragState ? 'none' : undefined }}
+            style={{
+              cursor: dragState ? 'grabbing' : undefined,
+              touchAction: dragState ? 'none' : undefined,
+            }}
           >
             <div style={{ minWidth: `${LABEL_WIDTH + totalTrackWidth}px` }}>
-
               {/* Header row */}
-              <div className="flex" style={{ height: HEADER_HEIGHT, borderBottom: '2px solid #e5e7eb' }}>
+              <div
+                className="flex"
+                style={{
+                  height: HEADER_HEIGHT,
+                  borderBottom: '2px solid #e5e7eb',
+                }}
+              >
                 {/* Sticky label column header */}
                 <div
                   className="sticky left-0 z-20 flex shrink-0 items-end bg-white pb-2 pl-4 pr-3"
-                  style={{ width: LABEL_WIDTH, borderRight: '1px solid #e5e7eb' }}
+                  style={{
+                    width: LABEL_WIDTH,
+                    borderRight: '1px solid #e5e7eb',
+                  }}
                 >
                   <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-ink/40">
-                    {timelineMode === 'coordination' ? 'Plans & events' : 'Tasks'}
+                    {timelineMode === 'coordination' ? 'Tasks and events' : 'Tasks'}
                   </span>
                 </div>
 
@@ -584,7 +670,9 @@ export function GanttPage({ linkedProjectId }: { linkedProjectId?: string | null
                       <div
                         key={`${month.label}-${month.startIndex}`}
                         className="ui-timeline-month"
-                        style={{ gridColumn: `${month.startIndex + 1} / span ${month.span}` }}
+                        style={{
+                          gridColumn: `${month.startIndex + 1} / span ${month.span}`,
+                        }}
                       >
                         {month.label}
                       </div>
@@ -596,7 +684,13 @@ export function GanttPage({ linkedProjectId }: { linkedProjectId?: string | null
                     {timeline.todayLeft !== null ? (
                       <div
                         className="pointer-events-none absolute z-10"
-                        style={{ top: 0, bottom: 0, left: timeline.todayLeft + timeline.cellWidth / 2, width: 2, backgroundColor: 'rgba(196,90,59,0.8)' }}
+                        style={{
+                          top: 0,
+                          bottom: 0,
+                          left: timeline.todayLeft + timeline.cellWidth / 2,
+                          width: 2,
+                          backgroundColor: 'rgba(196,90,59,0.8)',
+                        }}
                       >
                         <div className="absolute -top-1 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-[#C45A3B] px-2 py-0.5 text-[9px] font-black text-white">
                           Today
@@ -634,7 +728,12 @@ export function GanttPage({ linkedProjectId }: { linkedProjectId?: string | null
               {items.map((item, index) => {
                 const override = localOverrides[item.id]
                 const effectiveItem = override ? { ...item, ...override } : item
-                const geometry = getItemGeometry(effectiveItem, timeline, dragState?.itemId === item.id ? dragDays : 0, dragState?.mode)
+                const geometry = getItemGeometry(
+                  effectiveItem,
+                  timeline,
+                  dragState?.itemId === item.id ? dragDays : 0,
+                  dragState?.mode,
+                )
                 const color = TRACK_COLORS[index % TRACK_COLORS.length]
                 const isDragging = dragState?.itemId === item.id
 
@@ -664,7 +763,10 @@ export function GanttPage({ linkedProjectId }: { linkedProjectId?: string | null
                             value={editItemValue}
                             onChange={(e) => setEditItemValue(e.target.value)}
                             onBlur={() => commitLabelEdit(item)}
-                            onKeyDown={(e) => { if (e.key === 'Enter') commitLabelEdit(item); if (e.key === 'Escape') cancelLabelEdit() }}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') commitLabelEdit(item)
+                              if (e.key === 'Escape') cancelLabelEdit()
+                            }}
                             className="w-full bg-transparent text-sm font-extrabold text-ink outline-none border-b border-ink/40 focus:border-ink"
                           />
                         ) : (
@@ -692,12 +794,16 @@ export function GanttPage({ linkedProjectId }: { linkedProjectId?: string | null
                               className="text-[10px] font-bold text-berry hover:underline"
                               onClick={() => deleteItemMutation.mutate(item)}
                               disabled={deleteItemMutation.isPending}
-                            >Yes</button>
+                            >
+                              Yes
+                            </button>
                             <button
                               type="button"
                               className="text-[10px] text-ink/50 hover:underline"
                               onClick={() => setDeleteConfirmItemId(null)}
-                            >No</button>
+                            >
+                              No
+                            </button>
                           </span>
                         ) : (
                           <button
@@ -718,7 +824,11 @@ export function GanttPage({ linkedProjectId }: { linkedProjectId?: string | null
                       {timeline.todayLeft !== null ? (
                         <div
                           className="pointer-events-none absolute inset-y-0 z-10"
-                          style={{ left: timeline.todayLeft + timeline.cellWidth / 2, width: 1, backgroundColor: 'rgba(196,90,59,0.15)' }}
+                          style={{
+                            left: timeline.todayLeft + timeline.cellWidth / 2,
+                            width: 1,
+                            backgroundColor: 'rgba(196,90,59,0.15)',
+                          }}
                         />
                       ) : null}
 
@@ -792,12 +902,28 @@ export function GanttPage({ linkedProjectId }: { linkedProjectId?: string | null
             />
             {addModal === 'milestone' ? (
               <div className="grid gap-3">
-                <AppInput value={milestoneTitle} onChange={(event) => setMilestoneTitle(event.target.value)} placeholder="Packing sprint, venue hold..." />
+                <AppInput
+                  value={milestoneTitle}
+                  onChange={(event) => setMilestoneTitle(event.target.value)}
+                  placeholder="Packing sprint, venue hold..."
+                />
                 <div className="grid gap-2 sm:grid-cols-2">
-                  <AppInput type="date" value={milestoneStart} onChange={(event) => setMilestoneStart(event.target.value)} />
-                  <AppInput type="date" value={milestoneEnd} onChange={(event) => setMilestoneEnd(event.target.value)} />
+                  <AppInput
+                    type="date"
+                    value={milestoneStart}
+                    onChange={(event) => setMilestoneStart(event.target.value)}
+                  />
+                  <AppInput
+                    type="date"
+                    value={milestoneEnd}
+                    onChange={(event) => setMilestoneEnd(event.target.value)}
+                  />
                 </div>
-                <AppInput value={milestoneLane} onChange={(event) => setMilestoneLane(event.target.value)} placeholder="Lane" />
+                <AppInput
+                  value={milestoneLane}
+                  onChange={(event) => setMilestoneLane(event.target.value)}
+                  placeholder="Lane"
+                />
                 <div className="flex justify-end gap-2">
                   <AppButton variant="ghost" onClick={() => setAddModal(null)}>
                     Cancel
@@ -813,19 +939,32 @@ export function GanttPage({ linkedProjectId }: { linkedProjectId?: string | null
                     }
                     onClick={() => createMilestoneMutation.mutate()}
                   >
-                    {createMilestoneMutation.isPending ? 'Adding...' : 'Add block'}
+                    {createMilestoneMutation.isPending ? 'Adding...' : 'Add milestone'}
                   </AppButton>
                 </div>
               </div>
             ) : (
               <div className="grid gap-3">
-                <AppInput value={taskTitle} onChange={(event) => setTaskTitle(event.target.value)} placeholder="Send invites, confirm transport..." />
-                <AppInput type="date" value={taskDueOn} onChange={(event) => setTaskDueOn(event.target.value)} />
+                <AppInput
+                  value={taskTitle}
+                  onChange={(event) => setTaskTitle(event.target.value)}
+                  placeholder="Send invites, confirm transport..."
+                />
+                <AppInput
+                  type="date"
+                  value={taskDueOn}
+                  onChange={(event) => setTaskDueOn(event.target.value)}
+                />
                 <div className="flex justify-end gap-2">
                   <AppButton variant="ghost" onClick={() => setAddModal(null)}>
                     Cancel
                   </AppButton>
-                  <AppButton disabled={!selectedProjectId || !taskTitle.trim() || !taskDueOn || createTaskMutation.isPending} onClick={() => createTaskMutation.mutate()}>
+                  <AppButton
+                    disabled={
+                      !selectedProjectId || !taskTitle.trim() || !taskDueOn || createTaskMutation.isPending
+                    }
+                    onClick={() => createTaskMutation.mutate()}
+                  >
                     {createTaskMutation.isPending ? 'Adding...' : 'Add task'}
                   </AppButton>
                 </div>
@@ -861,10 +1000,18 @@ export function buildTimeline(items: GanttItem[], zoom: ZoomLevel) {
   const config = zoomConfig[zoom]
   const today = startOfDay(new Date())
   const earliest = items.length
-    ? startOfDay(new Date(Math.min(today.getTime(), ...items.map((item) => new Date(`${item.startsOn}T00:00:00`).getTime()))))
+    ? startOfDay(
+        new Date(
+          Math.min(today.getTime(), ...items.map((item) => new Date(`${item.startsOn}T00:00:00`).getTime())),
+        ),
+      )
     : today
   const latest = items.length
-    ? startOfDay(new Date(Math.max(today.getTime(), ...items.map((item) => new Date(`${item.endsOn}T00:00:00`).getTime()))))
+    ? startOfDay(
+        new Date(
+          Math.max(today.getTime(), ...items.map((item) => new Date(`${item.endsOn}T00:00:00`).getTime())),
+        ),
+      )
     : today
 
   const timelineStart = addDays(earliest, -2)
@@ -880,19 +1027,25 @@ export function buildTimeline(items: GanttItem[], zoom: ZoomLevel) {
       weekday: date.toLocaleDateString('en-AU', { weekday: 'short' }),
       isToday: iso === toIsoDate(today),
       dayOfMonth: date.getDate(),
-      monthKey: date.toLocaleDateString('en-AU', { month: 'short', year: 'numeric' }),
+      monthKey: date.toLocaleDateString('en-AU', {
+        month: 'short',
+        year: 'numeric',
+      }),
     }
   })
 
-  const months = days.reduce<Array<{ label: string; startIndex: number; span: number }>>((accumulator, day, index) => {
-    const current = accumulator[accumulator.length - 1]
-    if (current && current.label === day.monthKey) {
-      current.span += 1
+  const months = days.reduce<Array<{ label: string; startIndex: number; span: number }>>(
+    (accumulator, day, index) => {
+      const current = accumulator[accumulator.length - 1]
+      if (current && current.label === day.monthKey) {
+        current.span += 1
+        return accumulator
+      }
+      accumulator.push({ label: day.monthKey, startIndex: index, span: 1 })
       return accumulator
-    }
-    accumulator.push({ label: day.monthKey, startIndex: index, span: 1 })
-    return accumulator
-  }, [])
+    },
+    [],
+  )
 
   const todayIndex = days.findIndex((day) => day.isToday)
 
@@ -945,7 +1098,10 @@ function shouldShowMinorLabel(index: number, every: number, day: { isToday: bool
 
 function jogTimeline(element: HTMLDivElement | null, direction: -1 | 1) {
   if (!element) return
-  element.scrollBy({ left: direction * Math.max(240, Math.round(element.clientWidth * 0.55)), behavior: 'smooth' })
+  element.scrollBy({
+    left: direction * Math.max(240, Math.round(element.clientWidth * 0.55)),
+    behavior: 'smooth',
+  })
 }
 
 function centerToday(element: HTMLDivElement | null, todayLeft: number | null) {

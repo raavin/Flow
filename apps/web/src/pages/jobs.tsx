@@ -13,7 +13,10 @@ export function JobsPage() {
   const { session } = useAppStore()
   const queryClient = useQueryClient()
   const jobsQuery = useQuery({ queryKey: ['jobs'], queryFn: fetchJobs })
-  const projectsQuery = useQuery({ queryKey: ['projects'], queryFn: fetchProjects })
+  const projectsQuery = useQuery({
+    queryKey: ['projects'],
+    queryFn: fetchProjects,
+  })
   const [title, setTitle] = useState('')
   const [customerName, setCustomerName] = useState('')
   const [status, setStatus] = useState<'today' | 'upcoming' | 'waiting' | 'delayed' | 'completed'>('upcoming')
@@ -36,7 +39,8 @@ export function JobsPage() {
     },
   })
   const statusMutation = useMutation({
-    mutationFn: ({ jobId, nextStatus }: { jobId: string; nextStatus: typeof status }) => updateJobStatus(jobId, nextStatus),
+    mutationFn: ({ jobId, nextStatus }: { jobId: string; nextStatus: typeof status }) =>
+      updateJobStatus(jobId, nextStatus),
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['jobs'] }),
   })
 
@@ -69,8 +73,14 @@ export function JobsPage() {
   }
 
   function commitEdit(jobId: string, field: 'title' | 'customerName') {
-    if (!editValue.trim()) { cancelEdit(); return }
-    updateMutation.mutate({ jobId, input: field === 'title' ? { title: editValue } : { customerName: editValue } })
+    if (!editValue.trim()) {
+      cancelEdit()
+      return
+    }
+    updateMutation.mutate({
+      jobId,
+      input: field === 'title' ? { title: editValue } : { customerName: editValue },
+    })
     cancelEdit()
   }
 
@@ -81,45 +91,78 @@ export function JobsPage() {
   }
 
   return (
-    <div className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
-      <AppCard className="space-y-4">
-        <SectionHeading
-          eyebrow="Jobs"
-          title="New job"
-          action={
-            <Link to="/app/business/listings">
-              <AppButton variant="ghost">Manage listings</AppButton>
-            </Link>
-          }
-        />
-        <FieldLabel>Job title<AppInput value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Job title" /></FieldLabel>
-        <FieldLabel>Customer<AppInput value={customerName} onChange={(event) => setCustomerName(event.target.value)} placeholder="Customer name" /></FieldLabel>
-        <FieldLabel>Status<AppSelect value={status} onChange={(event) => setStatus(event.target.value as typeof status)}>
-          <option value="today">Today</option>
-          <option value="upcoming">Upcoming</option>
-          <option value="waiting">Waiting on customer</option>
-          <option value="delayed">Delayed</option>
-          <option value="completed">Completed</option>
-        </AppSelect></FieldLabel>
-        <FieldLabel>Payment status<AppSelect value={paymentState} onChange={(event) => setPaymentState(event.target.value as typeof paymentState)}>
-          <option value="unpaid">Unpaid</option>
-          <option value="deposit due">Deposit due</option>
-          <option value="paid">Paid</option>
-        </AppSelect></FieldLabel>
-        <FieldLabel>Project<AppSelect value={projectId} onChange={(event) => setProjectId(event.target.value)}>
-          <option value="">No linked project</option>
-          {(projectsQuery.data ?? []).map((project) => (
-            <option key={project.id} value={project.id}>
-              {project.title}
-            </option>
-          ))}
-        </AppSelect></FieldLabel>
-        <AppButton disabled={!session || !title.trim() || !customerName.trim() || createMutation.isPending} onClick={() => createMutation.mutate()}>
-          {createMutation.isPending ? 'Creating…' : 'Create job'}
-        </AppButton>
-        <MutationFeedback mutation={createMutation} success="Job created." />
-      </AppCard>
+    <div className="space-y-4">
+      <details>
+        <summary className="ui-button ui-button--primary cursor-pointer">New job</summary>
+        <div className="mt-4">
+          <AppCard className="space-y-4">
+            <SectionHeading
+              eyebrow="Jobs"
+              title="New job"
+              action={
+                <Link to="/app/business/listings">
+                  <AppButton variant="ghost">Manage listings</AppButton>
+                </Link>
+              }
+            />
+            <FieldLabel>
+              Job title
+              <AppInput
+                value={title}
+                onChange={(event) => setTitle(event.target.value)}
+                placeholder="Job title"
+              />
+            </FieldLabel>
+            <FieldLabel>
+              Customer
+              <AppInput
+                value={customerName}
+                onChange={(event) => setCustomerName(event.target.value)}
+                placeholder="Customer name"
+              />
+            </FieldLabel>
+            <FieldLabel>
+              Status
+              <AppSelect value={status} onChange={(event) => setStatus(event.target.value as typeof status)}>
+                <option value="today">Today</option>
+                <option value="upcoming">Upcoming</option>
+                <option value="waiting">Waiting on customer</option>
+                <option value="delayed">Delayed</option>
+                <option value="completed">Completed</option>
+              </AppSelect>
+            </FieldLabel>
+            <FieldLabel>
+              Payment status
+              <AppSelect
+                value={paymentState}
+                onChange={(event) => setPaymentState(event.target.value as typeof paymentState)}
+              >
+                <option value="unpaid">Unpaid</option>
 
+                <option value="paid">Paid</option>
+              </AppSelect>
+            </FieldLabel>
+            <FieldLabel>
+              Project
+              <AppSelect value={projectId} onChange={(event) => setProjectId(event.target.value)}>
+                <option value="">No linked project</option>
+                {(projectsQuery.data ?? []).map((project) => (
+                  <option key={project.id} value={project.id}>
+                    {project.title}
+                  </option>
+                ))}
+              </AppSelect>
+            </FieldLabel>
+            <AppButton
+              disabled={!session || !title.trim() || !customerName.trim() || createMutation.isPending}
+              onClick={() => createMutation.mutate()}
+            >
+              {createMutation.isPending ? 'Creating…' : 'Create job'}
+            </AppButton>
+            <MutationFeedback mutation={createMutation} success="Job created." />
+          </AppCard>
+        </div>
+      </details>
       <AppCard className="space-y-4">
         <SectionHeading title="Jobs" />
         <QueryFeedback query={jobsQuery} />
@@ -138,7 +181,10 @@ export function JobsPage() {
                       value={editValue}
                       onChange={(e) => setEditValue(e.target.value)}
                       onBlur={() => commitEdit(job.id, 'title')}
-                      onKeyDown={(e) => { if (e.key === 'Enter') commitEdit(job.id, 'title'); if (e.key === 'Escape') cancelEdit() }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') commitEdit(job.id, 'title')
+                        if (e.key === 'Escape') cancelEdit()
+                      }}
                       className="w-full bg-transparent text-lg font-extrabold text-ink outline-none border-b-2 border-ink/40 focus:border-ink"
                     />
                   ) : (
@@ -159,7 +205,10 @@ export function JobsPage() {
                         value={editValue}
                         onChange={(e) => setEditValue(e.target.value)}
                         onBlur={() => commitEdit(job.id, 'customerName')}
-                        onKeyDown={(e) => { if (e.key === 'Enter') commitEdit(job.id, 'customerName'); if (e.key === 'Escape') cancelEdit() }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') commitEdit(job.id, 'customerName')
+                          if (e.key === 'Escape') cancelEdit()
+                        }}
                         className="bg-transparent text-sm font-medium text-ink outline-none border-b border-ink/40 focus:border-ink"
                       />
                     ) : (
@@ -173,41 +222,78 @@ export function JobsPage() {
                         <Pencil className="h-2.5 w-2.5 text-ink/30 opacity-0 group-hover/cust:opacity-100 transition-opacity" />
                       </button>
                     )}
-                    <span>· {job.status} · {job.payment_state}</span>
+                    <span>
+                      · {job.status} · {job.payment_state}
+                    </span>
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  <label className="ui-field-label">Status
-                    <select className="ui-input" value={job.status} disabled={statusMutation.isPending} onChange={e => statusMutation.mutate({ jobId: job.id, nextStatus: e.target.value as typeof status })}>
-                      {(['today', 'upcoming', 'waiting', 'delayed', 'completed'] as const).map(value => <option key={value} value={value}>{value === 'waiting' ? 'Waiting on customer' : value.charAt(0).toUpperCase() + value.slice(1)}</option>)}
+                  <label className="ui-field-label">
+                    Status
+                    <select
+                      className="ui-input"
+                      value={job.status}
+                      disabled={statusMutation.isPending}
+                      onChange={(e) =>
+                        statusMutation.mutate({
+                          jobId: job.id,
+                          nextStatus: e.target.value as typeof status,
+                        })
+                      }
+                    >
+                      {(['today', 'upcoming', 'waiting', 'delayed', 'completed'] as const).map((value) => (
+                        <option key={value} value={value}>
+                          {value === 'waiting'
+                            ? 'Waiting on customer'
+                            : value.charAt(0).toUpperCase() + value.slice(1)}
+                        </option>
+                      ))}
                     </select>
                   </label>
                 </div>
               </div>
               {job.linked_project_id ? (
-                <Link to="/app/projects/$projectId" params={{ projectId: job.linked_project_id }} className="mt-3 inline-flex text-sm font-bold text-teal">
+                <Link
+                  to="/app/projects/$projectId"
+                  params={{ projectId: job.linked_project_id }}
+                  className="mt-3 inline-flex text-sm font-bold text-teal"
+                >
                   View project
                 </Link>
               ) : null}
               <div className="mt-3 flex flex-wrap items-center gap-3">
-                <Link to="/app/jobs/$jobId" params={{ jobId: job.id }} className="text-sm font-bold text-berry">
+                <Link
+                  to="/app/jobs/$jobId"
+                  params={{ jobId: job.id }}
+                  className="text-sm font-bold text-berry"
+                >
                   View job
                 </Link>
                 {deleteConfirmId === job.id ? (
                   <>
                     <span className="text-xs font-bold text-berry">Delete this job?</span>
-                    <AppButton variant="secondary" onClick={() => deleteMutation.mutate(job.id)} disabled={deleteMutation.isPending}>
+                    <AppButton
+                      variant="secondary"
+                      onClick={() => deleteMutation.mutate(job.id)}
+                      disabled={deleteMutation.isPending}
+                    >
                       Yes, delete
                     </AppButton>
-                    <AppButton variant="ghost" onClick={() => setDeleteConfirmId(null)}>Cancel</AppButton>
+                    <AppButton variant="ghost" onClick={() => setDeleteConfirmId(null)}>
+                      Cancel
+                    </AppButton>
                   </>
                 ) : (
-                  <AppButton variant="ghost" onClick={() => setDeleteConfirmId(job.id)}>Delete</AppButton>
+                  <AppButton variant="ghost" onClick={() => setDeleteConfirmId(job.id)}>
+                    Delete
+                  </AppButton>
                 )}
               </div>
             </AppPanel>
           ))}
-          {!jobsQuery.isPending && !jobsQuery.isError && !jobsQuery.data?.length ? <p className="text-sm text-ink/60">No jobs yet. Add a job to track work for a customer.</p> : null}
+          {!jobsQuery.isPending && !jobsQuery.isError && !jobsQuery.data?.length ? (
+            <p className="text-sm text-ink/60">No jobs yet. Add a job to track work for a customer.</p>
+          ) : null}
         </div>
         <div className="border-t border-ink/10 pt-3">
           <p className="text-xs text-ink/55">

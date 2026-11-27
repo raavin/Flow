@@ -1,6 +1,7 @@
 export type Cost = {
   estimate_cents: number
   actual_cents: number
+  paid_cents?: number
   payment_status: 'unpaid' | 'pending' | 'paid'
 }
 
@@ -8,7 +9,8 @@ export type Cost = {
 export function parseBudgetAmount(value: string): number {
   const text = value.trim()
   if (!text) return 0
-  if (!/^\d+(\.\d{1,2})?$/.test(text)) throw new Error('Enter a positive amount with up to two decimal places.')
+  if (!/^\d+(\.\d{1,2})?$/.test(text))
+    throw new Error('Enter a positive amount with up to two decimal places.')
   const [whole, fraction = ''] = text.split('.')
   const cents = Number(whole) * 100 + Number(fraction.padEnd(2, '0'))
   assertBudgetAmount(cents)
@@ -22,13 +24,24 @@ export function assertBudgetAmount(cents: number) {
 }
 
 export function summarizeCosts(costs: Cost[]) {
-  return costs.reduce((total, cost) => {
-    const forecast = cost.payment_status === 'paid' || cost.actual_cents > 0 ? cost.actual_cents : cost.estimate_cents
-    total.estimated += cost.estimate_cents
-    total.actual += cost.actual_cents
-    total.forecast += forecast
-    if (cost.payment_status === 'paid') total.paid += cost.actual_cents
-    else total.remaining += forecast
-    return total
-  }, { estimated: 0, actual: 0, forecast: 0, paid: 0, remaining: 0 })
+  return costs.reduce(
+    (total, cost) => {
+      const paid = cost.paid_cents ?? (cost.payment_status === 'paid' ? cost.actual_cents : 0)
+      const forecast = Math.max(
+        paid,
+        cost.paid_cents !== undefined
+          ? cost.actual_cents || cost.estimate_cents
+          : cost.payment_status === 'paid' || cost.actual_cents > 0
+            ? cost.actual_cents
+            : cost.estimate_cents,
+      )
+      total.estimated += cost.estimate_cents
+      total.actual += cost.actual_cents
+      total.forecast += forecast
+      total.paid += paid
+      total.remaining += Math.max(0, forecast - paid)
+      return total
+    },
+    { estimated: 0, actual: 0, forecast: 0, paid: 0, remaining: 0 },
+  )
 }

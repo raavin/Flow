@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { feedRankingProfile, rankFeedItems } from './feed-ranking'
 
 describe('rankFeedItems', () => {
-  it('prioritizes followed reposts above unrelated discoverable posts in following feed', () => {
+  it('orders Following by the latest post or followed repost', () => {
     const now = new Date('2026-03-13T10:00:00.000Z').toISOString()
     const slightlyOlder = new Date('2026-03-13T08:00:00.000Z').toISOString()
 
@@ -54,8 +54,10 @@ describe('rankFeedItems', () => {
       }),
     )
 
-    expect(ranked[0].id).toBe('direct-follow')
-    expect(feedRankingProfile.following.weights.authorFollowed).toBeGreaterThan(feedRankingProfile.following.weights.repostedByFollowed)
+    expect(ranked[0].id).toBe('followed-repost')
+    expect(feedRankingProfile.following.weights.authorFollowed).toBeGreaterThan(
+      feedRankingProfile.following.weights.repostedByFollowed,
+    )
   })
 
   it('keeps bookmarks heavily promoted in saved feed', () => {

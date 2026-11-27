@@ -1,12 +1,6 @@
 import '../test-setup'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import {
-  cleanup,
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-} from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { ReactNode } from 'react'
 import { ProjectBudget } from './project-budget'
@@ -14,9 +8,7 @@ import { createExpense, updateExpense, fetchExpenses } from '@/lib/planning'
 import { updateProject } from '@/lib/projects'
 
 vi.mock('./project-shell', () => ({
-  ProjectShell: ({ children }: { children: ReactNode }) => (
-    <div>{children}</div>
-  ),
+  ProjectShell: ({ children }: { children: ReactNode }) => <div>{children}</div>,
 }))
 vi.mock('@tanstack/react-router', () => ({
   Link: ({ children }: { children: ReactNode }) => <a>{children}</a>,
@@ -32,7 +24,10 @@ vi.mock('@/lib/supplier-requests', () => ({
 }))
 vi.mock('@/lib/projects', () => ({
   fetchProjects: async () => [{ id: 'party', title: 'Party' }],
-  fetchProjectDetail: vi.fn(async () => ({ project: { budgetCents: 10000 } })),
+  fetchProjectDetail: vi.fn(async () => ({
+    ownerId: 'owner',
+    project: { budgetCents: 10000 },
+  })),
   updateProject: vi.fn(async () => {}),
 }))
 vi.mock('@/lib/planning', () => ({
@@ -98,9 +93,7 @@ describe('project budget editing', () => {
       target: { value: 'paid' },
     })
     fireEvent.click(screen.getByRole('button', { name: 'Save entry' }))
-    expect(await screen.findByRole('alert')).toHaveTextContent(
-      'Enter the actual amount paid',
-    )
+    expect(await screen.findByRole('alert')).toHaveTextContent('Enter the actual amount paid')
     expect(createExpense).not.toHaveBeenCalled()
   })
   it('supports an explicit zero budget and clearing the limit', async () => {
@@ -110,12 +103,8 @@ describe('project budget editing', () => {
       target: { value: '0' },
     })
     fireEvent.click(screen.getByRole('button', { name: 'Save limit' }))
-    await waitFor(() =>
-      expect(updateProject).toHaveBeenCalledWith('party', { budgetCents: 0 }),
-    )
-    await waitFor(() =>
-      expect(screen.getByRole('button', { name: 'Save limit' })).toBeDisabled(),
-    )
+    await waitFor(() => expect(updateProject).toHaveBeenCalledWith('party', { budgetCents: 0 }))
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Save limit' })).toBeDisabled())
     fireEvent.change(screen.getByLabelText('Budget limit (AUD)'), {
       target: { value: '' },
     })

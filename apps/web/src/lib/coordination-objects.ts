@@ -1,6 +1,5 @@
-import { templateSchedule } from './template-planning'
+import { applyTemplate } from './apply-template'
 import type {
-  CoordinationDependencyKind,
   CoordinationObject,
   CoordinationDisplayKind,
   CoordinationObjectIntent,
@@ -107,6 +106,7 @@ type ManualCoordinationInput = {
   isAllDay?: boolean
   flexibility?: 'fixed' | 'shiftable' | 'floating'
   linkedProjectId?: string | null
+  parentId?: string | null
   participantNames?: string[]
   metadata?: Record<string, unknown>
 }
@@ -151,18 +151,16 @@ export async function upsertCoordinationObject(input: UpsertCoordinationObjectIn
 
   if (error) throw error
 
-  const { error: participantError } = await supabase
-    .from('coordination_object_participants')
-    .upsert(
-      {
-        coordination_object_id: data.id,
-        profile_id: input.ownerId,
-        participant_name: 'Owner',
-        role: 'owner',
-        state: 'active',
-      },
-      { onConflict: 'coordination_object_id,profile_id' },
-    )
+  const { error: participantError } = await supabase.from('coordination_object_participants').upsert(
+    {
+      coordination_object_id: data.id,
+      profile_id: input.ownerId,
+      participant_name: 'Owner',
+      role: 'owner',
+      state: 'active',
+    },
+    { onConflict: 'coordination_object_id,profile_id' },
+  )
 
   if (participantError && !participantError.message.includes('there is no unique')) {
     throw participantError
@@ -179,6 +177,7 @@ export async function fetchCoordinationObjects(options: FetchCoordinationOptions
     .select(
       'id, owner_id, source_table, source_id, kind, display_kind, title, summary, intent, state, starts_at, ends_at, due_at, is_all_day, flexibility, parent_id, linked_project_id, linked_listing_id, linked_job_id, metadata, created_at, updated_at, coordination_object_participants(id, coordination_object_id, profile_id, participant_name, role, state)',
     )
+    .not('kind', 'in', '(message,dm_thread)')
     .order('starts_at', { ascending: true, nullsFirst: false })
     .order('due_at', { ascending: true, nullsFirst: false })
     .order('created_at', { ascending: false })
@@ -216,7 +215,9 @@ export async function fetchCoordinationMessages(coordinationObjectId: string) {
 
   const { data, error } = await supabase
     .from('coordination_messages')
-    .select('id, coordination_object_id, author_id, body, visibility, source_post_id, metadata, created_at, updated_at')
+    .select(
+      'id, coordination_object_id, author_id, body, visibility, source_post_id, metadata, created_at, updated_at',
+    )
     .eq('coordination_object_id', coordinationObjectId)
     .order('created_at', { ascending: true })
 
@@ -230,24 +231,27 @@ export async function fetchCoordinationMessages(coordinationObjectId: string) {
 
   const profileMap = new Map((profiles ?? []).map((profile) => [profile.id, profile]))
 
-  return (data as CoordinationMessageRow[]).map((row) => ({
-    id: row.id,
-    coordinationObjectId: row.coordination_object_id,
-    authorId: row.author_id,
-    body: row.body,
-    visibility: row.visibility,
-    sourcePostId: row.source_post_id,
-    metadata: row.metadata ?? {},
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
-    author: profileMap.has(row.author_id)
-      ? {
-          id: row.author_id,
-          handle: profileMap.get(row.author_id)?.handle ?? null,
-          displayName: profileMap.get(row.author_id)?.display_name ?? null,
-        }
-      : null,
-  } satisfies CoordinationMessage))
+  return (data as CoordinationMessageRow[]).map(
+    (row) =>
+      ({
+        id: row.id,
+        coordinationObjectId: row.coordination_object_id,
+        authorId: row.author_id,
+        body: row.body,
+        visibility: row.visibility,
+        sourcePostId: row.source_post_id,
+        metadata: row.metadata ?? {},
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+        author: profileMap.has(row.author_id)
+          ? {
+              id: row.author_id,
+              handle: profileMap.get(row.author_id)?.handle ?? null,
+              displayName: profileMap.get(row.author_id)?.display_name ?? null,
+            }
+          : null,
+      }) satisfies CoordinationMessage,
+  )
 }
 
 export async function createCoordinationMessage(input: {
@@ -296,6 +300,7 @@ export async function createManualCoordinationObject(input: ManualCoordinationIn
       is_all_day: input.isAllDay ?? false,
       flexibility: input.flexibility ?? 'shiftable',
       linked_project_id: input.linkedProjectId ?? null,
+      parent_id: input.parentId ?? null,
       metadata: input.metadata ?? {},
     })
     .select('id')
@@ -323,7 +328,9 @@ export async function createManualCoordinationObject(input: ManualCoordinationIn
       })),
   ]
 
-  const { error: participantError } = await supabase.from('coordination_object_participants').insert(participantRows)
+  const { error: participantError } = await supabase
+    .from('coordination_object_participants')
+    .insert(participantRows)
   if (participantError) throw participantError
 
   return data.id as string
@@ -331,7 +338,10 @@ export async function createManualCoordinationObject(input: ManualCoordinationIn
 
 export async function updateCoordinationObjectTitle(id: string, title: string) {
   if (!supabase) throw new Error('Supabase is not configured.')
-  const { error } = await supabase.from('coordination_objects').update({ title: title.trim() || 'Untitled' }).eq('id', id)
+  const { error } = await supabase
+    .from('coordination_objects')
+    .update({ title: title.trim() || 'Untitled' })
+    .eq('id', id)
   if (error) throw error
 }
 
@@ -371,7 +381,10 @@ export async function updateCoordinationObjectSchedule(input: {
 export async function updateCoordinationObjectProjectLink(id: string, linkedProjectId: string | null) {
   if (!supabase) throw new Error('Supabase is not configured.')
 
-  const { error } = await supabase.from('coordination_objects').update({ linked_project_id: linkedProjectId }).eq('id', id)
+  const { error } = await supabase
+    .from('coordination_objects')
+    .update({ linked_project_id: linkedProjectId })
+    .eq('id', id)
   if (error) throw error
 }
 
@@ -451,7 +464,10 @@ export async function createCoordinationTemplate(input: {
 
 export async function updateCoordinationTemplate(id: string, title: string) {
   if (!supabase) throw new Error('Supabase is not configured.')
-  const { error } = await supabase.from('coordination_templates').update({ title: title.trim() || 'Untitled' }).eq('id', id)
+  const { error } = await supabase
+    .from('coordination_templates')
+    .update({ title: title.trim() || 'Untitled' })
+    .eq('id', id)
   if (error) throw error
 }
 
@@ -464,16 +480,21 @@ export async function deleteCoordinationTemplate(id: string) {
 export async function seedStarterCoordinationTemplates(ownerId: string) {
   if (!supabase) throw new Error('Supabase is not configured.')
 
-  const { data: existing, error: existingError } = await supabase.from('coordination_templates').select('title').eq('owner_id', ownerId)
+  const { data: existing, error: existingError } = await supabase
+    .from('coordination_templates')
+    .select('title')
+    .eq('owner_id', ownerId)
   if (existingError) throw existingError
-  const titles = new Set((existing ?? []).map(item => item.title))
-  const templates = starterTemplates.filter(template => !titles.has(template.title)).map((template) => ({
-    owner_id: ownerId,
-    title: template.title,
-    summary: template.summary,
-    display_kind: template.displayKind,
-    payload: { blocks: template.blocks },
-  }))
+  const titles = new Set((existing ?? []).map((item) => item.title))
+  const templates = starterTemplates
+    .filter((template) => !titles.has(template.title))
+    .map((template) => ({
+      owner_id: ownerId,
+      title: template.title,
+      summary: template.summary,
+      display_kind: template.displayKind,
+      payload: { blocks: template.blocks },
+    }))
 
   if (!templates.length) return
   const { error } = await supabase.from('coordination_templates').insert(templates)
@@ -489,83 +510,15 @@ export async function instantiateCoordinationTemplate(input: {
 }) {
   if (!supabase) throw new Error('Supabase is not configured.')
 
-  const schedule = templateSchedule(input.template.blocks, input.anchorDate)
-  const firstDay = schedule.reduce((day, step) => step.startsOn < day ? step.startsOn : day, input.anchorDate)
-
-  const parentId = await createManualCoordinationObject({
-    ownerId: input.ownerId,
+  const result = await applyTemplate({
+    id: crypto.randomUUID(),
+    templateId: input.template.id,
     title: input.title || input.template.title,
-    summary: input.template.summary,
-    kind: input.template.displayKind === 'project' ? 'project' : 'workflow',
-    displayKind: input.template.displayKind,
-    intent: 'coordinate',
-    state: 'active',
-    startsAt: asStartOfDay(firstDay),
-    endsAt: asEndOfDay(lastTemplateDay(input.template.blocks, input.anchorDate)),
-    isAllDay: true,
-    flexibility: 'shiftable',
-    linkedProjectId: input.linkedProjectId ?? null,
-    metadata: { fromTemplateId: input.template.id },
+    blocks: input.template.blocks,
+    anchorDate: input.anchorDate,
+    projectId: input.linkedProjectId,
   })
-
-  const childRows = input.template.blocks.map((block) => {
-    const startsOn = shiftDate(input.anchorDate, block.offsetDays ?? 0)
-    const endsOn = shiftDate(startsOn, Math.max(0, (block.durationDays ?? 1) - 1))
-
-    return {
-      owner_id: input.ownerId,
-      kind: block.kind,
-      display_kind: block.displayKind,
-      title: block.title,
-      summary: block.metadata?.summary ? String(block.metadata.summary) : null,
-      intent: block.intent,
-      state: 'scheduled',
-      starts_at: asStartOfDay(startsOn),
-      ends_at: asEndOfDay(endsOn),
-      due_at: block.durationDays && block.durationDays > 1 ? null : asDueTime(startsOn),
-      is_all_day: true,
-      flexibility: 'shiftable',
-      parent_id: parentId,
-      linked_project_id: input.linkedProjectId ?? null,
-      metadata: {
-        lane: block.lane ?? block.displayKind,
-        templateTitle: input.template.title,
-        ...(block.metadata ?? {}),
-      },
-    }
-  })
-
-  const { data, error } = await supabase.from('coordination_objects').insert(childRows).select('id')
-  if (error) throw error
-
-  const childObjects = data as Array<{ id: string }>
-  if (childObjects.length) {
-    const participantRows = childObjects.flatMap((child) => [
-      {
-        coordination_object_id: child.id,
-        profile_id: input.ownerId,
-        participant_name: 'Owner',
-        role: 'owner',
-        state: 'active',
-      },
-    ])
-
-    const { error: participantError } = await supabase.from('coordination_object_participants').insert(participantRows)
-    if (participantError) throw participantError
-
-    const dependencies = childObjects.slice(1).map((child, index) => ({
-      predecessor_id: childObjects[index].id,
-      successor_id: child.id,
-      dependency_kind: 'follows' satisfies CoordinationDependencyKind,
-    }))
-
-    if (dependencies.length) {
-      const { error: dependencyError } = await supabase.from('coordination_object_dependencies').insert(dependencies)
-      if (dependencyError) throw dependencyError
-    }
-  }
-
-  return parentId
+  return result.object_id
 }
 
 export async function syncProjectCoordinationObject(input: {
@@ -737,17 +690,6 @@ function mapParticipant(row: CoordinationParticipantRow) {
   } satisfies CoordinationParticipant
 }
 
-function shiftDate(day: string, days: number) {
-  const date = new Date(`${day}T00:00:00.000Z`)
-  date.setUTCDate(date.getUTCDate() + days)
-  return date.toISOString().slice(0, 10)
-}
-
-function lastTemplateDay(blocks: CoordinationTemplateBlock[], anchorDate: string) {
-  const latestOffset = blocks.reduce((max, block) => Math.max(max, (block.offsetDays ?? 0) + Math.max(0, (block.durationDays ?? 1) - 1)), 0)
-  return shiftDate(anchorDate, latestOffset)
-}
-
 const starterTemplates: Array<{
   title: string
   summary: string
@@ -755,15 +697,55 @@ const starterTemplates: Array<{
   blocks: CoordinationTemplateBlock[]
 }> = [
   {
-    title: 'Birthday rhythm',
-    summary: 'A reusable birthday prep sequence with space for invites, gifts, and the day itself.',
+    title: 'Birthday preparation',
+    summary: 'Invitations, presents, food and the birthday.',
     displayKind: 'plan',
     blocks: [
-      { title: 'Gift ideas', kind: 'plan', displayKind: 'task', intent: 'celebrate', offsetDays: -21, durationDays: 1, lane: 'Support' },
-      { title: 'Invite people', kind: 'message', displayKind: 'chat', intent: 'notify', offsetDays: -14, durationDays: 1, lane: 'People' },
-      { title: 'Buy present', kind: 'purchase', displayKind: 'purchase', intent: 'buy', offsetDays: -7, durationDays: 1, lane: 'Support' },
-      { title: 'Buy food and drinks', kind: 'purchase', displayKind: 'purchase', intent: 'buy', offsetDays: -2, durationDays: 1, lane: 'Support' },
-      { title: 'Birthday day', kind: 'event', displayKind: 'event', intent: 'celebrate', offsetDays: 0, durationDays: 1, lane: 'Main event' },
+      {
+        title: 'Gift ideas',
+        kind: 'plan',
+        displayKind: 'task',
+        intent: 'celebrate',
+        offsetDays: -21,
+        durationDays: 1,
+        lane: 'Support',
+      },
+      {
+        title: 'Invite people',
+        kind: 'message',
+        displayKind: 'chat',
+        intent: 'notify',
+        offsetDays: -14,
+        durationDays: 1,
+        lane: 'People',
+      },
+      {
+        title: 'Buy present',
+        kind: 'purchase',
+        displayKind: 'purchase',
+        intent: 'buy',
+        offsetDays: -7,
+        durationDays: 1,
+        lane: 'Support',
+      },
+      {
+        title: 'Buy food and drinks',
+        kind: 'purchase',
+        displayKind: 'purchase',
+        intent: 'buy',
+        offsetDays: -2,
+        durationDays: 1,
+        lane: 'Support',
+      },
+      {
+        title: 'Birthday day',
+        kind: 'event',
+        displayKind: 'event',
+        intent: 'celebrate',
+        offsetDays: 0,
+        durationDays: 1,
+        lane: 'Main event',
+      },
     ],
   },
   {
@@ -771,27 +753,139 @@ const starterTemplates: Array<{
     summary: 'A starting sequence counting back from the wedding date. Adjust the timing to suit your plans.',
     displayKind: 'plan',
     blocks: [
-      { title: 'Agree priorities, guest numbers and budget', kind: 'plan', displayKind: 'task', intent: 'coordinate', offsetDays: -180, durationDays: 1, lane: 'Planning' },
-      { title: 'Discuss venue and supplier options', kind: 'plan', displayKind: 'task', intent: 'coordinate', offsetDays: -150, durationDays: 1, lane: 'Bookings' },
-      { title: 'Send invitations', kind: 'plan', displayKind: 'task', intent: 'coordinate', offsetDays: -90, durationDays: 1, lane: 'People' },
-      { title: 'Confirm guests, catering and outstanding costs', kind: 'plan', displayKind: 'task', intent: 'coordinate', offsetDays: -21, durationDays: 1, lane: 'Planning' },
-      { title: 'Share the day plan with helpers and suppliers', kind: 'plan', displayKind: 'task', intent: 'coordinate', offsetDays: -7, durationDays: 1, lane: 'People' },
-      { title: 'Wedding day', kind: 'event', displayKind: 'event', intent: 'celebrate', offsetDays: 0, durationDays: 1, lane: 'Main event' },
-      { title: 'Send thanks and review final costs', kind: 'plan', displayKind: 'task', intent: 'coordinate', offsetDays: 7, durationDays: 1, lane: 'Follow-up' },
+      {
+        title: 'Agree priorities, guest numbers and budget',
+        kind: 'plan',
+        displayKind: 'task',
+        intent: 'coordinate',
+        offsetDays: -180,
+        durationDays: 1,
+        lane: 'Planning',
+      },
+      {
+        title: 'Discuss venue and supplier options',
+        kind: 'plan',
+        displayKind: 'task',
+        intent: 'coordinate',
+        offsetDays: -150,
+        durationDays: 1,
+        lane: 'Bookings',
+      },
+      {
+        title: 'Send invitations',
+        kind: 'plan',
+        displayKind: 'task',
+        intent: 'coordinate',
+        offsetDays: -90,
+        durationDays: 1,
+        lane: 'People',
+      },
+      {
+        title: 'Confirm guests, catering and outstanding costs',
+        kind: 'plan',
+        displayKind: 'task',
+        intent: 'coordinate',
+        offsetDays: -21,
+        durationDays: 1,
+        lane: 'Planning',
+      },
+      {
+        title: 'Share the day plan with helpers and suppliers',
+        kind: 'plan',
+        displayKind: 'task',
+        intent: 'coordinate',
+        offsetDays: -7,
+        durationDays: 1,
+        lane: 'People',
+      },
+      {
+        title: 'Wedding day',
+        kind: 'event',
+        displayKind: 'event',
+        intent: 'celebrate',
+        offsetDays: 0,
+        durationDays: 1,
+        lane: 'Main event',
+      },
+      {
+        title: 'Send thanks and review final costs',
+        kind: 'plan',
+        displayKind: 'task',
+        intent: 'coordinate',
+        offsetDays: 7,
+        durationDays: 1,
+        lane: 'Follow-up',
+      },
     ],
   },
   {
-    title: 'Business idea to first launch',
+    title: 'Business launch',
     summary: 'A practical starting sequence counting back from a first launch or pilot date.',
     displayKind: 'plan',
     blocks: [
-      { title: 'Discuss the problem and who needs it solved', kind: 'plan', displayKind: 'task', intent: 'work', offsetDays: -60, durationDays: 1, lane: 'Discovery' },
-      { title: 'Talk with potential customers', kind: 'plan', displayKind: 'task', intent: 'work', offsetDays: -45, durationDays: 1, lane: 'Discovery' },
-      { title: 'Agree scope, responsibilities and cost limit', kind: 'plan', displayKind: 'task', intent: 'work', offsetDays: -30, durationDays: 1, lane: 'Planning' },
-      { title: 'Build and test a small first version', kind: 'plan', displayKind: 'task', intent: 'work', offsetDays: -21, durationDays: 14, lane: 'Delivery' },
-      { title: 'Review readiness with the team', kind: 'plan', displayKind: 'task', intent: 'work', offsetDays: -3, durationDays: 1, lane: 'Delivery' },
-      { title: 'Launch the pilot', kind: 'event', displayKind: 'event', intent: 'work', offsetDays: 0, durationDays: 1, lane: 'Main event' },
-      { title: 'Review feedback and agree the next steps', kind: 'plan', displayKind: 'task', intent: 'work', offsetDays: 7, durationDays: 1, lane: 'Follow-up' },
+      {
+        title: 'Discuss the problem and who needs it solved',
+        kind: 'plan',
+        displayKind: 'task',
+        intent: 'work',
+        offsetDays: -60,
+        durationDays: 1,
+        lane: 'Discovery',
+      },
+      {
+        title: 'Talk with potential customers',
+        kind: 'plan',
+        displayKind: 'task',
+        intent: 'work',
+        offsetDays: -45,
+        durationDays: 1,
+        lane: 'Discovery',
+      },
+      {
+        title: 'Agree scope, responsibilities and cost limit',
+        kind: 'plan',
+        displayKind: 'task',
+        intent: 'work',
+        offsetDays: -30,
+        durationDays: 1,
+        lane: 'Planning',
+      },
+      {
+        title: 'Build and test a small first version',
+        kind: 'plan',
+        displayKind: 'task',
+        intent: 'work',
+        offsetDays: -21,
+        durationDays: 14,
+        lane: 'Delivery',
+      },
+      {
+        title: 'Review readiness with the team',
+        kind: 'plan',
+        displayKind: 'task',
+        intent: 'work',
+        offsetDays: -3,
+        durationDays: 1,
+        lane: 'Delivery',
+      },
+      {
+        title: 'Launch the pilot',
+        kind: 'event',
+        displayKind: 'event',
+        intent: 'work',
+        offsetDays: 0,
+        durationDays: 1,
+        lane: 'Main event',
+      },
+      {
+        title: 'Review feedback and agree the next steps',
+        kind: 'plan',
+        displayKind: 'task',
+        intent: 'work',
+        offsetDays: 7,
+        durationDays: 1,
+        lane: 'Follow-up',
+      },
     ],
   },
   {
@@ -799,11 +893,51 @@ const starterTemplates: Array<{
     summary: 'Book, attend, collect what you need, and follow up without dropping the supporting steps.',
     displayKind: 'workflow',
     blocks: [
-      { title: 'Request appointment', kind: 'request', displayKind: 'task', intent: 'health', offsetDays: 0, durationDays: 1, lane: 'Admin' },
-      { title: 'Request leave', kind: 'request', displayKind: 'task', intent: 'work', offsetDays: 1, durationDays: 1, lane: 'Work' },
-      { title: 'Appointment', kind: 'event', displayKind: 'event', intent: 'health', offsetDays: 7, durationDays: 1, lane: 'Main event' },
-      { title: 'Collect certificate', kind: 'request', displayKind: 'task', intent: 'health', offsetDays: 7, durationDays: 1, lane: 'Support' },
-      { title: 'Follow-up reminder', kind: 'reminder', displayKind: 'reminder', intent: 'remind', offsetDays: 10, durationDays: 1, lane: 'Support' },
+      {
+        title: 'Request appointment',
+        kind: 'request',
+        displayKind: 'task',
+        intent: 'health',
+        offsetDays: 0,
+        durationDays: 1,
+        lane: 'Admin',
+      },
+      {
+        title: 'Request leave',
+        kind: 'request',
+        displayKind: 'task',
+        intent: 'work',
+        offsetDays: 1,
+        durationDays: 1,
+        lane: 'Work',
+      },
+      {
+        title: 'Appointment',
+        kind: 'event',
+        displayKind: 'event',
+        intent: 'health',
+        offsetDays: 7,
+        durationDays: 1,
+        lane: 'Main event',
+      },
+      {
+        title: 'Collect certificate',
+        kind: 'request',
+        displayKind: 'task',
+        intent: 'health',
+        offsetDays: 7,
+        durationDays: 1,
+        lane: 'Support',
+      },
+      {
+        title: 'Follow-up reminder',
+        kind: 'reminder',
+        displayKind: 'reminder',
+        intent: 'remind',
+        offsetDays: 10,
+        durationDays: 1,
+        lane: 'Support',
+      },
     ],
   },
   {
@@ -811,11 +945,51 @@ const starterTemplates: Array<{
     summary: 'A lighter-weight moving sequence with the main event plus the support clips around it.',
     displayKind: 'project',
     blocks: [
-      { title: 'Confirm van or transport', kind: 'booking', displayKind: 'booking', intent: 'book', offsetDays: -10, durationDays: 1, lane: 'Logistics' },
-      { title: 'Ask helpers', kind: 'message', displayKind: 'chat', intent: 'ask', offsetDays: -7, durationDays: 1, lane: 'People' },
-      { title: 'Pack essentials', kind: 'task', displayKind: 'task', intent: 'deliver', offsetDays: -3, durationDays: 2, lane: 'Prep' },
-      { title: 'Move day', kind: 'event', displayKind: 'event', intent: 'coordinate', offsetDays: 0, durationDays: 1, lane: 'Main event' },
-      { title: 'Return keys / tidy', kind: 'task', displayKind: 'task', intent: 'deliver', offsetDays: 1, durationDays: 1, lane: 'Wrap-up' },
+      {
+        title: 'Confirm van or transport',
+        kind: 'booking',
+        displayKind: 'booking',
+        intent: 'book',
+        offsetDays: -10,
+        durationDays: 1,
+        lane: 'Logistics',
+      },
+      {
+        title: 'Ask helpers',
+        kind: 'message',
+        displayKind: 'chat',
+        intent: 'ask',
+        offsetDays: -7,
+        durationDays: 1,
+        lane: 'People',
+      },
+      {
+        title: 'Pack essentials',
+        kind: 'task',
+        displayKind: 'task',
+        intent: 'deliver',
+        offsetDays: -3,
+        durationDays: 2,
+        lane: 'Prep',
+      },
+      {
+        title: 'Move day',
+        kind: 'event',
+        displayKind: 'event',
+        intent: 'coordinate',
+        offsetDays: 0,
+        durationDays: 1,
+        lane: 'Main event',
+      },
+      {
+        title: 'Return keys / tidy',
+        kind: 'task',
+        displayKind: 'task',
+        intent: 'deliver',
+        offsetDays: 1,
+        durationDays: 1,
+        lane: 'Wrap-up',
+      },
     ],
   },
 ]

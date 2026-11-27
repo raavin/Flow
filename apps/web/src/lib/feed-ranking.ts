@@ -116,20 +116,36 @@ export function rankFeedItems<T>(
   context: FeedRankingContext,
   getSignals: (item: T) => FeedRankingSignals,
 ) {
+  if (mode === 'following')
+    return [...items].sort((a, b) => {
+      const left = getSignals(a)
+      const right = getSignals(b)
+      return (
+        new Date(right.feedSortAt ?? right.createdAt).getTime() -
+        new Date(left.feedSortAt ?? left.createdAt).getTime()
+      )
+    })
   const config = feedRankingProfile[mode]
 
   return [...items].sort((left, right) => {
-    const scoreDelta = scoreItem(getSignals(right), config, context) - scoreItem(getSignals(left), config, context)
+    const scoreDelta =
+      scoreItem(getSignals(right), config, context) - scoreItem(getSignals(left), config, context)
     if (scoreDelta !== 0) return scoreDelta
     const leftSignals = getSignals(left)
     const rightSignals = getSignals(right)
-    return new Date(rightSignals.feedSortAt ?? rightSignals.createdAt).getTime() - new Date(leftSignals.feedSortAt ?? leftSignals.createdAt).getTime()
+    return (
+      new Date(rightSignals.feedSortAt ?? rightSignals.createdAt).getTime() -
+      new Date(leftSignals.feedSortAt ?? leftSignals.createdAt).getTime()
+    )
   })
 }
 
 function scoreItem(item: FeedRankingSignals, config: FeedRankingConfig, context: FeedRankingContext) {
   const { weights, engagementCaps } = config
-  const hoursOld = Math.max(0, (Date.now() - new Date(item.feedSortAt ?? item.createdAt).getTime()) / 3_600_000)
+  const hoursOld = Math.max(
+    0,
+    (Date.now() - new Date(item.feedSortAt ?? item.createdAt).getTime()) / 3_600_000,
+  )
   const freshnessRatio = Math.max(0, 1 - hoursOld / config.freshnessWindowHours)
 
   let score = 0

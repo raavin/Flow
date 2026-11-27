@@ -1,3 +1,4 @@
+import { CostPayment } from './cost-payment'
 import { useEffect, useRef, useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { AppButton, AppCard, SectionHeading } from '@superapp/ui'
@@ -6,13 +7,7 @@ import type { MoneyRecord } from '@/lib/money'
 import { ExpenseReceipts } from './expense-receipts'
 import { useAppStore } from '@/hooks/useAppStore'
 
-export function ReceiptPanel({
-  record,
-  onClose,
-}: {
-  record: MoneyRecord
-  onClose: () => void
-}) {
+export function ReceiptPanel({ record, onClose }: { record: MoneyRecord; onClose: () => void }) {
   const { session } = useAppStore()
   const ref = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -31,25 +26,17 @@ export function ReceiptPanel({
         />
         {record.details ? (
           <details className="text-sm">
-            <summary className="cursor-pointer font-semibold">
-              Payment details
-            </summary>
+            <summary className="cursor-pointer font-semibold">Payment details</summary>
             <dl className="mt-2 grid gap-2 sm:grid-cols-2">
               {[
                 ['Reference', record.details.reference || '—'],
                 ['Source', record.details.source],
-                [
-                  'Subtotal',
-                  formatCurrency(record.details.subtotal, record.currency),
-                ],
+                ['Subtotal', formatCurrency(record.details.subtotal, record.currency)],
                 ['Tax', formatCurrency(record.details.tax, record.currency)],
                 ['Fees', formatCurrency(record.details.fee, record.currency)],
                 ['Net', formatCurrency(record.details.net, record.currency)],
               ].map(([label, value]) => (
-                <div
-                  key={label}
-                  className="flex justify-between gap-3 border-b border-border py-1"
-                >
+                <div key={label} className="flex justify-between gap-3 border-b border-border py-1">
                   <dt className="text-ink/65">{label}</dt>
                   <dd className="min-w-0 break-all tabular-nums">{value}</dd>
                 </div>
@@ -58,11 +45,7 @@ export function ReceiptPanel({
           </details>
         ) : null}
         {session ? (
-          <ExpenseReceipts
-            key={record.id}
-            target={record.target}
-            ownerId={session.user.id}
-          />
+          <ExpenseReceipts key={record.id} target={record.target} ownerId={session.user.id} />
         ) : null}
       </AppCard>
     </div>
@@ -86,12 +69,7 @@ export function MoneyActivityTable({
   const receipt = rows.find((r) => r.id === receiptId)
   return (
     <div className="space-y-3 min-w-0">
-      <div
-        role="region"
-        aria-label="Money activity table"
-        tabIndex={0}
-        className="ui-ledger-shell relative"
-      >
+      <div role="region" aria-label="Money activity table" tabIndex={0} className="ui-ledger-shell relative">
         <table className="ui-budget-table min-w-[840px]">
           <caption className="sr-only">Expenses and income</caption>
           <thead>
@@ -110,16 +88,10 @@ export function MoneyActivityTable({
             {rows.map((row) => (
               <tr key={row.id}>
                 <td className="whitespace-nowrap">
-                  {row.date
-                    ? new Date(`${row.date}T12:00:00`).toLocaleDateString(
-                        'en-AU',
-                      )
-                    : '—'}
+                  {row.date ? new Date(`${row.date}T12:00:00`).toLocaleDateString('en-AU') : '—'}
                 </td>
                 <th scope="row" className="text-left font-normal">
-                  <span className="font-semibold">
-                    {row.title || 'Untitled record'}
-                  </span>
+                  <span className="font-semibold">{row.title || 'Untitled record'}</span>
                   <p className="text-xs text-ink/65">
                     {row.counterparty ||
                       (row.direction === 'in'
@@ -136,8 +108,7 @@ export function MoneyActivityTable({
                       params={{ projectId: row.projectId }}
                       className="underline"
                     >
-                      {projects.find((p) => p.id === row.projectId)?.title ??
-                        'Open project'}
+                      {projects.find((p) => p.id === row.projectId)?.title ?? 'Open project'}
                     </Link>
                   ) : (
                     <span className="text-ink/60">No project</span>
@@ -154,25 +125,19 @@ export function MoneyActivityTable({
                       : 'Unpaid'
                     : row.status === 'paid' && row.direction === 'in'
                       ? 'Received'
-                      : row.status.charAt(0).toUpperCase() +
-                        row.status.slice(1)}
+                      : row.status.charAt(0).toUpperCase() + row.status.slice(1)}
                 </td>
                 <td className="budget-actions">
+                  <CostPayment record={row} />
                   <AppButton
                     variant="ghost"
                     aria-expanded={receiptId === row.id}
-                    onClick={() =>
-                      setReceiptId(receiptId === row.id ? null : row.id)
-                    }
+                    onClick={() => setReceiptId(receiptId === row.id ? null : row.id)}
                   >
                     Receipts
                   </AppButton>
                   {row.editable && onEdit ? (
-                    <AppButton
-                      variant="ghost"
-                      disabled={busy}
-                      onClick={() => onEdit(row)}
-                    >
+                    <AppButton variant="ghost" disabled={busy} onClick={() => onEdit(row)}>
                       Edit
                     </AppButton>
                   ) : null}
@@ -190,20 +155,12 @@ export function MoneyActivityTable({
                         >
                           Confirm delete
                         </AppButton>
-                        <AppButton
-                          variant="ghost"
-                          disabled={busy}
-                          onClick={() => setDeleting(null)}
-                        >
+                        <AppButton variant="ghost" disabled={busy} onClick={() => setDeleting(null)}>
                           Cancel
                         </AppButton>
                       </>
                     ) : (
-                      <AppButton
-                        variant="ghost"
-                        disabled={busy}
-                        onClick={() => setDeleting(row.id)}
-                      >
+                      <AppButton variant="ghost" disabled={busy} onClick={() => setDeleting(row.id)}>
                         Delete
                       </AppButton>
                     )
@@ -213,15 +170,9 @@ export function MoneyActivityTable({
             ))}
           </tbody>
         </table>
-        {!rows.length ? (
-          <p className="p-4 text-sm text-ink/65">
-            No entries match these filters.
-          </p>
-        ) : null}
+        {!rows.length ? <p className="p-4 text-sm text-ink/65">No entries match these filters.</p> : null}
       </div>
-      {receipt ? (
-        <ReceiptPanel record={receipt} onClose={() => setReceiptId(null)} />
-      ) : null}
+      {receipt ? <ReceiptPanel record={receipt} onClose={() => setReceiptId(null)} /> : null}
     </div>
   )
 }

@@ -28,14 +28,13 @@ function BudgetsPage() {
   const rows = (projects.data ?? [])
     .filter(
       (project) =>
+        project.isOwner &&
         (!selected.length || selected.includes(project.id)) &&
         (scope === 'all' || project.status !== 'completed'),
     )
     .map((project) => ({
       project,
-      ...summarizeCosts(
-        (expenses.data ?? []).filter((cost) => cost.project_id === project.id),
-      ),
+      ...summarizeCosts((expenses.data ?? []).filter((cost) => cost.project_id === project.id)),
     }))
   const totals = rows.reduce(
     (sum, row) => ({
@@ -62,26 +61,19 @@ function BudgetsPage() {
       <MoneyViews active="budgets" />
       <AppCard className="min-w-0 space-y-4">
         <SectionHeading title="Money" />
-        <p className="text-sm text-ink/70">
-          Budgets and recent activity across your projects.
-        </p>
+        <p className="text-sm text-ink/70">Budgets and recent activity across your projects.</p>
         <div className="flex flex-wrap items-end justify-between gap-3">
           <h2 className="text-lg font-semibold">
-            Project budgets{' '}
-            <span className="text-xs font-normal text-ink/60">AUD</span>
+            Project budgets <span className="text-xs font-normal text-ink/60">AUD</span>
           </h2>
           <div className="flex flex-wrap items-center gap-2">
             <MoneyProjectFilter
-              projects={projects.data ?? []}
+              projects={(projects.data ?? []).filter((p) => p.isOwner)}
               selected={selected}
               onChange={setSelected}
             />
             <div className="w-56 max-w-full">
-              <AppSelect
-                aria-label="Project scope"
-                value={scope}
-                onChange={(e) => setScope(e.target.value)}
-              >
+              <AppSelect aria-label="Project scope" value={scope} onChange={(e) => setScope(e.target.value)}>
                 <option value="open">Active and upcoming</option>
                 <option value="all">Any status</option>
               </AppSelect>
@@ -91,9 +83,7 @@ function BudgetsPage() {
         {projects.isPending || expenses.isPending ? (
           <p role="status">Loading budgets…</p>
         ) : projects.isError || expenses.isError ? (
-          <p role="alert">
-            Budgets could not be loaded. Please refresh to try again.
-          </p>
+          <p role="alert">Budgets could not be loaded. Please refresh to try again.</p>
         ) : rows.length ? (
           <>
             <div
@@ -103,9 +93,7 @@ function BudgetsPage() {
               tabIndex={0}
             >
               <table className="ui-budget-table min-w-[760px]">
-                <caption className="sr-only">
-                  Project budgets in Australian dollars
-                </caption>
+                <caption className="sr-only">Project budgets in Australian dollars</caption>
                 <thead>
                   <tr>
                     <th scope="col">Project</th>
@@ -129,9 +117,7 @@ function BudgetsPage() {
                 <tbody>
                   {rows.map((row) => {
                     const balance =
-                      row.project.budgetCents == null
-                        ? null
-                        : row.project.budgetCents - row.forecast
+                      row.project.budgetCents == null ? null : row.project.budgetCents - row.forecast
                     return (
                       <tr key={row.project.id}>
                         <th scope="row" className="min-w-52 font-normal">
@@ -145,8 +131,7 @@ function BudgetsPage() {
                           <p className="mt-1 text-xs font-normal text-ink/65">
                             {[
                               row.project.category,
-                              row.project.status.charAt(0).toUpperCase() +
-                                row.project.status.slice(1),
+                              row.project.status.charAt(0).toUpperCase() + row.project.status.slice(1),
                             ]
                               .filter(Boolean)
                               .join(' · ')}
@@ -159,15 +144,9 @@ function BudgetsPage() {
                             formatCurrency(row.project.budgetCents)
                           )}
                         </td>
-                        <td className="budget-money">
-                          {formatCurrency(row.forecast)}
-                        </td>
-                        <td className="budget-money">
-                          {formatCurrency(row.paid)}
-                        </td>
-                        <td className="budget-money">
-                          {formatCurrency(row.remaining)}
-                        </td>
+                        <td className="budget-money">{formatCurrency(row.forecast)}</td>
+                        <td className="budget-money">{formatCurrency(row.paid)}</td>
+                        <td className="budget-money">{formatCurrency(row.remaining)}</td>
                         <td
                           className={`budget-money ${balance !== null && balance < 0 ? 'text-berry font-semibold' : ''}`}
                         >
@@ -176,11 +155,7 @@ function BudgetsPage() {
                           ) : (
                             <>
                               {formatCurrency(balance)}
-                              {balance < 0 ? (
-                                <span className="block text-xs">
-                                  Over budget
-                                </span>
-                              ) : null}
+                              {balance < 0 ? <span className="block text-xs">Over budget</span> : null}
                             </>
                           )}
                         </td>
@@ -193,28 +168,16 @@ function BudgetsPage() {
                     <th scope="row">Total</th>
                     <td className="budget-money">
                       {formatCurrency(totals.budget)}
-                      {unset ? (
-                        <span className="block text-xs font-normal">
-                          Set limits only
-                        </span>
-                      ) : null}
+                      {unset ? <span className="block text-xs font-normal">Set limits only</span> : null}
                     </td>
-                    <td className="budget-money">
-                      {formatCurrency(totals.forecast)}
-                    </td>
-                    <td className="budget-money">
-                      {formatCurrency(totals.paid)}
-                    </td>
-                    <td className="budget-money">
-                      {formatCurrency(totals.remaining)}
-                    </td>
+                    <td className="budget-money">{formatCurrency(totals.forecast)}</td>
+                    <td className="budget-money">{formatCurrency(totals.paid)}</td>
+                    <td className="budget-money">{formatCurrency(totals.remaining)}</td>
                     <td
                       className={`budget-money ${!unset && totals.forecast > totals.budget ? 'text-berry' : ''}`}
                     >
                       {unset ? (
-                        <span aria-label="Some projects have no budget limit">
-                          —
-                        </span>
+                        <span aria-label="Some projects have no budget limit">—</span>
                       ) : (
                         formatCurrency(totals.budget - totals.forecast)
                       )}
@@ -224,28 +187,19 @@ function BudgetsPage() {
               </table>
             </div>
             <p className="text-xs text-ink/65">
-              Budget left is the limit minus forecast costs. To pay is the
-              forecast for costs not marked paid.
+              Budget left is the limit minus forecast costs. To pay is the forecast for costs not marked paid.
             </p>
             <p className="text-xs text-ink/65">
-              {unset
-                ? `${unset} project${unset === 1 ? ' has' : 's have'} no budget limit. `
-                : ''}
+              {unset ? `${unset} project${unset === 1 ? ' has' : 's have'} no budget limit. ` : ''}
               All-time project costs.{' '}
-              {activity.some(
-                (r) =>
-                  r.target.kind === 'transaction' &&
-                  r.direction === 'out' &&
-                  r.projectId,
-              )
+              {activity.some((r) => r.target.kind === 'transaction' && r.direction === 'out' && r.projectId)
                 ? 'Older project payments are shown separately in Activity.'
                 : ''}
             </p>
           </>
         ) : projects.data?.length ? (
           <p className="text-sm">
-            No projects match these filters. Choose All projects and Any status
-            to see every budget.
+            No projects match these filters. Choose All projects and Any status to see every budget.
           </p>
         ) : (
           <p className="text-sm">
@@ -260,16 +214,9 @@ function BudgetsPage() {
       {currencies.length ? (
         <AppCard className="min-w-0 space-y-3">
           <SectionHeading title="Income" />
-          <div
-            className="ui-ledger-shell relative"
-            role="region"
-            aria-label="Income summary"
-            tabIndex={0}
-          >
+          <div className="ui-ledger-shell relative" role="region" aria-label="Income summary" tabIndex={0}>
             <table className="ui-budget-table min-w-[360px]">
-              <caption className="sr-only">
-                Income for the selected projects, by currency
-              </caption>
+              <caption className="sr-only">Income for the selected projects, by currency</caption>
               <thead>
                 <tr>
                   <th scope="col">Currency</th>
@@ -288,10 +235,7 @@ function BudgetsPage() {
                     <td className="budget-money">
                       {formatCurrency(
                         income
-                          .filter(
-                            (r) =>
-                              r.currency === currency && r.status === 'paid',
-                          )
+                          .filter((r) => r.currency === currency && r.status === 'paid')
                           .reduce((n, r) => n + r.amount, 0),
                         currency,
                       )}
@@ -299,10 +243,7 @@ function BudgetsPage() {
                     <td className="budget-money">
                       {formatCurrency(
                         income
-                          .filter(
-                            (r) =>
-                              r.currency === currency && r.status === 'pending',
-                          )
+                          .filter((r) => r.currency === currency && r.status === 'pending')
                           .reduce((n, r) => n + r.amount, 0),
                         currency,
                       )}
@@ -326,13 +267,11 @@ function BudgetsPage() {
         {entries.isPending || expenses.isPending || projects.isPending ? (
           <p role="status">Loading activity…</p>
         ) : entries.isError || expenses.isError || projects.isError ? (
-          <p role="alert">
-            Activity could not be loaded. Please refresh to try again.
-          </p>
+          <p role="alert">Activity could not be loaded. Please refresh to try again.</p>
         ) : (
           <MoneyActivityTable
             rows={activity.slice(0, 8)}
-            projects={projects.data ?? []}
+            projects={(projects.data ?? []).filter((p) => p.isOwner)}
           />
         )}
       </AppCard>

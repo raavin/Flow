@@ -1,11 +1,34 @@
+import { QueryFeedback, MutationFeedback } from '@/components/request-feedback'
+import { TaskList } from '@/components/task-list'
+import { SourceLinks } from '@/components/source-action'
+import { groupCoordinationObjects } from '@/lib/task-groups'
 import { TemplatePreview } from '@/components/template-preview'
 import { templateSchedule } from '@/lib/template-planning'
 import { useMemo, useRef, useState } from 'react'
 import { Link, createRoute, useNavigate } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import type { CoordinationDisplayKind, CoordinationMessage, CoordinationObject, CoordinationObjectIntent, CoordinationObjectKind, CoordinationObjectState, CoordinationTemplate, CoordinationTemplateBlock } from '@superapp/types'
+import type {
+  CoordinationDisplayKind,
+  CoordinationMessage,
+  CoordinationObject,
+  CoordinationObjectIntent,
+  CoordinationObjectKind,
+  CoordinationObjectState,
+  CoordinationTemplate,
+  CoordinationTemplateBlock,
+} from '@superapp/types'
 import { Pencil, Trash2 } from 'lucide-react'
-import { AppButton, AppCard, AppInput, AppPanel, AppPill, AppSelect, AppTextarea, FieldLabel, SectionHeading } from '@superapp/ui'
+import {
+  AppButton,
+  AppCard,
+  AppInput,
+  AppPanel,
+  AppPill,
+  AppSelect,
+  AppTextarea,
+  FieldLabel,
+  SectionHeading,
+} from '@superapp/ui'
 import { appRoute } from '@/components/layout'
 import { useAppStore } from '@/hooks/useAppStore'
 import {
@@ -29,8 +52,10 @@ import {
 import { createProject, fetchProjects } from '@/lib/projects'
 import { fetchPeopleDirectory, fetchPostSummary } from '@/lib/social'
 
-
-const displayOptions: Array<{ value: CoordinationDisplayKind | 'request'; label: string }> = [
+const displayOptions: Array<{
+  value: CoordinationDisplayKind | 'request'
+  label: string
+}> = [
   { value: 'task', label: 'Task' },
   { value: 'event', label: 'Event' },
   { value: 'reminder', label: 'Reminder' },
@@ -55,7 +80,7 @@ const intentOptions: Array<{ value: CoordinationObjectIntent; label: string }> =
   { value: 'support', label: 'Support' },
 ]
 
-function CoordinationPage() {
+export function TemplateEditorPage() {
   const { session } = useAppStore()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -87,7 +112,10 @@ function CoordinationPage() {
     queryFn: fetchCoordinationTemplates,
     enabled: Boolean(session?.user.id),
   })
-  const projectsQuery = useQuery({ queryKey: ['projects'], queryFn: fetchProjects })
+  const projectsQuery = useQuery({
+    queryKey: ['projects'],
+    queryFn: fetchProjects,
+  })
 
   const createMutation = useMutation({
     mutationFn: () =>
@@ -105,7 +133,10 @@ function CoordinationPage() {
         isAllDay: true,
         flexibility: displayKind === 'reminder' ? 'floating' : 'shiftable',
         linkedProjectId: linkedProjectId || null,
-        participantNames: participants.split(',').map((value) => value.trim()).filter(Boolean),
+        participantNames: participants
+          .split(',')
+          .map((value) => value.trim())
+          .filter(Boolean),
         metadata: {
           lane: displayKind,
           captureSource: 'coordination-page',
@@ -117,14 +148,19 @@ function CoordinationPage() {
       setParticipants('')
       setLinkedProjectId('')
       setEndDate('')
-      void queryClient.invalidateQueries({ queryKey: ['coordination-objects'] })
+      void queryClient.invalidateQueries({
+        queryKey: ['coordination-objects'],
+      })
     },
   })
 
   const stateMutation = useMutation({
-    mutationFn: ({ id, state }: { id: string; state: CoordinationObjectState }) => updateCoordinationObjectState(id, state),
+    mutationFn: ({ id, state }: { id: string; state: CoordinationObjectState }) =>
+      updateCoordinationObjectState(id, state),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['coordination-objects'] })
+      void queryClient.invalidateQueries({
+        queryKey: ['coordination-objects'],
+      })
     },
   })
 
@@ -134,8 +170,28 @@ function CoordinationPage() {
       let blocks: CoordinationTemplateBlock[] = []
 
       try {
-        blocks = advancedTemplate ? JSON.parse(templateJson) : templateSteps.map(step => ({ title: step.title.trim(), kind: 'plan', displayKind: 'task', intent: 'coordinate', offsetDays: step.offsetDays, durationDays: 1, lane: 'Preparation' }))
-        if (!Array.isArray(blocks) || !blocks.every(block => typeof block?.title === 'string' && typeof block?.kind === 'string' && typeof block?.displayKind === 'string' && typeof block?.intent === 'string')) throw new Error('Each step needs title, kind, displayKind and intent.')
+        blocks = advancedTemplate
+          ? JSON.parse(templateJson)
+          : templateSteps.map((step) => ({
+              title: step.title.trim(),
+              kind: 'plan',
+              displayKind: 'task',
+              intent: 'coordinate',
+              offsetDays: step.offsetDays,
+              durationDays: 1,
+              lane: 'Preparation',
+            }))
+        if (
+          !Array.isArray(blocks) ||
+          !blocks.every(
+            (block) =>
+              typeof block?.title === 'string' &&
+              typeof block?.kind === 'string' &&
+              typeof block?.displayKind === 'string' &&
+              typeof block?.intent === 'string',
+          )
+        )
+          throw new Error('Each step needs title, kind, displayKind and intent.')
         templateSchedule(blocks, templateAnchorDate)
       } catch (error) {
         setTemplateError(error instanceof Error ? error.message : 'Check the steps and dates.')
@@ -157,14 +213,18 @@ function CoordinationPage() {
       setTemplateJson('')
       setAdvancedTemplate(false)
       setTemplateError(null)
-      void queryClient.invalidateQueries({ queryKey: ['coordination-templates'] })
+      void queryClient.invalidateQueries({
+        queryKey: ['coordination-templates'],
+      })
     },
   })
 
   const starterTemplatesMutation = useMutation({
     mutationFn: () => seedStarterCoordinationTemplates(session!.user.id),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['coordination-templates'] })
+      void queryClient.invalidateQueries({
+        queryKey: ['coordination-templates'],
+      })
     },
   })
 
@@ -180,37 +240,64 @@ function CoordinationPage() {
       })
     },
     onSuccess: (parentId) => {
-      void queryClient.invalidateQueries({ queryKey: ['coordination-objects'] })
-      void navigate({ to: '/app/coordination/$coordinationId', params: { coordinationId: parentId } })
+      void queryClient.invalidateQueries({
+        queryKey: ['coordination-objects'],
+      })
+      void navigate({
+        to: '/app/coordination/$coordinationId',
+        params: { coordinationId: parentId },
+      })
     },
   })
 
   const updateTitleMutation = useMutation({
     mutationFn: ({ id, title }: { id: string; title: string }) => updateCoordinationObjectTitle(id, title),
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['coordination-objects'] }),
+    onSuccess: () =>
+      void queryClient.invalidateQueries({
+        queryKey: ['coordination-objects'],
+      }),
   })
 
   const deleteObjectMutation = useMutation({
     mutationFn: (id: string) => deleteCoordinationObject(id),
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['coordination-objects'] }),
+    onSuccess: () =>
+      void queryClient.invalidateQueries({
+        queryKey: ['coordination-objects'],
+      }),
   })
 
   const updateTemplateTitleMutation = useMutation({
     mutationFn: ({ id, title }: { id: string; title: string }) => updateCoordinationTemplate(id, title),
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['coordination-templates'] }),
+    onSuccess: () =>
+      void queryClient.invalidateQueries({
+        queryKey: ['coordination-templates'],
+      }),
   })
 
   const deleteTemplateMutation = useMutation({
     mutationFn: (id: string) => deleteCoordinationTemplate(id),
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['coordination-templates'] }),
+    onSuccess: () =>
+      void queryClient.invalidateQueries({
+        queryKey: ['coordination-templates'],
+      }),
   })
 
-  const buckets = useMemo(() => groupCoordinationObjects(coordinationQuery.data ?? []), [coordinationQuery.data])
+  const buckets = useMemo(
+    () => groupCoordinationObjects(coordinationQuery.data ?? []),
+    [coordinationQuery.data],
+  )
 
   return (
     <div className="space-y-4">
       <AppCard className="space-y-4">
-        <SectionHeading title="Plans" action={<Link to="/app/ai" className="text-sm underline">Find a template</Link>} />
+        <SectionHeading
+          title="Template editor"
+          action={
+            <Link to="/app/ai" className="text-sm underline">
+              Find a template
+            </Link>
+          }
+        />
         <p className="text-sm text-ink/70">
           Add a reminder or plan, or use a template for a sequence of steps.
         </p>
@@ -230,7 +317,14 @@ function CoordinationPage() {
         </div>
       </AppCard>
 
-      {(applyTemplateMutation.error || saveTemplateMutation.error || starterTemplatesMutation.error) ? <p role="alert" className="ui-panel">{(applyTemplateMutation.error || saveTemplateMutation.error || starterTemplatesMutation.error)?.message}</p> : null}
+      {applyTemplateMutation.error || saveTemplateMutation.error || starterTemplatesMutation.error ? (
+        <p role="alert" className="ui-panel">
+          {
+            (applyTemplateMutation.error || saveTemplateMutation.error || starterTemplatesMutation.error)
+              ?.message
+          }
+        </p>
+      ) : null}
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]">
         <div className="space-y-4">
           <AppCard className="space-y-4">
@@ -238,11 +332,20 @@ function CoordinationPage() {
             <div className="grid gap-3 md:grid-cols-2">
               <FieldLabel>
                 Title
-                <AppInput value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Doctor appointment, coffee catch-up, request leave..." className="mt-2" />
+                <AppInput
+                  value={title}
+                  onChange={(event) => setTitle(event.target.value)}
+                  placeholder="Doctor appointment, coffee catch-up, request leave..."
+                  className="mt-2"
+                />
               </FieldLabel>
               <FieldLabel>
                 Intent
-                <AppSelect value={intent} onChange={(event) => setIntent(event.target.value as CoordinationObjectIntent)} className="mt-2">
+                <AppSelect
+                  value={intent}
+                  onChange={(event) => setIntent(event.target.value as CoordinationObjectIntent)}
+                  className="mt-2"
+                >
                   {intentOptions.map((option) => (
                     <option key={option.value} value={option.value}>
                       {option.label}
@@ -252,7 +355,15 @@ function CoordinationPage() {
               </FieldLabel>
               <FieldLabel>
                 Type
-                <AppSelect value={kind === 'request' ? 'request' : displayKind} onChange={(event) => { const value = event.target.value as CoordinationDisplayKind | 'request'; setDisplayKind(value === 'request' ? 'task' : value); setKind(value === 'task' ? 'reminder' : value as CoordinationObjectKind) }} className="mt-2">
+                <AppSelect
+                  value={kind === 'request' ? 'request' : displayKind}
+                  onChange={(event) => {
+                    const value = event.target.value as CoordinationDisplayKind | 'request'
+                    setDisplayKind(value === 'request' ? 'task' : value)
+                    setKind(value === 'task' ? 'reminder' : (value as CoordinationObjectKind))
+                  }}
+                  className="mt-2"
+                >
                   {displayOptions.map((option) => (
                     <option key={option.value} value={option.value}>
                       {option.label}
@@ -262,25 +373,49 @@ function CoordinationPage() {
               </FieldLabel>
               <FieldLabel>
                 Starts
-                <AppInput type="date" value={date} onChange={(event) => setDate(event.target.value)} className="mt-2" />
+                <AppInput
+                  type="date"
+                  value={date}
+                  onChange={(event) => setDate(event.target.value)}
+                  className="mt-2"
+                />
               </FieldLabel>
               <FieldLabel>
                 Ends or due
-                <AppInput type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} className="mt-2" />
+                <AppInput
+                  type="date"
+                  value={endDate}
+                  onChange={(event) => setEndDate(event.target.value)}
+                  className="mt-2"
+                />
               </FieldLabel>
             </div>
             <FieldLabel>
               Notes
-              <AppTextarea value={summary} onChange={(event) => setSummary(event.target.value)} className="mt-2 min-h-24" placeholder="Add notes" />
+              <AppTextarea
+                value={summary}
+                onChange={(event) => setSummary(event.target.value)}
+                className="mt-2 min-h-24"
+                placeholder="Add notes"
+              />
             </FieldLabel>
             <div className="grid gap-3 md:grid-cols-2">
               <FieldLabel>
                 Participants
-                <AppInput value={participants} onChange={(event) => setParticipants(event.target.value)} className="mt-2" placeholder="Jimmy, work manager, Dr Smith" />
+                <AppInput
+                  value={participants}
+                  onChange={(event) => setParticipants(event.target.value)}
+                  className="mt-2"
+                  placeholder="Jimmy, work manager, Dr Smith"
+                />
               </FieldLabel>
               <FieldLabel>
                 Linked project
-                <AppSelect value={linkedProjectId} onChange={(event) => setLinkedProjectId(event.target.value)} className="mt-2">
+                <AppSelect
+                  value={linkedProjectId}
+                  onChange={(event) => setLinkedProjectId(event.target.value)}
+                  className="mt-2"
+                >
                   <option value="">None</option>
                   {(projectsQuery.data ?? []).map((project) => (
                     <option key={project.id} value={project.id}>
@@ -291,7 +426,10 @@ function CoordinationPage() {
               </FieldLabel>
             </div>
             <div className="flex flex-wrap gap-2">
-              <AppButton disabled={!session || createMutation.isPending || !title.trim()} onClick={() => createMutation.mutate()}>
+              <AppButton
+                disabled={!session || createMutation.isPending || !title.trim()}
+                onClick={() => createMutation.mutate()}
+              >
                 Create plan
               </AppButton>
               <Link to="/app/gantt">
@@ -340,13 +478,27 @@ function CoordinationPage() {
 
         <div className="space-y-4">
           <AppCard className="space-y-4">
-            <SectionHeading title="Templates" action={<AppButton variant="ghost" disabled={!session || starterTemplatesMutation.isPending} onClick={() => starterTemplatesMutation.mutate()}>Add starter plans</AppButton>} />
-            <p className="text-sm text-ink/70">
-              Choose a template and a date to schedule its steps.
-            </p>
+            <SectionHeading
+              title="Templates"
+              action={
+                <AppButton
+                  variant="ghost"
+                  disabled={!session || starterTemplatesMutation.isPending}
+                  onClick={() => starterTemplatesMutation.mutate()}
+                >
+                  Add starter plans
+                </AppButton>
+              }
+            />
+            <p className="text-sm text-ink/70">Choose a template and a date to schedule its steps.</p>
             <FieldLabel>
               Event date
-              <AppInput type="date" value={templateAnchorDate} onChange={(event) => setTemplateAnchorDate(event.target.value)} className="mt-2" />
+              <AppInput
+                type="date"
+                value={templateAnchorDate}
+                onChange={(event) => setTemplateAnchorDate(event.target.value)}
+                className="mt-2"
+              />
             </FieldLabel>
             <div className="space-y-3">
               {(templatesQuery.data ?? []).map((template) => (
@@ -356,7 +508,12 @@ function CoordinationPage() {
                   anchorDate={templateAnchorDate}
                   isApplying={applyTemplateMutation.isPending}
                   onApply={() => applyTemplateMutation.mutate(template.id)}
-                  onRename={(title) => updateTemplateTitleMutation.mutate({ id: template.id, title })}
+                  onRename={(title) =>
+                    updateTemplateTitleMutation.mutate({
+                      id: template.id,
+                      title,
+                    })
+                  }
                   onDelete={() => deleteTemplateMutation.mutate(template.id)}
                   isDeleting={deleteTemplateMutation.isPending}
                 />
@@ -364,7 +521,11 @@ function CoordinationPage() {
               {!templatesQuery.data?.length ? (
                 <AppPanel className="space-y-3">
                   <p className="text-sm text-ink/70">No templates yet. Add a starter or make your own.</p>
-                  <AppButton variant="secondary" disabled={!session || starterTemplatesMutation.isPending} onClick={() => starterTemplatesMutation.mutate()}>
+                  <AppButton
+                    variant="secondary"
+                    disabled={!session || starterTemplatesMutation.isPending}
+                    onClick={() => starterTemplatesMutation.mutate()}
+                  >
                     Add starter templates
                   </AppButton>
                 </AppPanel>
@@ -376,35 +537,142 @@ function CoordinationPage() {
             <SectionHeading title="New template" />
             <FieldLabel>
               Template title
-              <AppInput value={templateTitle} onChange={(event) => setTemplateTitle(event.target.value)} className="mt-2" placeholder="Annual birthday prep, concert night, medical admin..." />
+              <AppInput
+                value={templateTitle}
+                onChange={(event) => setTemplateTitle(event.target.value)}
+                className="mt-2"
+                placeholder="Annual birthday prep, concert night, medical admin..."
+              />
             </FieldLabel>
             <FieldLabel>
               Summary
-              <AppTextarea value={templateSummary} onChange={(event) => setTemplateSummary(event.target.value)} className="mt-2 min-h-20" placeholder="What is this template for?" />
+              <AppTextarea
+                value={templateSummary}
+                onChange={(event) => setTemplateSummary(event.target.value)}
+                className="mt-2 min-h-20"
+                placeholder="What is this template for?"
+              />
             </FieldLabel>
             <FieldLabel>
               Template type
-              <AppSelect value={templateDisplayKind} onChange={(event) => setTemplateDisplayKind(event.target.value as CoordinationDisplayKind)} className="mt-2">
-                {displayOptions.filter((option) => ['plan', 'workflow', 'project'].includes(option.value)).map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
+              <AppSelect
+                value={templateDisplayKind}
+                onChange={(event) => setTemplateDisplayKind(event.target.value as CoordinationDisplayKind)}
+                className="mt-2"
+              >
+                {displayOptions
+                  .filter((option) => ['plan', 'workflow', 'project'].includes(option.value))
+                  .map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
               </AppSelect>
             </FieldLabel>
-            <p className="text-sm text-ink/70">Add the steps around your main date. Use negative days for preparation, 0 for the day itself, and positive days for follow-up.</p>
-            {!advancedTemplate ? templateSteps.map((step, index) => <div key={index} className="grid grid-cols-[1fr_90px_auto] items-end gap-2">
-              <FieldLabel>Step {index + 1}<AppInput value={step.title} placeholder="Buy a present" onChange={e => setTemplateSteps(steps => steps.map((item, i) => i === index ? { ...item, title: e.target.value } : item))} /></FieldLabel>
-              <FieldLabel>Days +/-<AppInput type="number" step="1" min="-3650" max="3650" value={Number.isNaN(step.offsetDays) ? '' : step.offsetDays} onChange={e => setTemplateSteps(steps => steps.map((item, i) => i === index ? { ...item, offsetDays: e.target.value === '' ? NaN : Number(e.target.value) } : item))} /></FieldLabel>
-              <AppButton variant="ghost" disabled={templateSteps.length === 1} aria-label={`Remove step ${index + 1}`} onClick={() => setTemplateSteps(steps => steps.filter((_, i) => i !== index))}>×</AppButton>
-            </div>) : <FieldLabel>Advanced steps JSON<AppTextarea className="min-h-40 font-mono text-xs" value={templateJson} onChange={e => setTemplateJson(e.target.value)} /></FieldLabel>}
-            {!advancedTemplate ? <AppButton variant="secondary" onClick={() => setTemplateSteps(steps => [...steps, { title: '', offsetDays: 0 }])}>Add step</AppButton> : null}
-            <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={advancedTemplate} onChange={e => {
-              if (e.target.checked && !templateJson) setTemplateJson(JSON.stringify(templateSteps.map(step => ({ ...step, kind: 'plan', displayKind: 'task', intent: 'coordinate', durationDays: 1, lane: 'Preparation' })), null, 2))
-              setAdvancedTemplate(e.target.checked)
-            }} />Advanced template editor</label>
+            <p className="text-sm text-ink/70">
+              Add the steps around your main date. Use negative days for preparation, 0 for the day itself,
+              and positive days for follow-up.
+            </p>
+            {!advancedTemplate ? (
+              templateSteps.map((step, index) => (
+                <div key={index} className="grid grid-cols-[1fr_90px_auto] items-end gap-2">
+                  <FieldLabel>
+                    Step {index + 1}
+                    <AppInput
+                      value={step.title}
+                      placeholder="Buy a present"
+                      onChange={(e) =>
+                        setTemplateSteps((steps) =>
+                          steps.map((item, i) => (i === index ? { ...item, title: e.target.value } : item)),
+                        )
+                      }
+                    />
+                  </FieldLabel>
+                  <FieldLabel>
+                    Days +/-
+                    <AppInput
+                      type="number"
+                      step="1"
+                      min="-3650"
+                      max="3650"
+                      value={Number.isNaN(step.offsetDays) ? '' : step.offsetDays}
+                      onChange={(e) =>
+                        setTemplateSteps((steps) =>
+                          steps.map((item, i) =>
+                            i === index
+                              ? {
+                                  ...item,
+                                  offsetDays: e.target.value === '' ? NaN : Number(e.target.value),
+                                }
+                              : item,
+                          ),
+                        )
+                      }
+                    />
+                  </FieldLabel>
+                  <AppButton
+                    variant="ghost"
+                    disabled={templateSteps.length === 1}
+                    aria-label={`Remove step ${index + 1}`}
+                    onClick={() => setTemplateSteps((steps) => steps.filter((_, i) => i !== index))}
+                  >
+                    ×
+                  </AppButton>
+                </div>
+              ))
+            ) : (
+              <FieldLabel>
+                Advanced steps JSON
+                <AppTextarea
+                  className="min-h-40 font-mono text-xs"
+                  value={templateJson}
+                  onChange={(e) => setTemplateJson(e.target.value)}
+                />
+              </FieldLabel>
+            )}
+            {!advancedTemplate ? (
+              <AppButton
+                variant="secondary"
+                onClick={() => setTemplateSteps((steps) => [...steps, { title: '', offsetDays: 0 }])}
+              >
+                Add step
+              </AppButton>
+            ) : null}
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={advancedTemplate}
+                onChange={(e) => {
+                  if (e.target.checked && !templateJson)
+                    setTemplateJson(
+                      JSON.stringify(
+                        templateSteps.map((step) => ({
+                          ...step,
+                          kind: 'plan',
+                          displayKind: 'task',
+                          intent: 'coordinate',
+                          durationDays: 1,
+                          lane: 'Preparation',
+                        })),
+                        null,
+                        2,
+                      ),
+                    )
+                  setAdvancedTemplate(e.target.checked)
+                }}
+              />
+              Advanced template editor
+            </label>
             {templateError ? <AppPanel tone="peach">{templateError}</AppPanel> : null}
-            <AppButton disabled={!session || saveTemplateMutation.isPending || !templateTitle.trim() || (advancedTemplate ? !templateJson.trim() : templateSteps.some(step => !step.title.trim()))} onClick={() => saveTemplateMutation.mutate()}>
+            <AppButton
+              disabled={
+                !session ||
+                saveTemplateMutation.isPending ||
+                !templateTitle.trim() ||
+                (advancedTemplate ? !templateJson.trim() : templateSteps.some((step) => !step.title.trim()))
+              }
+              onClick={() => saveTemplateMutation.mutate()}
+            >
               Save template
             </AppButton>
           </AppCard>
@@ -473,7 +741,10 @@ function BoardSection({
                     value={editValue}
                     onChange={(e) => setEditValue(e.target.value)}
                     onBlur={() => commitEdit(item.id)}
-                    onKeyDown={(e) => { if (e.key === 'Enter') commitEdit(item.id); if (e.key === 'Escape') cancelEdit() }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') commitEdit(item.id)
+                      if (e.key === 'Escape') cancelEdit()
+                    }}
                     className="mt-3 w-full bg-transparent text-lg font-extrabold text-ink outline-none border-b-2 border-ink/40 focus:border-ink"
                   />
                 ) : (
@@ -510,8 +781,18 @@ function BoardSection({
                 {deleteConfirmId === item.id ? (
                   <>
                     <span className="flex items-center text-xs font-bold text-berry">Delete?</span>
-                    <AppButton variant="secondary" onClick={() => { onDelete(item.id); setDeleteConfirmId(null) }}>Yes</AppButton>
-                    <AppButton variant="ghost" onClick={() => setDeleteConfirmId(null)}>No</AppButton>
+                    <AppButton
+                      variant="secondary"
+                      onClick={() => {
+                        onDelete(item.id)
+                        setDeleteConfirmId(null)
+                      }}
+                    >
+                      Yes
+                    </AppButton>
+                    <AppButton variant="ghost" onClick={() => setDeleteConfirmId(null)}>
+                      No
+                    </AppButton>
                   </>
                 ) : (
                   <button
@@ -527,16 +808,24 @@ function BoardSection({
             </div>
             <div className="flex flex-wrap gap-2 text-xs text-ink/60">
               <span>{formatTimeWindow(item)}</span>
-              {getParticipantNames(item).length ? <span>Participants: {getParticipantNames(item).join(', ')}</span> : null}
+              {getParticipantNames(item).length ? (
+                <span>Participants: {getParticipantNames(item).join(', ')}</span>
+              ) : null}
               {item.linkedProjectId ? (
-                <Link to="/app/projects/$projectId" params={{ projectId: item.linkedProjectId }} className="font-bold text-teal hover:underline">
+                <Link
+                  to="/app/projects/$projectId"
+                  params={{ projectId: item.linkedProjectId }}
+                  className="font-bold text-teal hover:underline"
+                >
                   Linked project
                 </Link>
               ) : null}
             </div>
           </AppPanel>
         ))}
-        {!items.length ? <AppPanel className="text-sm text-ink/60">Nothing in this lane yet.</AppPanel> : null}
+        {!items.length ? (
+          <AppPanel className="text-sm text-ink/60">Nothing in this lane yet.</AppPanel>
+        ) : null}
       </div>
     </AppCard>
   )
@@ -585,7 +874,10 @@ function TemplatePanel({
               value={editValue}
               onChange={(e) => setEditValue(e.target.value)}
               onBlur={commitEdit}
-              onKeyDown={(e) => { if (e.key === 'Enter') commitEdit(); if (e.key === 'Escape') setEditing(false) }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') commitEdit()
+                if (e.key === 'Escape') setEditing(false)
+              }}
               className="w-full bg-transparent font-extrabold text-ink outline-none border-b-2 border-ink/40 focus:border-ink"
             />
           ) : (
@@ -602,7 +894,14 @@ function TemplatePanel({
         </div>
         <AppPill tone="teal">{template.blocks.length} blocks</AppPill>
       </div>
-      <details><summary className="cursor-pointer text-sm font-semibold">Preview all {template.blocks.length} steps and dates</summary><div className="mt-3"><TemplatePreview blocks={template.blocks} anchorDate={anchorDate} /></div></details>
+      <details>
+        <summary className="cursor-pointer text-sm font-semibold">
+          Preview all {template.blocks.length} steps and dates
+        </summary>
+        <div className="mt-3">
+          <TemplatePreview blocks={template.blocks} anchorDate={anchorDate} />
+        </div>
+      </details>
       <div className="flex flex-wrap items-center gap-2">
         <AppButton variant="secondary" disabled={isApplying || !anchorDate} onClick={onApply}>
           Add plan to calendar & timeline
@@ -610,8 +909,19 @@ function TemplatePanel({
         {deleteConfirm ? (
           <>
             <span className="text-xs font-bold text-berry">Delete template?</span>
-            <AppButton variant="secondary" disabled={isDeleting} onClick={() => { onDelete(); setDeleteConfirm(false) }}>Yes, delete</AppButton>
-            <AppButton variant="ghost" onClick={() => setDeleteConfirm(false)}>Cancel</AppButton>
+            <AppButton
+              variant="secondary"
+              disabled={isDeleting}
+              onClick={() => {
+                onDelete()
+                setDeleteConfirm(false)
+              }}
+            >
+              Yes, delete
+            </AppButton>
+            <AppButton variant="ghost" onClick={() => setDeleteConfirm(false)}>
+              Cancel
+            </AppButton>
           </>
         ) : (
           <button
@@ -677,14 +987,16 @@ function CoordinationDetailPage() {
       }),
     onSuccess: () => {
       setBody('')
-      void queryClient.invalidateQueries({ queryKey: ['coordination-messages', coordinationId] })
+      void queryClient.invalidateQueries({
+        queryKey: ['coordination-messages', coordinationId],
+      })
     },
   })
   const createProjectMutation = useMutation({
     mutationFn: async () => {
       const project = await createProject({
         ownerId: session!.user.id,
-        title: projectTitle.trim() || flowQuery.data?.title || 'Project from flow',
+        title: projectTitle.trim() || flowQuery.data?.title || 'New project',
         category: projectCategory.trim() || 'Coordination',
         targetDate: normalizeDay(flowQuery.data?.time.startsAt) || todayDate(),
       })
@@ -692,8 +1004,12 @@ function CoordinationDetailPage() {
       return project
     },
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['coordination-object', coordinationId] })
-      void queryClient.invalidateQueries({ queryKey: ['coordination-objects'] })
+      void queryClient.invalidateQueries({
+        queryKey: ['coordination-object', coordinationId],
+      })
+      void queryClient.invalidateQueries({
+        queryKey: ['coordination-objects'],
+      })
       void queryClient.invalidateQueries({ queryKey: ['projects'] })
     },
   })
@@ -706,34 +1022,41 @@ function CoordinationDetailPage() {
       }),
     onSuccess: () => {
       setParticipantQuery('@')
-      void queryClient.invalidateQueries({ queryKey: ['coordination-object', coordinationId] })
+      void queryClient.invalidateQueries({
+        queryKey: ['coordination-object', coordinationId],
+      })
     },
   })
 
   const filteredPeople = (peopleQuery.data ?? []).filter((person) => {
     const query = participantQuery.replace(/^@/, '').trim().toLowerCase()
     if (!query) return true
-    return person.handle.toLowerCase().includes(query) || (person.display_name || '').toLowerCase().includes(query)
+    return (
+      person.handle.toLowerCase().includes(query) || (person.display_name || '').toLowerCase().includes(query)
+    )
   })
 
   return (
     <div className="mx-auto max-w-4xl space-y-4">
       <AppCard className="space-y-4">
         <div className="flex items-center justify-between gap-3">
-          <SectionHeading eyebrow="Plan" title={flowQuery.data?.title ?? 'Plan details'} />
+          <SectionHeading title={flowQuery.data?.title ?? 'Task details'} />
           <div className="flex flex-wrap gap-2">
             {flowQuery.data?.linkedProjectId ? (
               <>
                 <Link to="/app/projects/$projectId" params={{ projectId: flowQuery.data.linkedProjectId }}>
                   <AppButton variant="secondary">Open project</AppButton>
                 </Link>
-                <Link to="/app/messages/project/$projectId" params={{ projectId: flowQuery.data.linkedProjectId }}>
+                <Link
+                  to="/app/projects/$projectId/conversation"
+                  params={{ projectId: flowQuery.data.linkedProjectId }}
+                >
                   <AppButton variant="ghost">Project conversation</AppButton>
                 </Link>
               </>
             ) : null}
             <Link to="/app/coordination">
-              <AppButton variant="ghost">Back to plans</AppButton>
+              <AppButton variant="ghost">My tasks</AppButton>
             </Link>
           </div>
         </div>
@@ -742,88 +1065,116 @@ function CoordinationDetailPage() {
           {flowQuery.data ? (
             <>
               <AppPill tone="butter">{flowQuery.data.displayKind}</AppPill>
-              <AppPill tone="teal">{flowQuery.data.intent}</AppPill>
+              <span className="self-center text-sm">{formatTimeWindow(flowQuery.data)}</span>
               <AppPill>{flowQuery.data.state}</AppPill>
             </>
           ) : null}
         </div>
       </AppCard>
 
-      {!flowQuery.data?.linkedProjectId ? (
+      <QueryFeedback query={flowQuery} />
+      <MutationFeedback mutation={createProjectMutation} />
+      <MutationFeedback mutation={addParticipantMutation} />
+      {flowQuery.data?.kind === 'workflow' && (
+        <TaskList projectId={flowQuery.data.linkedProjectId ?? undefined} parentId={coordinationId} />
+      )}
+      {flowQuery.data &&
+      flowQuery.data.kind !== 'workflow' &&
+      flowQuery.data.ownerId === session?.user.id &&
+      !flowQuery.data.linkedProjectId ? (
         <AppCard className="space-y-4">
-          <SectionHeading eyebrow="Project" title="Create project" />
-          <div className="grid gap-3 md:grid-cols-2">
-            <FieldLabel>
-              Project title
-              <AppInput
-                value={projectTitle}
-                onChange={(event) => setProjectTitle(event.target.value)}
-                className="mt-2"
-                placeholder={flowQuery.data?.title || 'Project title'}
-              />
-            </FieldLabel>
-            <FieldLabel>
-              Category
-              <AppInput
-                value={projectCategory}
-                onChange={(event) => setProjectCategory(event.target.value)}
-                className="mt-2"
-                placeholder="Move, health, event, work..."
-              />
-            </FieldLabel>
-          </div>
-          <AppButton disabled={!session || createProjectMutation.isPending} onClick={() => createProjectMutation.mutate()}>
-            {createProjectMutation.isPending ? 'Creating project…' : 'Create project from flow'}
-          </AppButton>
+          <details>
+            <summary className="cursor-pointer min-h-11 py-3 font-semibold">Create project</summary>
+            <div className="grid gap-3 md:grid-cols-2">
+              <FieldLabel>
+                Project title
+                <AppInput
+                  value={projectTitle}
+                  onChange={(event) => setProjectTitle(event.target.value)}
+                  className="mt-2"
+                  placeholder={flowQuery.data?.title || 'Project title'}
+                />
+              </FieldLabel>
+              <FieldLabel>
+                Category
+                <AppInput
+                  value={projectCategory}
+                  onChange={(event) => setProjectCategory(event.target.value)}
+                  className="mt-2"
+                  placeholder="Move, health, event, work..."
+                />
+              </FieldLabel>
+            </div>
+            <AppButton
+              disabled={!session || createProjectMutation.isPending}
+              onClick={() => createProjectMutation.mutate()}
+            >
+              {createProjectMutation.isPending ? 'Creating project…' : 'Create project'}
+            </AppButton>
+          </details>
         </AppCard>
       ) : null}
 
-      <AppCard className="space-y-4">
-        <SectionHeading eyebrow="Participants" title="Add people" />
-        <div className="space-y-3">
-          <AppInput
-            value={participantQuery}
-            onChange={(event) => setParticipantQuery(event.target.value.startsWith('@') ? event.target.value : `@${event.target.value}`)}
-            placeholder="@name"
-          />
-          <div className="grid gap-2">
-            {filteredPeople.slice(0, 5).map((person) => (
-              <button
-                key={person.id}
-                type="button"
-                className="ui-panel flex items-center justify-between gap-3 text-left transition hover:-translate-y-0.5"
-                onClick={() =>
-                  addParticipantMutation.mutate({
-                    profileId: person.id,
-                    participantName: person.display_name || person.handle,
-                  })
+      {flowQuery.data?.ownerId === session?.user.id && (
+        <AppCard className="space-y-4">
+          <details>
+            <summary className="cursor-pointer min-h-11 py-3 font-semibold">People</summary>
+            <div className="space-y-3">
+              <AppInput
+                value={participantQuery}
+                onChange={(event) =>
+                  setParticipantQuery(
+                    event.target.value.startsWith('@') ? event.target.value : `@${event.target.value}`,
+                  )
                 }
-              >
-                <div className="min-w-0">
-                  <p className="truncate font-bold text-ink">{person.display_name || person.handle}</p>
-                  <p className="truncate text-sm text-ink/55">@{person.handle}</p>
+                placeholder="@name"
+              />
+              <div className="grid gap-2">
+                {filteredPeople.slice(0, 5).map((person) => (
+                  <button
+                    key={person.id}
+                    type="button"
+                    className="ui-panel flex items-center justify-between gap-3 text-left transition hover:-translate-y-0.5"
+                    onClick={() =>
+                      addParticipantMutation.mutate({
+                        profileId: person.id,
+                        participantName: person.display_name || person.handle,
+                      })
+                    }
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate font-bold text-ink">{person.display_name || person.handle}</p>
+                      <p className="truncate text-sm text-ink/55">@{person.handle}</p>
+                    </div>
+                    <AppPill tone="butter">Add</AppPill>
+                  </button>
+                ))}
+                {!filteredPeople.length ? (
+                  <AppPanel className="text-sm text-ink/60">No matching people yet.</AppPanel>
+                ) : null}
+              </div>
+              {getParticipantNames(flowQuery.data ?? null).length ? (
+                <div className="flex flex-wrap gap-2">
+                  {getParticipantNames(flowQuery.data ?? null).map((name) => (
+                    <AppPill key={name} tone="teal">
+                      {name}
+                    </AppPill>
+                  ))}
                 </div>
-                <AppPill tone="butter">Add</AppPill>
-              </button>
-            ))}
-            {!filteredPeople.length ? <AppPanel className="text-sm text-ink/60">No matching people yet.</AppPanel> : null}
-          </div>
-          {getParticipantNames(flowQuery.data ?? null).length ? (
-            <div className="flex flex-wrap gap-2">
-              {getParticipantNames(flowQuery.data ?? null).map((name) => (
-                <AppPill key={name} tone="teal">{name}</AppPill>
-              ))}
+              ) : null}
             </div>
-          ) : null}
-        </div>
-      </AppCard>
+          </details>
+        </AppCard>
+      )}
 
       {sourcePostQuery.data ? (
         <AppCard className="space-y-3">
           <SectionHeading eyebrow="Source message" title="Original message" />
           <div className="ui-panel ui-panel--surface space-y-2">
             <div className="text-sm text-ink/55">
-              <span className="font-extrabold text-ink">{sourcePostQuery.data.author?.displayName || 'User'}</span>
+              <span className="font-extrabold text-ink">
+                {sourcePostQuery.data.author?.displayName || 'User'}
+              </span>
               <span className="ml-2">@{sourcePostQuery.data.author?.handle || 'user'}</span>
               <span className="ml-2">· {sourcePostQuery.data.createdAt.slice(0, 10)}</span>
             </div>
@@ -837,21 +1188,32 @@ function CoordinationDetailPage() {
         </AppCard>
       ) : null}
 
+      <SourceLinks objectId={coordinationId} />
       <AppCard className="space-y-4">
-        <SectionHeading eyebrow="Conversation" title="Discussion" />
-        <p className="text-sm text-ink/70">
-          Discuss this plan with its participants.
-        </p>
+        <SectionHeading title="Comments" />
+        <QueryFeedback query={messagesQuery} />
+        <MutationFeedback mutation={messageMutation} />
+        <p className="text-sm text-ink/70">Messages are visible to people with access to this task.</p>
         <div className="space-y-3">
           {(messagesQuery.data ?? []).map((message) => (
             <FlowMessageCard key={message.id} message={message} />
           ))}
-          {!messagesQuery.data?.length ? <AppPanel className="text-sm text-ink/60">No messages yet.</AppPanel> : null}
+          {!messagesQuery.data?.length ? (
+            <AppPanel className="text-sm text-ink/60">No messages yet.</AppPanel>
+          ) : null}
         </div>
         <div className="space-y-3">
-          <AppTextarea value={body} onChange={(event) => setBody(event.target.value)} className="min-h-24" placeholder="Write a message…" />
+          <AppTextarea
+            value={body}
+            onChange={(event) => setBody(event.target.value)}
+            className="min-h-24"
+            placeholder="Write a message…"
+          />
           <div className="flex justify-end">
-            <AppButton disabled={!session || messageMutation.isPending || !body.trim()} onClick={() => messageMutation.mutate()}>
+            <AppButton
+              disabled={!session || messageMutation.isPending || !body.trim()}
+              onClick={() => messageMutation.mutate()}
+            >
               {messageMutation.isPending ? 'Sending…' : 'Send message'}
             </AppButton>
           </div>
@@ -865,7 +1227,9 @@ function FlowMessageCard({ message }: { message: CoordinationMessage }) {
   return (
     <div className="ui-feed-row rounded-[28px] border border-white/70 bg-white/90 shadow-[var(--shadow-card)]">
       <div className="flex gap-3">
-        <div className="ui-avatar-badge">{(message.author?.displayName || message.author?.handle || 'U').slice(0, 1).toUpperCase()}</div>
+        <div className="ui-avatar-badge">
+          {(message.author?.displayName || message.author?.handle || 'U').slice(0, 1).toUpperCase()}
+        </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 text-sm text-ink/55">
             <span className="font-extrabold text-ink">{message.author?.displayName || 'User'}</span>
@@ -878,23 +1242,6 @@ function FlowMessageCard({ message }: { message: CoordinationMessage }) {
       </div>
     </div>
   )
-}
-
-function groupCoordinationObjects(items: CoordinationObject[]) {
-  const today = new Date().toISOString().slice(0, 10)
-
-  return {
-    now: items.filter((item) => item.state === 'active' || normalizeDay(item.time.startsAt || item.time.dueAt) === today),
-    next: items.filter((item) => !['active', 'completed', 'archived'].includes(item.state) && isFutureish(item)),
-    backlog: items.filter((item) => ['draft', 'pending'].includes(item.state) || (!item.time.startsAt && !item.time.dueAt)),
-    done: items.filter((item) => item.state === 'completed'),
-  }
-}
-
-function isFutureish(item: CoordinationObject) {
-  const day = normalizeDay(item.time.startsAt || item.time.dueAt)
-  if (!day) return false
-  return day > new Date().toISOString().slice(0, 10)
 }
 
 function normalizeDay(value?: string | null) {
@@ -915,7 +1262,9 @@ function formatTimeWindow(item: CoordinationObject) {
 function getParticipantNames(item: CoordinationObject | null) {
   if (!item) return []
   const participants = item.participants ?? []
-  return participants.filter((participant) => participant.role !== 'owner').map((participant) => participant.participantName)
+  return participants
+    .filter((participant) => participant.role !== 'owner')
+    .map((participant) => participant.participantName)
 }
 
 function todayDate() {
@@ -937,7 +1286,7 @@ function toDueIso(day: string) {
 export const coordinationRoute = createRoute({
   getParentRoute: () => appRoute,
   path: 'coordination',
-  component: CoordinationPage,
+  component: () => <TaskList />,
 })
 
 export const coordinationDetailRoute = createRoute({

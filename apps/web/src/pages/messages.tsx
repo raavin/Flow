@@ -1,4 +1,20 @@
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode, type RefObject } from 'react'
+import { ProjectShell } from '@/components/project-shell'
+import { PostText, PostMedia } from '@/components/post-content'
+import { PostSafety } from '@/components/post-safety'
+import { SourceAction, SourceLinks } from '@/components/source-action'
+import { AppDialog } from '@/components/app-dialog'
+import { sanitizeHtml } from '@/lib/post-content'
+import { QueryFeedback, MutationFeedback } from '@/components/request-feedback'
+import { supabase } from '@/lib/supabase'
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type ReactNode,
+  type RefObject,
+} from 'react'
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import { TaskList } from '@tiptap/extension-task-list'
@@ -6,12 +22,35 @@ import { TaskItem } from '@tiptap/extension-task-item'
 import { Link as TiptapLink } from '@tiptap/extension-link'
 import Placeholder from '@tiptap/extension-placeholder'
 import { Link, createRoute, useNavigate } from '@tanstack/react-router'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Bookmark, Globe, Heart, ImagePlus, MessageCircle, Paperclip, Pencil, Repeat2, Search, Send, Share2, Sparkles, Star, Trash2, Waves, X } from 'lucide-react'
-import { AppButton, AppCard, AppInput, AppPanel, AppPill, AppSelect, AppTextarea, SectionHeading } from '@superapp/ui'
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  Bookmark,
+  Globe,
+  Heart,
+  ImagePlus,
+  MessageCircle,
+  Paperclip,
+  Pencil,
+  Repeat2,
+  Search,
+  Send,
+  Share2,
+  Star,
+  Trash2,
+  Waves,
+  X,
+} from 'lucide-react'
+import { AppButton, AppCard, AppInput, AppPanel, AppSelect, AppTextarea, SectionHeading } from '@superapp/ui'
 import { appRoute } from '@/components/layout'
 import { useAppStore } from '@/hooks/useAppStore'
-import { getSignedDmImageUrls, getSignedPostImageUrls, uploadDmImages, uploadPostImages, uploadPostVideoFiles, uploadPostAudioFiles } from '@/lib/message-media'
+import {
+  getSignedDmImageUrls,
+  getSignedPostImageUrls,
+  uploadDmImages,
+  uploadPostImages,
+  uploadPostVideoFiles,
+  uploadPostAudioFiles,
+} from '@/lib/message-media'
 import { createDmThread, fetchDmMessages, fetchDmThreads, sendDmMessage } from '@/lib/dm'
 import {
   createPost,
@@ -20,9 +59,7 @@ import {
   fetchPeopleDirectory,
   fetchPost,
   fetchSocialProfile,
-  fetchTopicFeed,
   fetchTopics,
-  linkPostToProject,
   toggleFollow,
   flagPostLabel,
   togglePostEngagement,
@@ -33,25 +70,29 @@ import {
   promotePost,
   demotePost,
 } from '@/lib/social'
-import { createProject, fetchProjects } from '@/lib/projects'
+import { fetchProjects } from '@/lib/projects'
 import { searchSupportEntries } from '@/lib/support'
 
-
-function sanitizeHtml(html: string): string {
-  return html
-    .replace(/<script[\s\S]*?<\/script>/gi, '')
-    .replace(/<(on\w+)="[^"]*"/gi, '')
-    .replace(/javascript:/gi, '')
-}
-
-function MediaPill({ icon, label, color, onRemove }: { icon: string; label: string; color: 'blue' | 'orange' | 'green'; onRemove: () => void }) {
+function MediaPill({
+  icon,
+  label,
+  color,
+  onRemove,
+}: {
+  icon: string
+  label: string
+  color: 'blue' | 'orange' | 'green'
+  onRemove: () => void
+}) {
   const colors = {
     blue: 'bg-blue-50 border-blue-200 text-blue-600',
     orange: 'bg-orange-50 border-orange-200 text-orange-600',
     green: 'bg-green-50 border-green-200 text-green-600',
   }
   return (
-    <span className={`flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium ${colors[color]}`}>
+    <span
+      className={`flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium ${colors[color]}`}
+    >
       <span>{icon}</span>
       <span className="max-w-[120px] truncate">{label}</span>
       <button type="button" onClick={onRemove} className="ml-0.5 opacity-50 hover:opacity-100">
@@ -85,18 +126,31 @@ export function MessagesFeedPage({ linkedProjectId }: { linkedProjectId?: string
   const [mode, setMode] = useState<FeedMode>('following')
   const [hideReviews, setHideReviews] = useState(false)
   const [body, setBody] = useState('')
-  const [projectId, setProjectId] = useState('')
-  const [contentKind, setContentKind] = useState<'note' | 'update' | 'product' | 'opinion' | 'claim' | 'review'>('note')
+  const [projectId, setProjectId] = useState(linkedProjectId ?? '')
+  const [contentKind, setContentKind] = useState<
+    'note' | 'update' | 'product' | 'opinion' | 'claim' | 'review'
+  >('note')
   const [claimLinksText, setClaimLinksText] = useState('')
   const [selectedImages, setSelectedImages] = useState<File[]>([])
-  const [quoteTarget, setQuoteTarget] = useState<{ id: string; body: string; author: string } | null>(null)
+  const [quoteTarget, setQuoteTarget] = useState<{
+    id: string
+    body: string
+    author: string
+  } | null>(null)
   const [composerOpen, setComposerOpen] = useState(false)
   const [editingPost, setEditingPost] = useState<{
     id: string
     mediaPaths?: string[]
   } | null>(null)
-  const [flowDraft, setFlowDraft] = useState<{ postId: string; body: string; projectId?: string | null } | null>(null)
-  const [dmDraft, setDmDraft] = useState<{ profileId: string; displayName: string } | null>(null)
+  const [flowDraft, setFlowDraft] = useState<{
+    postId: string
+    body: string
+    projectId?: string | null
+  } | null>(null)
+  const [dmDraft, setDmDraft] = useState<{
+    profileId: string
+    displayName: string
+  } | null>(null)
   const [labelReviewDraft, setLabelReviewDraft] = useState<{
     postId: string
     currentKind: 'update' | 'product' | 'opinion' | 'claim'
@@ -104,19 +158,15 @@ export function MessagesFeedPage({ linkedProjectId }: { linkedProjectId?: string
     isOwnPost?: boolean
     peerReasons?: string[]
   } | null>(null)
-  const [flowTitle, setFlowTitle] = useState('')
-  const [flowDate, setFlowDate] = useState('')
-  const [flowError, setFlowError] = useState<string | null>(null)
   const [composerError, setComposerError] = useState<string | null>(null)
   const [labelReason, setLabelReason] = useState('')
   const [rightSearch, setRightSearch] = useState('')
-  const [replyBody, setReplyBody] = useState('')
-  const [dmBody, setDmBody] = useState('')
   const [autocomplete, setAutocomplete] = useState<AutocompleteState | null>(null)
   const [activeSuggestionIndex, setActiveSuggestionIndex] = useState(0)
-  const [postVisibility, setPostVisibility] = useState<'private' | 'public' | 'followers' | 'project'>('followers')
+  const [postVisibility, setPostVisibility] = useState<'private' | 'public' | 'followers' | 'project'>(
+    linkedProjectId ? 'project' : 'public',
+  )
 
-  const [publicWarningPending, setPublicWarningPending] = useState<'public' | 'followers' | 'project' | null>(null)
   const [notesOnly, setNotesOnly] = useState(false)
   const [projectSearch, setProjectSearch] = useState('')
   const [projectDropdownOpen, setProjectDropdownOpen] = useState(false)
@@ -124,13 +174,18 @@ export function MessagesFeedPage({ linkedProjectId }: { linkedProjectId?: string
   const [selectedAudioFiles, setSelectedAudioFiles] = useState<File[]>([])
   const [videoLinkInput, setVideoLinkInput] = useState('')
   const [audioLinkInput, setAudioLinkInput] = useState('')
-  const [showVideoLinkInput, setShowVideoLinkInput] = useState(false)
-  const [showAudioLinkInput, setShowAudioLinkInput] = useState(false)
+  const [, setShowVideoLinkInput] = useState(false)
+  const [, setShowAudioLinkInput] = useState(false)
   const [editingMediaPaths, setEditingMediaPaths] = useState<string[]>([])
-  const replyComposerRef = useRef<HTMLTextAreaElement>(null)
-  const dmComposerRef = useRef<HTMLTextAreaElement>(null)
-  const projectsQuery = useQuery({ queryKey: ['projects'], queryFn: fetchProjects })
-  const dmThreadsQuery = useQuery({ queryKey: ['dm-threads'], queryFn: fetchDmThreads, enabled: Boolean(session?.user.id) })
+  const projectsQuery = useQuery({
+    queryKey: ['projects'],
+    queryFn: fetchProjects,
+  })
+  const dmThreadsQuery = useQuery({
+    queryKey: ['dm-threads'],
+    queryFn: fetchDmThreads,
+    enabled: Boolean(session?.user.id),
+  })
   const topicsQuery = useQuery({
     queryKey: ['topics', session?.user.id],
     queryFn: () => fetchTopics(session?.user.id),
@@ -141,14 +196,16 @@ export function MessagesFeedPage({ linkedProjectId }: { linkedProjectId?: string
     queryFn: () => fetchPeopleDirectory(session!.user.id),
     enabled: Boolean(session?.user.id),
   })
-  const feedQuery = useQuery({
+  const feedQuery = useInfiniteQuery({
+    initialPageParam: undefined as { sort_at: string; id: string } | undefined,
+    getNextPageParam: (lastPage: Awaited<ReturnType<typeof fetchFeed>>) => lastPage[0]?._nextCursor,
     queryKey: ['social-feed', session?.user.id, mode, linkedProjectId ?? 'all'],
-    queryFn: () => fetchFeed(session!.user.id, mode, { linkedProjectId }),
+    queryFn: ({ pageParam }) => fetchFeed(session!.user.id, mode, { linkedProjectId, before: pageParam }),
     enabled: Boolean(session?.user.id),
   })
 
   const imagePaths = useMemo(
-    () => (feedQuery.data ?? []).flatMap((post) => post.mediaPaths ?? []),
+    () => (feedQuery.data?.pages.flat() ?? []).flatMap((post) => post.mediaPaths ?? []),
     [feedQuery.data],
   )
   const signedImagesQuery = useQuery({
@@ -163,12 +220,22 @@ export function MessagesFeedPage({ linkedProjectId }: { linkedProjectId?: string
       await ensureSocialProfile(session!.user.id, profile?.first_name)
       const [uploadedImages, uploadedVideos, uploadedAudio] = await Promise.all([
         selectedImages.length ? uploadPostImages(session!.user.id, selectedImages) : Promise.resolve([]),
-        selectedVideoFiles.length ? uploadPostVideoFiles(session!.user.id, selectedVideoFiles) : Promise.resolve([]),
-        selectedAudioFiles.length ? uploadPostAudioFiles(session!.user.id, selectedAudioFiles) : Promise.resolve([]),
+        selectedVideoFiles.length
+          ? uploadPostVideoFiles(session!.user.id, selectedVideoFiles)
+          : Promise.resolve([]),
+        selectedAudioFiles.length
+          ? uploadPostAudioFiles(session!.user.id, selectedAudioFiles)
+          : Promise.resolve([]),
       ])
       const videoLinks = videoLinkInput.trim() ? [`video:${videoLinkInput.trim()}`] : []
       const audioLinks = audioLinkInput.trim() ? [`audio:${audioLinkInput.trim()}`] : []
-      const mediaPaths = [...uploadedImages, ...uploadedVideos, ...videoLinks, ...uploadedAudio, ...audioLinks]
+      const mediaPaths = [
+        ...uploadedImages,
+        ...uploadedVideos,
+        ...videoLinks,
+        ...uploadedAudio,
+        ...audioLinks,
+      ]
       return createPost({
         authorId: session!.user.id,
         body: sanitizeHtml(body),
@@ -183,7 +250,6 @@ export function MessagesFeedPage({ linkedProjectId }: { linkedProjectId?: string
     onSuccess: () => {
       resetComposer()
       void queryClient.invalidateQueries({ queryKey: ['social-feed'] })
-      void navigate({ to: '/app/messages' })
     },
     onError: (error) => {
       setComposerError(describeError(error, 'Could not publish this post.'))
@@ -194,12 +260,23 @@ export function MessagesFeedPage({ linkedProjectId }: { linkedProjectId?: string
     mutationFn: async (vis: 'private' | 'public' | 'followers' | 'project') => {
       const [uploadedImages, uploadedVideos, uploadedAudio] = await Promise.all([
         selectedImages.length ? uploadPostImages(session!.user.id, selectedImages) : Promise.resolve([]),
-        selectedVideoFiles.length ? uploadPostVideoFiles(session!.user.id, selectedVideoFiles) : Promise.resolve([]),
-        selectedAudioFiles.length ? uploadPostAudioFiles(session!.user.id, selectedAudioFiles) : Promise.resolve([]),
+        selectedVideoFiles.length
+          ? uploadPostVideoFiles(session!.user.id, selectedVideoFiles)
+          : Promise.resolve([]),
+        selectedAudioFiles.length
+          ? uploadPostAudioFiles(session!.user.id, selectedAudioFiles)
+          : Promise.resolve([]),
       ])
       const videoLinks = videoLinkInput.trim() ? [`video:${videoLinkInput.trim()}`] : []
       const audioLinks = audioLinkInput.trim() ? [`audio:${audioLinkInput.trim()}`] : []
-      const mediaPaths = [...editingMediaPaths, ...uploadedImages, ...uploadedVideos, ...videoLinks, ...uploadedAudio, ...audioLinks]
+      const mediaPaths = [
+        ...editingMediaPaths,
+        ...uploadedImages,
+        ...uploadedVideos,
+        ...videoLinks,
+        ...uploadedAudio,
+        ...audioLinks,
+      ]
       return updateOwnPost({
         postId: editingPost!.id,
         userId: session!.user.id,
@@ -215,7 +292,6 @@ export function MessagesFeedPage({ linkedProjectId }: { linkedProjectId?: string
       resetComposer()
       void queryClient.invalidateQueries({ queryKey: ['social-feed'] })
       void queryClient.invalidateQueries({ queryKey: ['post'] })
-      void navigate({ to: '/app/messages' })
     },
     onError: (error) => {
       setComposerError(describeError(error, 'Could not update this post.'))
@@ -224,7 +300,7 @@ export function MessagesFeedPage({ linkedProjectId }: { linkedProjectId?: string
 
   const [deleteConfirmPostId, setDeleteConfirmPostId] = useState<string | null>(null)
   const deletePostMutation = useMutation({
-    mutationFn: (postId: string) => deletePost(postId, session!.user.id),
+    mutationFn: (postId: string) => deletePost(postId),
     onSuccess: () => {
       setDeleteConfirmPostId(null)
       void queryClient.invalidateQueries({ queryKey: ['social-feed'] })
@@ -246,8 +322,19 @@ export function MessagesFeedPage({ linkedProjectId }: { linkedProjectId?: string
   })
 
   const labelFlagMutation = useMutation({
-    mutationFn: ({ postId, suggestedKind }: { postId: string; suggestedKind: 'update' | 'product' | 'opinion' | 'claim' }) =>
-      flagPostLabel({ postId, userId: session!.user.id, suggestedKind, reason: labelReason }),
+    mutationFn: ({
+      postId,
+      suggestedKind,
+    }: {
+      postId: string
+      suggestedKind: 'update' | 'product' | 'opinion' | 'claim'
+    }) =>
+      flagPostLabel({
+        postId,
+        userId: session!.user.id,
+        suggestedKind,
+        reason: labelReason,
+      }),
     onSuccess: () => {
       setLabelReviewDraft(null)
       setLabelReason('')
@@ -258,8 +345,13 @@ export function MessagesFeedPage({ linkedProjectId }: { linkedProjectId?: string
   })
 
   const ownLabelMutation = useMutation({
-    mutationFn: ({ postId, contentKind }: { postId: string; contentKind: 'update' | 'product' | 'opinion' | 'claim' }) =>
-      updateOwnPostLabel({ postId, userId: session!.user.id, contentKind }),
+    mutationFn: ({
+      postId,
+      contentKind,
+    }: {
+      postId: string
+      contentKind: 'update' | 'product' | 'opinion' | 'claim'
+    }) => updateOwnPostLabel({ postId, userId: session!.user.id, contentKind }),
     onSuccess: () => {
       setLabelReviewDraft(null)
       void queryClient.invalidateQueries({ queryKey: ['social-feed'] })
@@ -267,41 +359,13 @@ export function MessagesFeedPage({ linkedProjectId }: { linkedProjectId?: string
     },
   })
 
-  const createFlowMutation = useMutation({
-    mutationFn: () =>
-      createProject({
-        ownerId: session!.user.id,
-        title: flowTitle.trim() || (flowDraft ? flowDraft.body.slice(0, 60) : 'New project'),
-        category: '',
-        targetDate: flowDate || '',
-      }).then(async (project) => {
-        if (flowDraft?.postId) {
-          await linkPostToProject({
-            postId: flowDraft.postId,
-            userId: session!.user.id,
-            projectId: project.id,
-          })
-        }
-        return project
-      }),
-    onSuccess: (project) => {
-      setFlowDraft(null)
-      setFlowTitle('')
-      setFlowDate('')
-      setFlowError(null)
-      void queryClient.invalidateQueries({ queryKey: ['projects'] })
-      void queryClient.invalidateQueries({ queryKey: ['social-feed'] })
-      void navigate({ to: '/app/projects/$projectId/conversation', params: { projectId: project.id } })
-    },
-    onError: (error) => {
-      setFlowError(describeError(error, 'Could not create a project from this message.'))
-    },
-  })
-
   const filteredPeople = (peopleQuery.data ?? []).filter((person) => {
     if (!rightSearch.trim()) return true
     const query = rightSearch.toLowerCase()
-    return (person.display_name || person.handle).toLowerCase().includes(query) || person.handle.toLowerCase().includes(query)
+    return (
+      (person.display_name || person.handle).toLowerCase().includes(query) ||
+      person.handle.toLowerCase().includes(query)
+    )
   })
 
   const sidebarTopics = (topicsQuery.data ?? []).filter((topic) => {
@@ -309,7 +373,7 @@ export function MessagesFeedPage({ linkedProjectId }: { linkedProjectId?: string
     return topic.label.toLowerCase().includes(rightSearch.toLowerCase())
   })
 
-  const filteredFeed = (feedQuery.data ?? []).filter((post) => {
+  const filteredFeed = (feedQuery.data?.pages.flat() ?? []).filter((post) => {
     if (hideReviews && post.content_kind === 'review') return false
     if (notesOnly && post.content_kind !== 'note' && post.visibility !== 'private') return false
     if (!rightSearch.trim()) return true
@@ -363,8 +427,6 @@ export function MessagesFeedPage({ linkedProjectId }: { linkedProjectId?: string
   const dmShortcutMutation = useMutation({
     mutationFn: async () => {
       if (!dmDraft) throw new Error('No direct message target selected.')
-      const existing = (dmThreadsQuery.data ?? []).find((thread) => thread.title === dmDraft.displayName)
-      if (existing) return existing
       return createDmThread({
         ownerId: session!.user.id,
         title: dmDraft.displayName,
@@ -375,7 +437,10 @@ export function MessagesFeedPage({ linkedProjectId }: { linkedProjectId?: string
     onSuccess: (thread) => {
       setDmDraft(null)
       void queryClient.invalidateQueries({ queryKey: ['dm-threads'] })
-      void navigate({ to: '/app/messages/dm/$threadId', params: { threadId: thread.id } })
+      void navigate({
+        to: '/app/messages/dm/$threadId',
+        params: { threadId: thread.id },
+      })
     },
   })
 
@@ -389,7 +454,7 @@ export function MessagesFeedPage({ linkedProjectId }: { linkedProjectId?: string
     setQuoteTarget(null)
     setEditingPost(null)
     setComposerOpen(false)
-    setPostVisibility(linkedProjectId ? 'project' : 'followers')
+    setPostVisibility(linkedProjectId ? 'project' : 'public')
     setProjectSearch('')
     setProjectDropdownOpen(false)
     setSelectedVideoFiles([])
@@ -414,7 +479,13 @@ export function MessagesFeedPage({ linkedProjectId }: { linkedProjectId?: string
       const html = e.getHTML()
       setBody(html === '<p></p>' ? '' : html)
       const textBeforeCursor = e.state.doc.textBetween(0, e.state.selection.anchor, '\n')
-      updateAutocomplete('post', textBeforeCursor, textBeforeCursor.length, setAutocomplete, setActiveSuggestionIndex)
+      updateAutocomplete(
+        'post',
+        textBeforeCursor,
+        textBeforeCursor.length,
+        setAutocomplete,
+        setActiveSuggestionIndex,
+      )
     },
     editorProps: {
       attributes: {
@@ -428,12 +499,12 @@ export function MessagesFeedPage({ linkedProjectId }: { linkedProjectId?: string
     if (!composerOpen || !editor) return
     editor.commands.setContent(body || '')
     editor.commands.focus('end')
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [composerOpen, editor])
 
   return (
     <>
-      <div className={linkedProjectId ? "grid gap-3" : "grid gap-3 xl:grid-cols-[minmax(0,1fr)_248px]"}>
+      <div className={linkedProjectId ? 'grid gap-3' : 'grid gap-3 xl:grid-cols-[minmax(0,1fr)_248px]'}>
         <div className="relative z-20 min-w-0 space-y-3">
           <AppCard className="space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -444,7 +515,11 @@ export function MessagesFeedPage({ linkedProjectId }: { linkedProjectId?: string
               ) : (
                 <div className="flex flex-wrap gap-2">
                   {(['following', 'discover', 'bookmarks'] as FeedMode[]).map((item) => (
-                    <AppButton key={item} variant={mode === item ? 'primary' : 'ghost'} onClick={() => setMode(item)}>
+                    <AppButton
+                      key={item}
+                      variant={mode === item ? 'primary' : 'ghost'}
+                      onClick={() => setMode(item)}
+                    >
                       {item === 'following' ? 'Following' : item === 'discover' ? 'Discover' : 'Saved'}
                     </AppButton>
                   ))}
@@ -459,14 +534,20 @@ export function MessagesFeedPage({ linkedProjectId }: { linkedProjectId?: string
                   </button>
                   <button
                     type="button"
-                    onClick={() => setNotesOnly(v => !v)}
-                    className={notesOnly ? 'ui-chip-toggle ui-chip-toggle--active' : 'ui-chip-toggle ui-chip-toggle--inactive'}
+                    onClick={() => setNotesOnly((v) => !v)}
+                    className={
+                      notesOnly
+                        ? 'ui-chip-toggle ui-chip-toggle--active'
+                        : 'ui-chip-toggle ui-chip-toggle--inactive'
+                    }
                   >
                     Notes
                   </button>
                 </div>
               )}
-              <Link to="/app/messages/dm"><AppButton variant="secondary">DMs</AppButton></Link>
+              <Link to="/app/messages/dm">
+                <AppButton variant="secondary">Messages</AppButton>
+              </Link>
             </div>
             <button
               type="button"
@@ -475,17 +556,25 @@ export function MessagesFeedPage({ linkedProjectId }: { linkedProjectId?: string
             >
               <AvatarBadge label={profile?.first_name || 'Y'} />
               <div className="min-w-0 flex-1">
-                <p className="text-base font-bold text-ink/65">Start a conversation…</p>
+                <p className="text-base font-bold text-ink/65">Write a post…</p>
               </div>
-              <Sparkles className="h-5 w-5 text-berry" />
+              <Pencil className="h-5 w-5 text-ink/60" />
             </button>
             <div className="flex flex-wrap items-center gap-3 text-sm">
-              <AppButton variant="ghost" onClick={() => { setPostVisibility('private'); setContentKind('note'); setComposerOpen(true) }}>Private note</AppButton>
-              <Link to="/app/coordination" className="text-ink/70 underline">Plans</Link>
-              <span className="text-xs text-ink/70">Use “Turn into a plan” on a message when an idea is ready.</span>
+              <AppButton
+                variant="ghost"
+                onClick={() => {
+                  setPostVisibility('private')
+                  setContentKind('note')
+                  setComposerOpen(true)
+                }}
+              >
+                Private note
+              </AppButton>
             </div>
           </AppCard>
 
+          <QueryFeedback query={feedQuery} />
           <div className="ui-feed-shell space-y-0">
             {filteredFeed.map((post) => (
               <article key={post.id} className="ui-feed-row">
@@ -493,26 +582,28 @@ export function MessagesFeedPage({ linkedProjectId }: { linkedProjectId?: string
                   <AvatarBadge label={post.author?.display_name || 'U'} />
                   <div className="relative min-w-0 flex-1">
                     <div className="absolute right-0 top-0">
-                      <LabelBadge
-                        kind={post.content_kind}
-                        reviewState={post.review_state}
-                        flagCount={post.mislabel_flag_count}
-                        interactive
-                        viewerFlagged={Boolean(post.viewerLabelFlag)}
-                        isOwnPost={post.author_id === session?.user.id}
-                        onClick={() => {
-                          setLabelReviewDraft({
-                            postId: post.id,
-                            currentKind: post.content_kind,
-                            currentFlag: post.viewerLabelFlag,
-                            isOwnPost: post.author_id === session?.user.id,
-                            peerReasons: post.labelReasons ?? [],
-                          })
-                          setLabelReason('')
-                        }}
-                      />
+                      {post.content_kind !== 'note' && post.content_kind !== 'update' && (
+                        <LabelBadge
+                          kind={post.content_kind}
+                          reviewState={post.review_state}
+                          flagCount={post.mislabel_flag_count}
+                          interactive
+                          viewerFlagged={Boolean(post.viewerLabelFlag)}
+                          isOwnPost={post.author_id === session?.user.id}
+                          onClick={() => {
+                            setLabelReviewDraft({
+                              postId: post.id,
+                              currentKind: post.content_kind,
+                              currentFlag: post.viewerLabelFlag,
+                              isOwnPost: post.author_id === session?.user.id,
+                              peerReasons: post.labelReasons ?? [],
+                            })
+                            setLabelReason('')
+                          }}
+                        />
+                      )}
                     </div>
-                    <div className="flex items-center gap-2 text-sm text-ink/55">
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 pr-6 text-sm text-ink/55">
                       {post.repostedBy?.handle && post.repostedBy.id !== post.author_id ? (
                         <>
                           <span className="font-bold text-teal">@{post.repostedBy.handle}</span>
@@ -520,7 +611,11 @@ export function MessagesFeedPage({ linkedProjectId }: { linkedProjectId?: string
                           <span>·</span>
                         </>
                       ) : null}
-                      <Link to="/app/messages/profile/$profileId" params={{ profileId: post.author_id }} className="font-extrabold text-ink">
+                      <Link
+                        to="/app/messages/profile/$profileId"
+                        params={{ profileId: post.author_id }}
+                        className="font-extrabold text-ink"
+                      >
                         {post.author?.display_name || 'User'}
                       </Link>
                       <span>@{post.author?.handle || 'user'}</span>
@@ -554,12 +649,14 @@ export function MessagesFeedPage({ linkedProjectId }: { linkedProjectId?: string
                       </div>
                     ) : null}
                     {post.visibility === 'private' ? (
-                      <span className="ui-pill text-xs font-semibold flex items-center gap-1">🔒 Private</span>
+                      <span className="ui-pill text-xs font-semibold flex items-center gap-1">
+                        🔒 Private
+                      </span>
                     ) : null}
                     {post.content_kind === 'note' && post.visibility !== 'private' ? (
                       <span className="ui-pill text-xs font-semibold">📝 Note</span>
                     ) : null}
-                    <div className="mt-2 pr-12 space-y-3">
+                    <div className="mt-2 space-y-3">
                       {post.content_kind === 'review' && extractReviewMeta(post.metadata) ? (
                         (() => {
                           const rm = extractReviewMeta(post.metadata)!
@@ -586,20 +683,29 @@ export function MessagesFeedPage({ linkedProjectId }: { linkedProjectId?: string
                       ) : post.content_kind === 'note' ? (
                         <div
                           className="rich-content mt-2 text-sm text-ink/85 leading-relaxed space-y-1"
-                          dangerouslySetInnerHTML={{ __html: sanitizeHtml(post.body) }}
+                          dangerouslySetInnerHTML={{
+                            __html: sanitizeHtml(post.body),
+                          }}
                         />
                       ) : post.body.includes('<') ? (
-                        <div className="rich-content mt-2 text-[17px] leading-8 text-ink" dangerouslySetInnerHTML={{ __html: sanitizeHtml(post.body) }} />
+                        <div
+                          className="rich-content mt-2 text-[17px] leading-8 text-ink"
+                          dangerouslySetInnerHTML={{
+                            __html: sanitizeHtml(post.body),
+                          }}
+                        />
                       ) : (
                         <div className="mt-2 text-[17px] leading-8 text-ink">
-                          <RichPostText body={post.body} mentionMap={post.mentionMap} />
+                          <PostText body={post.body} mentionMap={post.mentionMap} />
                         </div>
                       )}
                       {post.quotePost ? (
                         <div className="ui-quote-card mt-3">
-                          <p className="text-sm font-bold text-ink">@{post.quotePost.author?.handle || 'user'}</p>
+                          <p className="text-sm font-bold text-ink">
+                            @{post.quotePost.author?.handle || 'user'}
+                          </p>
                           <div className="mt-2 line-clamp-4 text-sm text-ink/75">
-                            <RichPostText body={post.quotePost.body} mentionMap={post.quoteMentionMap} />
+                            <PostText body={post.quotePost.body} mentionMap={post.quoteMentionMap} />
                           </div>
                         </div>
                       ) : null}
@@ -618,596 +724,806 @@ export function MessagesFeedPage({ linkedProjectId }: { linkedProjectId?: string
                           ))}
                         </div>
                       ) : null}
-                      {(post.mediaPaths ?? []).length ? (
-                        <div className="mt-3 space-y-2">
-                          {(() => {
-                            const paths = post.mediaPaths ?? []
-                            const images = paths.filter((p) => !p.startsWith('vid:') && !p.startsWith('aud:') && !p.startsWith('video:') && !p.startsWith('audio:'))
-                            const videos = paths.filter((p) => p.startsWith('vid:') || p.startsWith('video:'))
-                            const audios = paths.filter((p) => p.startsWith('aud:') || p.startsWith('audio:'))
-                            return (
-                              <>
-                                {images.length ? (
-                                  <div className={`grid gap-2 ${images.length > 1 ? 'grid-cols-2' : 'grid-cols-1'}`}>
-                                    {images.map((p) => (
-                                      <img key={p} src={signedImagesQuery.data?.[p]} alt="" className="h-[320px] w-full rounded-[24px] object-cover" />
-                                    ))}
-                                  </div>
-                                ) : null}
-                                {videos.map((p) => {
-                                  const src = signedImagesQuery.data?.[p] ?? ''
-                                  const isYoutube = src.includes('youtube.com') || src.includes('youtu.be')
-                                  if (isYoutube) {
-                                    const id = src.match(/(?:v=|youtu\.be\/)([^&?/]+)/)?.[1]
-                                    return id ? (
-                                      <iframe key={p} src={`https://www.youtube.com/embed/${id}`} className="w-full rounded-[16px] aspect-video" allowFullScreen />
-                                    ) : <video key={p} src={src} controls className="w-full rounded-[16px]" />
-                                  }
-                                  return <video key={p} src={src} controls className="w-full rounded-[16px]" />
-                                })}
-                                {audios.map((p) => (
-                                  <audio key={p} src={signedImagesQuery.data?.[p] ?? ''} controls className="w-full" />
-                                ))}
-                              </>
-                            )
-                          })()}
-                        </div>
-                      ) : null}
+                      <PostMedia paths={post.mediaPaths ?? []} />
                     </div>
                     {post.topics?.length ? (
                       <div className="mt-3 flex flex-wrap gap-2">
                         {post.topics.map((topic: { id: string; slug: string; label: string }) => (
-                          <Link key={topic.id} to="/app/messages/topics/$slug" params={{ slug: topic.slug }} className="text-xs font-bold text-sky">
+                          <Link
+                            key={topic.id}
+                            to="/app/messages/topics/$slug"
+                            params={{ slug: topic.slug }}
+                            className="text-xs font-bold text-sky"
+                          >
                             #{topic.label}
                           </Link>
                         ))}
                       </div>
                     ) : null}
-                    <div className="mt-3 flex items-center justify-between text-ink/60">
+                    <div className="mt-3 flex flex-wrap items-center gap-1 text-ink/60">
                       <ActionButton
                         icon={<MessageCircle className="h-5 w-5" />}
                         label="Reply"
                         count={post.replyCount}
-                        onClick={() => navigate({ to: '/app/messages/post/$postId', params: { postId: post.id } })}
+                        onClick={() =>
+                          navigate({
+                            to: '/app/messages/post/$postId',
+                            params: { postId: post.id },
+                          })
+                        }
                       />
                       <ActionButton
                         icon={<Repeat2 className={`h-5 w-5 ${post.viewerReposted ? 'text-teal' : ''}`} />}
                         label={post.viewerReposted ? 'Undo repost' : 'Repost'}
                         count={post.repostCount}
-                        onClick={() => engagementMutation.mutate({ postId: post.id, field: 'reposted' })}
-                      />
-                      <ActionButton
-                        icon={<Heart className={`h-5 w-5 ${post.viewerLiked ? 'fill-current text-berry' : ''}`} />}
-                        label={post.viewerLiked ? 'Unlike' : 'Like'}
-                        count={post.likeCount}
-                        onClick={() => engagementMutation.mutate({ postId: post.id, field: 'liked' })}
-                      />
-                    <ActionButton
-                      icon={<Bookmark className={`h-5 w-5 ${post.viewerBookmarked ? 'fill-current text-ink' : ''}`} />}
-                      label={post.viewerBookmarked ? 'Unsave' : 'Save'}
-                      count={post.bookmarkCount}
-                      onClick={() => engagementMutation.mutate({ postId: post.id, field: 'bookmarked' })}
-                    />
-                    {post.author_id !== session?.user.id ? (
-                      <ActionButton
-                        icon={<Send className="h-5 w-5" />}
-                        label="Direct message"
                         onClick={() =>
-                          setDmDraft({
-                            profileId: post.author_id,
-                            displayName: post.author?.display_name || post.author?.handle || 'Direct message',
+                          engagementMutation.mutate({
+                            postId: post.id,
+                            field: 'reposted',
                           })
                         }
                       />
-                    ) : null}
                       <ActionButton
-                        icon={<Waves className="h-5 w-5" />}
-                        label={post.linked_project_id ? 'Open project' : 'Turn into a plan'}
-                        count={post.linked_project_id ? 1 : 0}
-                        onClick={() => {
-                          if (post.linked_project_id) {
-                            void navigate({ to: '/app/projects/$projectId/conversation', params: { projectId: post.linked_project_id } })
-                            return
-                          }
-                          setFlowError(null)
-                          setFlowDraft({ postId: post.author_id === session?.user.id ? post.id : '', body: post.body, projectId: post.linked_project_id ?? null })
-                          setFlowTitle(post.body.slice(0, 60))
-                          setFlowDate('')
-                        }}
+                        icon={
+                          <Heart className={`h-5 w-5 ${post.viewerLiked ? 'fill-current text-berry' : ''}`} />
+                        }
+                        label={post.viewerLiked ? 'Unlike' : 'Like'}
+                        count={post.likeCount}
+                        onClick={() =>
+                          engagementMutation.mutate({
+                            postId: post.id,
+                            field: 'liked',
+                          })
+                        }
                       />
-                      <ActionButton
-                        icon={<Share2 className="h-5 w-5" />}
-                        label="Copy link"
-                        onClick={() => navigator.clipboard.writeText(`${window.location.origin}/app/messages/post/${post.id}`)}
-                      />
-                      {post.author_id === session?.user.id ? (
-                        <>
+                      <details className="relative ml-auto">
+                        <summary
+                          className="cursor-pointer min-h-11 min-w-11 px-3 py-2"
+                          aria-label="More post actions"
+                        >
+                          •••
+                        </summary>
+                        <div className="absolute right-0 bottom-full z-30 flex w-64 flex-wrap gap-2 border border-border bg-white p-3 shadow-lg">
                           <ActionButton
-                            icon={<Pencil className="h-5 w-5" />}
-                            label="Edit post"
-                            onClick={() => {
-                              setEditingPost({ id: post.id, mediaPaths: post.mediaPaths ?? [] })
-                              setEditingMediaPaths(post.mediaPaths ?? [])
-                              setBody(post.body)
-                              setProjectId(post.linked_project_id ?? '')
-                              setContentKind(post.content_kind)
-                              setClaimLinksText(extractSupportingLinks(post.metadata).join('\n'))
-                              setSelectedImages([])
-                              setSelectedVideoFiles([])
-                              setSelectedAudioFiles([])
-                              setVideoLinkInput('')
-                              setAudioLinkInput('')
-                              setPostVisibility((post.visibility as 'private' | 'public' | 'followers' | 'project') ?? 'followers')
-                              setQuoteTarget(null)
-                              setComposerError(null)
-                              setComposerOpen(true)
-                            }}
+                            icon={
+                              <Bookmark
+                                className={`h-5 w-5 ${post.viewerBookmarked ? 'fill-current text-ink' : ''}`}
+                              />
+                            }
+                            label={post.viewerBookmarked ? 'Unsave' : 'Save'}
+                            count={post.bookmarkCount}
+                            onClick={() =>
+                              engagementMutation.mutate({
+                                postId: post.id,
+                                field: 'bookmarked',
+                              })
+                            }
                           />
-                          {deleteConfirmPostId === post.id ? (
-                            <span className="flex items-center gap-1">
-                              <span className="text-xs font-bold text-berry">Delete?</span>
-                              <button
-                                type="button"
-                                className="text-xs font-bold text-berry hover:underline"
-                                onClick={() => deletePostMutation.mutate(post.id)}
-                                disabled={deletePostMutation.isPending}
-                              >Yes</button>
-                              <button
-                                type="button"
-                                className="text-xs text-ink/60 hover:underline"
-                                onClick={() => setDeleteConfirmPostId(null)}
-                              >No</button>
-                            </span>
-                          ) : (
+                          {post.author_id !== session?.user.id ? (
                             <ActionButton
-                              icon={<Trash2 className="h-5 w-5" />}
-                              label="Delete post"
-                              onClick={() => setDeleteConfirmPostId(post.id)}
-                            />
-                          )}
-                          {post.linked_project_id ? (
-                            <ActionButton
-                              icon={<Globe className="h-5 w-5" />}
-                              label={(post as { is_promoted?: boolean }).is_promoted ? 'Remove from feed' : 'Promote to feed'}
-                              onClick={() => promoteMutation.mutate({ postId: post.id, promoted: !(post as { is_promoted?: boolean }).is_promoted })}
+                              icon={<Send className="h-5 w-5" />}
+                              label="Direct message"
+                              onClick={() =>
+                                setDmDraft({
+                                  profileId: post.author_id,
+                                  displayName:
+                                    post.author?.display_name || post.author?.handle || 'Direct message',
+                                })
+                              }
                             />
                           ) : null}
-                        </>
-                      ) : null}
-                      <button
-                        type="button"
-                        className="group relative ui-action-button text-xs font-bold"
-                        onClick={() => {
-                          setQuoteTarget({
-                            id: post.id,
-                            body: post.body,
-                            author: post.author?.handle || 'user',
-                          })
-                          setComposerOpen(true)
-                        }}
-                      >
-                        Quote
-                        <span className="pointer-events-none absolute left-1/2 top-[calc(100%+0.55rem)] z-[70] w-max -translate-x-1/2 rounded-[16px] border border-ink/10 bg-white px-3 py-2 text-xs font-medium text-ink/80 opacity-0 shadow-xl transition-all duration-150 ease-out delay-500 group-hover:translate-y-1 group-hover:opacity-100 group-hover:delay-500">
-                          Quote post
-                          <span className="absolute left-1/2 top-0 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rotate-45 border-l border-t border-ink/10 bg-white" />
-                        </span>
-                      </button>
+                          <ActionButton
+                            icon={<Waves className="h-5 w-5" />}
+                            label="Create task, event or project"
+                            onClick={() => setFlowDraft({ postId: post.id, body: post.body })}
+                          />
+                          <ActionButton
+                            icon={<Share2 className="h-5 w-5" />}
+                            label="Copy link"
+                            onClick={() =>
+                              navigator.clipboard.writeText(
+                                `${window.location.origin}/app/messages/post/${post.id}`,
+                              )
+                            }
+                          />
+                          {post.author_id === session?.user.id ? (
+                            <>
+                              <ActionButton
+                                icon={<Pencil className="h-5 w-5" />}
+                                label="Edit post"
+                                onClick={() => {
+                                  setEditingPost({
+                                    id: post.id,
+                                    mediaPaths: post.mediaPaths ?? [],
+                                  })
+                                  setEditingMediaPaths(post.mediaPaths ?? [])
+                                  setBody(post.body)
+                                  setProjectId(post.linked_project_id ?? '')
+                                  setContentKind(post.content_kind)
+                                  setClaimLinksText(extractSupportingLinks(post.metadata).join('\n'))
+                                  setSelectedImages([])
+                                  setSelectedVideoFiles([])
+                                  setSelectedAudioFiles([])
+                                  setVideoLinkInput('')
+                                  setAudioLinkInput('')
+                                  setPostVisibility(
+                                    (post.visibility as 'private' | 'public' | 'followers' | 'project') ??
+                                      'followers',
+                                  )
+                                  setQuoteTarget(null)
+                                  setComposerError(null)
+                                  setComposerOpen(true)
+                                }}
+                              />
+                              {deleteConfirmPostId === post.id ? (
+                                <span className="flex items-center gap-1">
+                                  <span className="text-xs font-bold text-berry">Delete?</span>
+                                  <button
+                                    type="button"
+                                    className="text-xs font-bold text-berry hover:underline"
+                                    onClick={() => deletePostMutation.mutate(post.id)}
+                                    disabled={deletePostMutation.isPending}
+                                  >
+                                    Yes
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="text-xs text-ink/60 hover:underline"
+                                    onClick={() => setDeleteConfirmPostId(null)}
+                                  >
+                                    No
+                                  </button>
+                                </span>
+                              ) : (
+                                <ActionButton
+                                  icon={<Trash2 className="h-5 w-5" />}
+                                  label="Delete post"
+                                  onClick={() => setDeleteConfirmPostId(post.id)}
+                                />
+                              )}
+                              {post.linked_project_id ? (
+                                <ActionButton
+                                  icon={<Globe className="h-5 w-5" />}
+                                  label={
+                                    (post as { is_promoted?: boolean }).is_promoted
+                                      ? 'Remove from feed'
+                                      : 'Promote to feed'
+                                  }
+                                  onClick={() =>
+                                    promoteMutation.mutate({
+                                      postId: post.id,
+                                      promoted: !(post as { is_promoted?: boolean }).is_promoted,
+                                    })
+                                  }
+                                />
+                              ) : null}
+                            </>
+                          ) : null}
+                          <button
+                            type="button"
+                            className="group relative ui-action-button text-xs font-bold"
+                            onClick={() => {
+                              setQuoteTarget({
+                                id: post.id,
+                                body: post.body,
+                                author: post.author?.handle || 'user',
+                              })
+                              setComposerOpen(true)
+                            }}
+                          >
+                            Quote
+                            <span className="pointer-events-none absolute left-1/2 top-[calc(100%+0.55rem)] z-[70] w-max -translate-x-1/2 rounded-[16px] border border-ink/10 bg-white px-3 py-2 text-xs font-medium text-ink/80 opacity-0 shadow-xl transition-all duration-150 ease-out delay-500 group-hover:translate-y-1 group-hover:opacity-100 group-hover:delay-500 group-focus-visible:opacity-100">
+                              Quote post
+                              <span className="absolute left-1/2 top-0 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rotate-45 border-l border-t border-ink/10 bg-white" />
+                            </span>
+                          </button>
+                          <PostSafety postId={post.id} authorId={post.author_id} />
+                        </div>
+                      </details>
                     </div>
                   </div>
                 </div>
               </article>
             ))}
-            {!filteredFeed.length ? <div className="px-5 py-6 text-sm text-ink/60">{linkedProjectId ? 'No project conversation yet.' : 'No posts match that search yet.'}</div> : null}
+            {feedQuery.hasNextPage && (
+              <AppButton
+                variant="secondary"
+                className="m-4"
+                disabled={feedQuery.isFetchingNextPage}
+                onClick={() => void feedQuery.fetchNextPage()}
+              >
+                {feedQuery.isFetchingNextPage ? 'Loading…' : 'Load more posts'}
+              </AppButton>
+            )}
+            {!feedQuery.isPending && !feedQuery.isError && !filteredFeed.length ? (
+              <div className="px-5 py-6 text-sm text-ink/60">
+                {linkedProjectId ? 'No project conversation yet.' : 'No posts match that search yet.'}
+              </div>
+            ) : null}
           </div>
         </div>
 
-        {!linkedProjectId && <div className="relative z-0 space-y-3 xl:sticky xl:top-3 xl:self-start">
-          <AppCard className="space-y-3">
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink/40" />
-              <AppInput value={rightSearch} onChange={(event) => setRightSearch(event.target.value)} className="pl-10" style={{ paddingLeft: '2.5rem' }} placeholder="Search posts, people, or topics" />
-            </div>
-          </AppCard>
-          <AppCard className="space-y-3">
-            <SectionHeading title="Feeds" />
-            <div className="grid gap-2">
-              {sidebarTopics.slice(0, 6).map((topic) => (
-                <Link key={topic.id} to="/app/messages/topics/$slug" params={{ slug: topic.slug }}>
-                  <AppButton className="w-full justify-start" variant="ghost">#{topic.label}</AppButton>
-                </Link>
-              ))}
-              {!sidebarTopics.length ? <p className="text-sm text-ink/60">No matching topics.</p> : null}
-            </div>
-          </AppCard>
-          <AppCard className="space-y-3">
-            <SectionHeading title="Suggested follows" />
-            {filteredPeople.slice(0, 5).map((person) => (
-              <div key={person.id} className="ui-panel flex items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <Link to="/app/messages/profile/$profileId" params={{ profileId: person.id }} className="block truncate font-bold text-ink">
-                    {person.display_name || person.handle}
-                  </Link>
-                  <p className="truncate text-sm text-ink/55">@{person.handle}</p>
-                </div>
-                <AppButton variant="ghost" onClick={() => navigate({ to: '/app/messages/profile/$profileId', params: { profileId: person.id } })}>
-                  View
-                </AppButton>
+        {!linkedProjectId && (
+          <div className="relative z-0 hidden space-y-3 xl:block xl:sticky xl:top-3 xl:self-start">
+            <AppCard className="space-y-3">
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink/40" />
+                <AppInput
+                  value={rightSearch}
+                  onChange={(event) => setRightSearch(event.target.value)}
+                  className="pl-10"
+                  style={{ paddingLeft: '2.5rem' }}
+                  placeholder="Search posts, people, or topics"
+                />
               </div>
-            ))}
-            {!filteredPeople.length ? <p className="text-sm text-ink/60">No matching people.</p> : null}
-          </AppCard>
-          <AppCard className="space-y-3">
-            <SectionHeading eyebrow="Private" title="DMs" />
-            <div className="space-y-2">
-              {(dmThreadsQuery.data ?? []).slice(0, 4).map((thread) => (
-                <Link key={thread.id} to="/app/messages/dm/$threadId" params={{ threadId: thread.id }} className="ui-panel block">
-                  <p className="font-extrabold text-ink">{thread.title || 'Direct message'}</p>
-                  <p className="text-sm text-ink/55">{thread.thread_kind}</p>
-                </Link>
+            </AppCard>
+            <AppCard className="space-y-3">
+              <SectionHeading title="Topics" />
+              <div className="grid gap-2">
+                {sidebarTopics.slice(0, 6).map((topic) => (
+                  <Link key={topic.id} to="/app/messages/topics/$slug" params={{ slug: topic.slug }}>
+                    <AppButton className="w-full justify-start" variant="ghost">
+                      #{topic.label}
+                    </AppButton>
+                  </Link>
+                ))}
+                {!sidebarTopics.length ? <p className="text-sm text-ink/60">No matching topics.</p> : null}
+              </div>
+            </AppCard>
+            <AppCard className="space-y-3">
+              <SectionHeading title="Suggested follows" />
+              {filteredPeople.slice(0, 5).map((person) => (
+                <div key={person.id} className="ui-panel flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <Link
+                      to="/app/messages/profile/$profileId"
+                      params={{ profileId: person.id }}
+                      className="block truncate font-bold text-ink"
+                    >
+                      {person.display_name || person.handle}
+                    </Link>
+                    <p className="truncate text-sm text-ink/55">@{person.handle}</p>
+                  </div>
+                  <AppButton
+                    variant="ghost"
+                    onClick={() =>
+                      navigate({
+                        to: '/app/messages/profile/$profileId',
+                        params: { profileId: person.id },
+                      })
+                    }
+                  >
+                    View
+                  </AppButton>
+                </div>
               ))}
-              {!dmThreadsQuery.data?.length ? <p className="text-sm text-ink/60">No direct messages yet.</p> : null}
-            </div>
-          </AppCard>
-        </div>}
+              {!filteredPeople.length ? <p className="text-sm text-ink/60">No matching people.</p> : null}
+            </AppCard>
+            <AppCard className="space-y-3">
+              <SectionHeading title="Messages" />
+              <div className="space-y-2">
+                {(dmThreadsQuery.data ?? []).slice(0, 4).map((thread) => (
+                  <Link
+                    key={thread.id}
+                    to="/app/messages/dm/$threadId"
+                    params={{ threadId: thread.id }}
+                    className="ui-panel block"
+                  >
+                    <p className="font-extrabold text-ink">{thread.title || 'Direct message'}</p>
+                    <p className="line-clamp-1 text-sm text-ink/65">
+                      {thread.last_body || 'No messages yet'}
+                    </p>
+                    <p className="text-xs text-ink/55">
+                      {timeAgo(thread.last_at || thread.created_at)}
+                      {thread.unread > 0 ? ` · ${thread.unread} unread` : ''}
+                    </p>
+                  </Link>
+                ))}
+                {!dmThreadsQuery.data?.length ? (
+                  <p className="text-sm text-ink/60">No direct messages yet.</p>
+                ) : null}
+              </div>
+            </AppCard>
+          </div>
+        )}
       </div>
 
-      {composerOpen ? (
-        <div className="fixed inset-0 z-40 flex items-start justify-center bg-ink/35 px-4 py-8 backdrop-blur-sm overflow-y-auto">
-          <div className="w-full max-w-2xl">
-            <AppCard className="overflow-hidden p-0">
-              {/* Header */}
-              <div className="flex items-center gap-3 border-b border-border px-6 py-4">
-                <p className="text-xs font-semibold uppercase tracking-widest text-ink/40">
-                  {editingPost ? 'Edit post' : 'New post'}
-                </p>
-                <p className="text-xl font-light text-ink">
-                  {editingPost ? 'Refine your post' : 'Share a note'}
-                </p>
-                <div className="flex-1" />
-                <button type="button" className="ui-soft-icon-button" onClick={() => resetComposer()}>
-                  <X className="h-4 w-4" />
+      {composerOpen && (
+        <AppDialog title={editingPost ? 'Edit post' : 'New post'} onClose={resetComposer} wide>
+          <AppCard className="overflow-hidden p-0">
+            {/* Header */}
+            <div className="flex items-center gap-3 border-b border-border px-6 py-4">
+              <p className="text-xs font-semibold uppercase tracking-widest text-ink/40">
+                {editingPost ? 'Edit post' : 'New post'}
+              </p>
+              <p className="text-xl font-light text-ink">
+                {editingPost ? 'Refine your post' : 'Share a note'}
+              </p>
+              <div className="flex-1" />
+              <button type="button" className="ui-soft-icon-button" onClick={() => resetComposer()}>
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Formatting toolbar */}
+            <div className="flex items-center gap-1 border-b border-border bg-cloud/40 px-4 py-2">
+              {(
+                [
+                  {
+                    name: 'bold',
+                    label: 'B',
+                    style: { fontWeight: 700 } as React.CSSProperties,
+                    action: () => editor?.chain().focus().toggleBold().run(),
+                  },
+                  {
+                    name: 'italic',
+                    label: 'I',
+                    style: { fontStyle: 'italic' } as React.CSSProperties,
+                    action: () => editor?.chain().focus().toggleItalic().run(),
+                  },
+                ] as const
+              ).map(({ name, label, style, action }) => (
+                <button
+                  key={name}
+                  type="button"
+                  title={name}
+                  style={style}
+                  className={`flex h-7 w-8 items-center justify-center rounded border text-xs transition ${editor?.isActive(name) ? 'border-ink/40 bg-ink/15 text-ink' : 'border-border bg-white text-ink/70 hover:border-ink/40 hover:text-ink'}`}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={action}
+                >
+                  {label}
                 </button>
-              </div>
+              ))}
+              <button
+                type="button"
+                title="heading"
+                className={`flex h-7 w-8 items-center justify-center rounded border text-xs transition ${editor?.isActive('heading', { level: 3 }) ? 'border-ink/40 bg-ink/15 text-ink' : 'border-border bg-white text-ink/70 hover:border-ink/40 hover:text-ink'}`}
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => editor?.chain().focus().toggleHeading({ level: 3 }).run()}
+              >
+                H₁
+              </button>
+              <button
+                type="button"
+                title="list"
+                className={`flex h-7 w-8 items-center justify-center rounded border text-xs transition ${editor?.isActive('bulletList') ? 'border-ink/40 bg-ink/15 text-ink' : 'border-border bg-white text-ink/70 hover:border-ink/40 hover:text-ink'}`}
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => editor?.chain().focus().toggleBulletList().run()}
+              >
+                ≡
+              </button>
+              <button
+                type="button"
+                title="checklist"
+                className={`flex h-7 w-8 items-center justify-center rounded border text-xs transition ${editor?.isActive('taskList') ? 'border-ink/40 bg-ink/15 text-ink' : 'border-border bg-white text-ink/70 hover:border-ink/40 hover:text-ink'}`}
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => editor?.chain().focus().toggleTaskList().run()}
+              >
+                ☑
+              </button>
+              <button
+                type="button"
+                title="link"
+                className="flex h-7 w-8 items-center justify-center rounded border border-border bg-white text-xs text-ink/70 hover:border-ink/40 hover:text-ink transition"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => {
+                  const url = prompt('URL:')
+                  if (url) editor?.chain().focus().setLink({ href: url }).run()
+                }}
+              >
+                ⌘K
+              </button>
+              <div className="flex-1" />
+              <span className="text-xs text-ink/30">@mention #topic /command</span>
+            </div>
 
-              {/* Formatting toolbar */}
-              <div className="flex items-center gap-1 border-b border-border bg-cloud/40 px-4 py-2">
-                {([
-                  { name: 'bold', label: 'B', style: { fontWeight: 700 } as React.CSSProperties, action: () => editor?.chain().focus().toggleBold().run() },
-                  { name: 'italic', label: 'I', style: { fontStyle: 'italic' } as React.CSSProperties, action: () => editor?.chain().focus().toggleItalic().run() },
-                ] as const).map(({ name, label, style, action }) => (
-                  <button
-                    key={name}
-                    type="button"
-                    title={name}
-                    style={style}
-                    className={`flex h-7 w-8 items-center justify-center rounded border text-xs transition ${editor?.isActive(name) ? 'border-ink/40 bg-ink/15 text-ink' : 'border-border bg-white text-ink/70 hover:border-ink/40 hover:text-ink'}`}
-                    onMouseDown={(e) => e.preventDefault()}
-                    onClick={action}
-                  >{label}</button>
-                ))}
-                <button type="button" title="heading"
-                  className={`flex h-7 w-8 items-center justify-center rounded border text-xs transition ${editor?.isActive('heading', { level: 3 }) ? 'border-ink/40 bg-ink/15 text-ink' : 'border-border bg-white text-ink/70 hover:border-ink/40 hover:text-ink'}`}
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => editor?.chain().focus().toggleHeading({ level: 3 }).run()}>H₁</button>
-                <button type="button" title="list"
-                  className={`flex h-7 w-8 items-center justify-center rounded border text-xs transition ${editor?.isActive('bulletList') ? 'border-ink/40 bg-ink/15 text-ink' : 'border-border bg-white text-ink/70 hover:border-ink/40 hover:text-ink'}`}
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => editor?.chain().focus().toggleBulletList().run()}>≡</button>
-                <button type="button" title="checklist"
-                  className={`flex h-7 w-8 items-center justify-center rounded border text-xs transition ${editor?.isActive('taskList') ? 'border-ink/40 bg-ink/15 text-ink' : 'border-border bg-white text-ink/70 hover:border-ink/40 hover:text-ink'}`}
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => editor?.chain().focus().toggleTaskList().run()}>☑</button>
-                <button type="button" title="link" className="flex h-7 w-8 items-center justify-center rounded border border-border bg-white text-xs text-ink/70 hover:border-ink/40 hover:text-ink transition"
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => { const url = prompt('URL:'); if (url) editor?.chain().focus().setLink({ href: url }).run() }}>⌘K</button>
-                <div className="flex-1" />
-                <span className="text-xs text-ink/30">@mention  #topic  /command</span>
-              </div>
-
-              {/* Tiptap editor */}
-              <div className="relative px-6 pt-4 pb-2">
-                <EditorContent
-                  editor={editor}
-                  onKeyDown={(event) =>
-                    handleAutocompleteKeyDown({
-                      event: event as unknown as KeyboardEvent<HTMLTextAreaElement>,
-                      autocomplete,
-                      options: autocompleteOptions,
-                      activeSuggestionIndex,
-                      setActiveSuggestionIndex,
-                      applyOption: (option) => {
-                        if (!editor || !autocomplete) return
-                        const deletionLength = autocomplete.end - autocomplete.start
-                        const anchor = editor.state.selection.anchor
-                        editor.chain().focus()
-                          .deleteRange({ from: anchor - deletionLength, to: anchor })
-                          .insertContent(`${option.trigger}${option.value} `)
-                          .run()
-                        setAutocomplete(null)
-                      },
-                      clearAutocomplete: () => setAutocomplete(null),
-                    })
-                  }
-                />
-                {autocomplete?.kind === 'post' ? (
-                  <AutocompleteMenu
-                    options={autocompleteOptions}
-                    activeIndex={activeSuggestionIndex}
-                    onSelect={(option) => {
+            {/* Tiptap editor */}
+            <div className="relative px-6 pt-4 pb-2">
+              <EditorContent
+                editor={editor}
+                onKeyDown={(event) =>
+                  handleAutocompleteKeyDown({
+                    event: event as unknown as KeyboardEvent<HTMLTextAreaElement>,
+                    autocomplete,
+                    options: autocompleteOptions,
+                    activeSuggestionIndex,
+                    setActiveSuggestionIndex,
+                    applyOption: (option) => {
                       if (!editor || !autocomplete) return
                       const deletionLength = autocomplete.end - autocomplete.start
                       const anchor = editor.state.selection.anchor
-                      editor.chain().focus()
-                        .deleteRange({ from: anchor - deletionLength, to: anchor })
+                      editor
+                        .chain()
+                        .focus()
+                        .deleteRange({
+                          from: anchor - deletionLength,
+                          to: anchor,
+                        })
                         .insertContent(`${option.trigger}${option.value} `)
                         .run()
                       setAutocomplete(null)
+                    },
+                    clearAutocomplete: () => setAutocomplete(null),
+                  })
+                }
+              />
+              {autocomplete?.kind === 'post' ? (
+                <AutocompleteMenu
+                  options={autocompleteOptions}
+                  activeIndex={activeSuggestionIndex}
+                  onSelect={(option) => {
+                    if (!editor || !autocomplete) return
+                    const deletionLength = autocomplete.end - autocomplete.start
+                    const anchor = editor.state.selection.anchor
+                    editor
+                      .chain()
+                      .focus()
+                      .deleteRange({
+                        from: anchor - deletionLength,
+                        to: anchor,
+                      })
+                      .insertContent(`${option.trigger}${option.value} `)
+                      .run()
+                    setAutocomplete(null)
+                  }}
+                />
+              ) : null}
+            </div>
+
+            {/* Quote target */}
+            {quoteTarget ? (
+              <div className="mx-6 mb-3 ui-quote-card">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-xs font-black uppercase tracking-[0.18em] text-ink/50">
+                      Quoting @{quoteTarget.author}
+                    </p>
+                    <p className="mt-2 line-clamp-3 whitespace-pre-wrap text-sm text-ink/75">
+                      {quoteTarget.body}
+                    </p>
+                  </div>
+                  <button type="button" className="ui-soft-icon-button" onClick={() => setQuoteTarget(null)}>
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+            ) : null}
+
+            {composerError ? (
+              <div className="mx-6 mb-3">
+                <AppPanel tone="peach" className="text-sm">
+                  {composerError}
+                </AppPanel>
+              </div>
+            ) : null}
+
+            {/* Project live search */}
+            <div className="relative border-t border-border px-6 py-3">
+              <div className="flex items-center gap-2 rounded border border-border bg-white px-3 py-2">
+                <span className="text-ink/40 text-sm">⌕</span>
+                <input
+                  type="text"
+                  className="flex-1 bg-transparent text-sm outline-none placeholder:text-ink/30"
+                  placeholder="Search or link a project…"
+                  value={projectSearch}
+                  onChange={(e) => {
+                    setProjectSearch(e.target.value)
+                    setProjectDropdownOpen(true)
+                  }}
+                  onFocus={() => setProjectDropdownOpen(true)}
+                  onBlur={() => setTimeout(() => setProjectDropdownOpen(false), 150)}
+                />
+                {projectId ? (
+                  <button
+                    type="button"
+                    className="text-xs text-ink/50 hover:text-ink"
+                    onClick={() => {
+                      setProjectId('')
+                      setProjectSearch('')
                     }}
-                  />
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
                 ) : null}
               </div>
+              {projectDropdownOpen && (
+                <div className="absolute left-6 right-6 top-full z-10 mt-1 max-h-48 overflow-y-auto rounded border border-border bg-white shadow-lg">
+                  {(projectsQuery.data ?? [])
+                    .filter(
+                      (p) => !projectSearch || p.title.toLowerCase().includes(projectSearch.toLowerCase()),
+                    )
+                    .map((p) => (
+                      <button
+                        key={p.id}
+                        type="button"
+                        className={`w-full px-4 py-2 text-left text-sm hover:bg-cloud/60 ${projectId === p.id ? 'font-semibold text-ink' : 'text-ink/70'}`}
+                        onMouseDown={(e) => {
+                          e.preventDefault()
+                          setProjectId(p.id)
+                          setProjectSearch(p.title)
+                          setProjectDropdownOpen(false)
+                        }}
+                      >
+                        {p.title}
+                      </button>
+                    ))}
+                  {(projectsQuery.data ?? []).filter(
+                    (p) => !projectSearch || p.title.toLowerCase().includes(projectSearch.toLowerCase()),
+                  ).length === 0 ? (
+                    <p className="px-4 py-3 text-sm text-ink/40">No projects match</p>
+                  ) : null}
+                </div>
+              )}
+            </div>
 
-              {/* Quote target */}
-              {quoteTarget ? (
-                <div className="mx-6 mb-3 ui-quote-card">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="text-xs font-black uppercase tracking-[0.18em] text-ink/50">Quoting @{quoteTarget.author}</p>
-                      <p className="mt-2 line-clamp-3 whitespace-pre-wrap text-sm text-ink/75">{quoteTarget.body}</p>
-                    </div>
-                    <button type="button" className="ui-soft-icon-button" onClick={() => setQuoteTarget(null)}>
-                      <X className="h-4 w-4" />
-                    </button>
+            {/* Attach row */}
+            <div className="border-t border-border bg-cloud/30 px-6 py-3 space-y-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <label className="flex cursor-pointer items-center gap-1.5 rounded-lg border border-border bg-white px-3 py-1.5 text-xs font-medium text-ink/70 hover:border-ink/40 hover:text-ink transition">
+                  <Paperclip className="h-3.5 w-3.5" />
+                  Attach
+                  <input
+                    type="file"
+                    accept="image/*,video/*,audio/*"
+                    multiple
+                    className="hidden"
+                    onChange={(e) => {
+                      const files = Array.from(e.target.files ?? [])
+                      const imgs = files.filter((f) => f.type.startsWith('image/'))
+                      const vids = files.filter((f) => f.type.startsWith('video/'))
+                      const auds = files.filter((f) => f.type.startsWith('audio/'))
+                      if (imgs.length) setSelectedImages((v) => [...v, ...imgs])
+                      if (vids.length) setSelectedVideoFiles((v) => [...v, ...vids])
+                      if (auds.length) setSelectedAudioFiles((v) => [...v, ...auds])
+                      e.target.value = ''
+                    }}
+                  />
+                </label>
+                <input
+                  type="url"
+                  className="flex-1 min-w-[180px] rounded border border-border bg-white px-3 py-1.5 text-xs outline-none placeholder:text-ink/30 focus:border-ink/40"
+                  placeholder="Or paste a video / audio URL…"
+                  value={videoLinkInput || audioLinkInput}
+                  onChange={(e) => {
+                    const v = e.target.value
+                    if (
+                      v.includes('soundcloud') ||
+                      v.includes('.mp3') ||
+                      v.includes('.wav') ||
+                      v.includes('.ogg')
+                    ) {
+                      setAudioLinkInput(v)
+                      setVideoLinkInput('')
+                    } else {
+                      setVideoLinkInput(v)
+                      setAudioLinkInput('')
+                    }
+                  }}
+                />
+                {/* Video/audio pills */}
+                {selectedVideoFiles.map((file, i) => (
+                  <MediaPill
+                    key={`vid-${i}`}
+                    icon="▶"
+                    label={file.name}
+                    color="orange"
+                    onRemove={() => setSelectedVideoFiles((v) => v.filter((_, j) => j !== i))}
+                  />
+                ))}
+                {videoLinkInput ? (
+                  <MediaPill
+                    icon="▶"
+                    label={videoLinkInput}
+                    color="orange"
+                    onRemove={() => setVideoLinkInput('')}
+                  />
+                ) : null}
+                {selectedAudioFiles.map((file, i) => (
+                  <MediaPill
+                    key={`aud-${i}`}
+                    icon="♪"
+                    label={file.name}
+                    color="green"
+                    onRemove={() => setSelectedAudioFiles((v) => v.filter((_, j) => j !== i))}
+                  />
+                ))}
+                {audioLinkInput ? (
+                  <MediaPill
+                    icon="♪"
+                    label={audioLinkInput}
+                    color="green"
+                    onRemove={() => setAudioLinkInput('')}
+                  />
+                ) : null}
+                {/* Existing video/audio pills from editing */}
+                {editingMediaPaths
+                  .filter(
+                    (p) =>
+                      p.startsWith('vid:') ||
+                      p.startsWith('video:') ||
+                      p.startsWith('aud:') ||
+                      p.startsWith('audio:'),
+                  )
+                  .map((path) => {
+                    const isAudio = path.startsWith('aud:') || path.startsWith('audio:')
+                    return (
+                      <MediaPill
+                        key={path}
+                        icon={isAudio ? '♪' : '▶'}
+                        label={path.split('/').pop()?.slice(0, 24) ?? path}
+                        color={isAudio ? 'green' : 'orange'}
+                        onRemove={() => setEditingMediaPaths((m) => m.filter((p) => p !== path))}
+                      />
+                    )
+                  })}
+              </div>
+
+              {/* Image thumbnails */}
+              {(() => {
+                const existingImages = editingMediaPaths.filter(
+                  (p) =>
+                    !p.startsWith('vid:') &&
+                    !p.startsWith('video:') &&
+                    !p.startsWith('aud:') &&
+                    !p.startsWith('audio:'),
+                )
+                const hasImages = existingImages.length > 0 || selectedImages.length > 0
+                if (!hasImages) return null
+                return (
+                  <div className="flex flex-wrap gap-2">
+                    {existingImages.map((path) => (
+                      <div key={path} className="relative h-20 w-20 shrink-0">
+                        <img
+                          src={signedImagesQuery.data?.[path]}
+                          alt=""
+                          className="h-20 w-20 rounded-lg object-cover border border-border"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setEditingMediaPaths((m) => m.filter((p) => p !== path))}
+                          className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-ink text-white shadow"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    ))}
+                    {selectedImages.map((file, i) => (
+                      <div key={`new-${i}`} className="relative h-20 w-20 shrink-0">
+                        <img
+                          src={URL.createObjectURL(file)}
+                          alt={file.name}
+                          className="h-20 w-20 rounded-lg object-cover border border-border"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setSelectedImages((v) => v.filter((_, j) => j !== i))}
+                          className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-ink text-white shadow"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    ))}
                   </div>
+                )
+              })()}
+            </div>
+
+            {/* Footer */}
+            <div className="border-t border-border px-6 py-4 space-y-3">
+              {/* Claim links (only when kind = claim) */}
+              {contentKind === 'claim' ? (
+                <div className="space-y-2">
+                  <AppTextarea
+                    value={claimLinksText}
+                    onChange={(e) => setClaimLinksText(e.target.value)}
+                    className="min-h-20"
+                    placeholder="Add 1 or 2 supporting links, one per line"
+                  />
+                  <p className="text-xs text-ink/55">Fact claims need one or two supporting links.</p>
                 </div>
               ) : null}
 
-              {composerError ? <div className="mx-6 mb-3"><AppPanel tone="peach" className="text-sm">{composerError}</AppPanel></div> : null}
-
-              {/* Project live search */}
-              <div className="relative border-t border-border px-6 py-3">
-                <div className="flex items-center gap-2 rounded border border-border bg-white px-3 py-2">
-                  <span className="text-ink/40 text-sm">⌕</span>
-                  <input
-                    type="text"
-                    className="flex-1 bg-transparent text-sm outline-none placeholder:text-ink/30"
-                    placeholder="Search or link a project…"
-                    value={projectSearch}
-                    onChange={e => { setProjectSearch(e.target.value); setProjectDropdownOpen(true) }}
-                    onFocus={() => setProjectDropdownOpen(true)}
-                    onBlur={() => setTimeout(() => setProjectDropdownOpen(false), 150)}
-                  />
-                  {projectId ? (
-                    <button type="button" className="text-xs text-ink/50 hover:text-ink" onClick={() => { setProjectId(''); setProjectSearch('') }}>
-                      <X className="h-3 w-3" />
-                    </button>
-                  ) : null}
-                </div>
-                {projectDropdownOpen && (
-                  <div className="absolute left-6 right-6 top-full z-10 mt-1 max-h-48 overflow-y-auto rounded border border-border bg-white shadow-lg">
-                    {(projectsQuery.data ?? [])
-                      .filter(p => !projectSearch || p.title.toLowerCase().includes(projectSearch.toLowerCase()))
-                      .map(p => (
-                        <button
-                          key={p.id}
-                          type="button"
-                          className={`w-full px-4 py-2 text-left text-sm hover:bg-cloud/60 ${projectId === p.id ? 'font-semibold text-ink' : 'text-ink/70'}`}
-                          onMouseDown={e => { e.preventDefault(); setProjectId(p.id); setProjectSearch(p.title); setProjectDropdownOpen(false) }}
-                        >
-                          {p.title}
-                        </button>
-                      ))}
-                    {(projectsQuery.data ?? []).filter(p => !projectSearch || p.title.toLowerCase().includes(projectSearch.toLowerCase())).length === 0 ? (
-                      <p className="px-4 py-3 text-sm text-ink/40">No projects match</p>
-                    ) : null}
-                  </div>
-                )}
-              </div>
-
-              {/* Attach row */}
-              <div className="border-t border-border bg-cloud/30 px-6 py-3 space-y-3">
-                <div className="flex flex-wrap items-center gap-2">
-                  <label className="flex cursor-pointer items-center gap-1.5 rounded-lg border border-border bg-white px-3 py-1.5 text-xs font-medium text-ink/70 hover:border-ink/40 hover:text-ink transition">
-                    <Paperclip className="h-3.5 w-3.5" />
-                    Attach
-                    <input
-                      type="file"
-                      accept="image/*,video/*,audio/*"
-                      multiple
-                      className="hidden"
-                      onChange={(e) => {
-                        const files = Array.from(e.target.files ?? [])
-                        const imgs = files.filter(f => f.type.startsWith('image/'))
-                        const vids = files.filter(f => f.type.startsWith('video/'))
-                        const auds = files.filter(f => f.type.startsWith('audio/'))
-                        if (imgs.length) setSelectedImages(v => [...v, ...imgs])
-                        if (vids.length) setSelectedVideoFiles(v => [...v, ...vids])
-                        if (auds.length) setSelectedAudioFiles(v => [...v, ...auds])
-                        e.target.value = ''
-                      }}
-                    />
-                  </label>
-                  <input
-                    type="url"
-                    className="flex-1 min-w-[180px] rounded border border-border bg-white px-3 py-1.5 text-xs outline-none placeholder:text-ink/30 focus:border-ink/40"
-                    placeholder="Or paste a video / audio URL…"
-                    value={videoLinkInput || audioLinkInput}
-                    onChange={(e) => {
-                      const v = e.target.value
-                      if (v.includes('soundcloud') || v.includes('.mp3') || v.includes('.wav') || v.includes('.ogg')) {
-                        setAudioLinkInput(v); setVideoLinkInput('')
-                      } else {
-                        setVideoLinkInput(v); setAudioLinkInput('')
-                      }
-                    }}
-                  />
-                  {/* Video/audio pills */}
-                  {selectedVideoFiles.map((file, i) => (
-                    <MediaPill key={`vid-${i}`} icon="▶" label={file.name} color="orange" onRemove={() => setSelectedVideoFiles(v => v.filter((_, j) => j !== i))} />
-                  ))}
-                  {videoLinkInput ? <MediaPill icon="▶" label={videoLinkInput} color="orange" onRemove={() => setVideoLinkInput('')} /> : null}
-                  {selectedAudioFiles.map((file, i) => (
-                    <MediaPill key={`aud-${i}`} icon="♪" label={file.name} color="green" onRemove={() => setSelectedAudioFiles(v => v.filter((_, j) => j !== i))} />
-                  ))}
-                  {audioLinkInput ? <MediaPill icon="♪" label={audioLinkInput} color="green" onRemove={() => setAudioLinkInput('')} /> : null}
-                  {/* Existing video/audio pills from editing */}
-                  {editingMediaPaths.filter(p => p.startsWith('vid:') || p.startsWith('video:') || p.startsWith('aud:') || p.startsWith('audio:')).map((path) => {
-                    const isAudio = path.startsWith('aud:') || path.startsWith('audio:')
-                    return <MediaPill key={path} icon={isAudio ? '♪' : '▶'} label={path.split('/').pop()?.slice(0, 24) ?? path} color={isAudio ? 'green' : 'orange'} onRemove={() => setEditingMediaPaths(m => m.filter(p => p !== path))} />
-                  })}
-                </div>
-
-                {/* Image thumbnails */}
-                {(() => {
-                  const existingImages = editingMediaPaths.filter(p => !p.startsWith('vid:') && !p.startsWith('video:') && !p.startsWith('aud:') && !p.startsWith('audio:'))
-                  const hasImages = existingImages.length > 0 || selectedImages.length > 0
-                  if (!hasImages) return null
-                  return (
-                    <div className="flex flex-wrap gap-2">
-                      {existingImages.map((path) => (
-                        <div key={path} className="relative h-20 w-20 shrink-0">
-                          <img src={signedImagesQuery.data?.[path]} alt="" className="h-20 w-20 rounded-lg object-cover border border-border" />
-                          <button
-                            type="button"
-                            onClick={() => setEditingMediaPaths(m => m.filter(p => p !== path))}
-                            className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-ink text-white shadow"
-                          >
-                            <X className="h-3 w-3" />
-                          </button>
-                        </div>
-                      ))}
-                      {selectedImages.map((file, i) => (
-                        <div key={`new-${i}`} className="relative h-20 w-20 shrink-0">
-                          <img src={URL.createObjectURL(file)} alt={file.name} className="h-20 w-20 rounded-lg object-cover border border-border" />
-                          <button
-                            type="button"
-                            onClick={() => setSelectedImages(v => v.filter((_, j) => j !== i))}
-                            className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-ink text-white shadow"
-                          >
-                            <X className="h-3 w-3" />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )
-                })()}
-              </div>
-
-              {/* Footer */}
-              <div className="border-t border-border px-6 py-4 space-y-3">
-                {/* Claim links (only when kind = claim) */}
-                {contentKind === 'claim' ? (
-                  <div className="space-y-2">
-                    <AppTextarea value={claimLinksText} onChange={e => setClaimLinksText(e.target.value)} className="min-h-20" placeholder="Add 1 or 2 supporting links, one per line" />
-                    <p className="text-xs text-ink/55">Fact claims need one or two supporting links.</p>
-                  </div>
-                ) : null}
-
-                {/* Action row: kind chips left, buttons right */}
-                <div className="flex flex-wrap items-center justify-between gap-3">
+              {/* Action row: kind chips left, buttons right */}
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <details>
+                  <summary className="cursor-pointer min-h-11 py-2 text-sm">Post type</summary>
                   <div className="flex flex-wrap gap-1.5">
                     {(['note', 'product', 'opinion', 'claim'] as const).map((item) => (
                       <button
                         key={item}
                         type="button"
                         onClick={() => setContentKind(item)}
-                        className={contentKind === item ? 'ui-chip-toggle ui-chip-toggle--active' : 'ui-chip-toggle ui-chip-toggle--inactive'}
+                        className={
+                          contentKind === item
+                            ? 'ui-chip-toggle ui-chip-toggle--active'
+                            : 'ui-chip-toggle ui-chip-toggle--inactive'
+                        }
                       >
                         {labelForKind(item)}
                       </button>
                     ))}
                   </div>
-                  <div className="flex items-center shrink-0 rounded-lg border border-border overflow-hidden">
-                    <label className="px-2 text-xs text-ink/70">Audience
-                      <select aria-label="Post audience" className="ml-2 bg-transparent py-2 text-sm text-ink" value={postVisibility} onChange={e => setPostVisibility(e.target.value as typeof postVisibility)}>
-                        <option value="private">Only me</option>
-                        <option value="followers">Followers</option>
-                        <option value="public">Everyone</option>
-                        {(projectId || linkedProjectId) ? <option value="project">Project members</option> : null}
-                      </select>
-                    </label>
-                    <AppButton disabled={(createPostMutation.isPending || updatePostMutation.isPending) || !(body.replace(/<[^>]*>/g, '').trim() || selectedImages.length || selectedVideoFiles.length || selectedAudioFiles.length || editingMediaPaths.length || videoLinkInput.trim() || audioLinkInput.trim())} onClick={() => {
+                </details>
+                <div className="flex items-center shrink-0 rounded-lg border border-border overflow-hidden">
+                  <label className="px-2 text-xs text-ink/70">
+                    Audience
+                    <select
+                      aria-label="Post audience"
+                      className="ml-2 bg-transparent py-2 text-sm text-ink"
+                      value={postVisibility}
+                      onChange={(e) => setPostVisibility(e.target.value as typeof postVisibility)}
+                    >
+                      <option value="private">Only me</option>
+                      <option value="followers">Followers</option>
+                      <option value="public">Everyone</option>
+                      {projectId || linkedProjectId ? <option value="project">Project members</option> : null}
+                    </select>
+                  </label>
+                  <AppButton
+                    disabled={
+                      createPostMutation.isPending ||
+                      updatePostMutation.isPending ||
+                      !(
+                        body.replace(/<[^>]*>/g, '').trim() ||
+                        selectedImages.length ||
+                        selectedVideoFiles.length ||
+                        selectedAudioFiles.length ||
+                        editingMediaPaths.length ||
+                        videoLinkInput.trim() ||
+                        audioLinkInput.trim()
+                      )
+                    }
+                    onClick={() => {
                       if (postVisibility === 'project' && !projectId && !linkedProjectId) return
-                      if (postVisibility !== 'private') setPublicWarningPending(postVisibility)
-                      else if (editingPost) updatePostMutation.mutate('private')
-                      else createPostMutation.mutate('private')
-                    }}>{(createPostMutation.isPending || updatePostMutation.isPending) ? 'Saving…' : postVisibility === 'private' ? 'Save privately' : editingPost ? 'Save changes' : 'Share'}</AppButton>
-                  </div>
+                      if (editingPost) updatePostMutation.mutate(postVisibility)
+                      else createPostMutation.mutate(postVisibility)
+                    }}
+                  >
+                    {createPostMutation.isPending || updatePostMutation.isPending
+                      ? 'Saving…'
+                      : postVisibility === 'private'
+                        ? 'Save privately'
+                        : editingPost
+                          ? 'Save changes'
+                          : 'Post'}
+                  </AppButton>
                 </div>
               </div>
-            </AppCard>
-          </div>
-        </div>
-      ) : null}
-
-      {publicWarningPending ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/35 px-4 backdrop-blur-sm">
-          <AppCard className="w-full max-w-sm space-y-4">
-            <SectionHeading eyebrow="" title="Share this message?" />
-            <p className="text-sm text-ink/70">
-              This will be visible to {publicWarningPending === 'project' ? 'all project members' : publicWarningPending === 'public' ? 'everyone who can browse the public feed' : 'your followers'}.
-              You can always edit or delete it afterwards.
-            </p>
-            <div className="flex justify-end gap-2">
-              <AppButton variant="ghost" onClick={() => { setPublicWarningPending(null) }}>Cancel</AppButton>
-              <AppButton onClick={() => {
-                const vis = publicWarningPending
-                setPublicWarningPending(null)
-                if (editingPost) { updatePostMutation.mutate(vis) } else { createPostMutation.mutate(vis) }
-              }}>
-                Confirm share
-              </AppButton>
             </div>
           </AppCard>
-        </div>
-      ) : null}
+        </AppDialog>
+      )}
 
-      {flowDraft ? (
-        <div className="fixed inset-0 z-40 flex items-start justify-center bg-ink/35 px-4 py-10 backdrop-blur-sm">
-          <AppCard className="w-full max-w-xl space-y-4">
-            <SectionHeading eyebrow="Create project" title="Create a plan from this message" action={<button type="button" className="ui-soft-icon-button" onClick={() => setFlowDraft(null)}><X className="h-4 w-4" /></button>} />
-            <AppPanel tone="butter" className="text-sm text-ink/70">{flowDraft.body}</AppPanel>
-            <AppInput value={flowTitle} onChange={(event) => setFlowTitle(event.target.value)} placeholder="Project title" />
-            <label className="block text-sm font-semibold">Target date (optional)<AppInput type="date" value={flowDate} onChange={(event) => setFlowDate(event.target.value)} /></label>
-            <p className="text-sm text-ink/70">Start with the conversation, then add people, dates and a budget. Your original message keeps its current audience.</p>
-            <Link to="/app/coordination" className="block text-sm underline">Prefer a reusable starting point? Browse flows & templates</Link>
-            {flowError ? <AppPanel tone="peach" className="text-sm">{flowError}</AppPanel> : null}
-            <div className="flex justify-end gap-2">
-              <AppButton variant="ghost" onClick={() => {
-                setFlowDraft(null)
-                setFlowError(null)
-              }}>Cancel</AppButton>
-              <AppButton disabled={!session || createFlowMutation.isPending} onClick={() => createFlowMutation.mutate()}>
-                {createFlowMutation.isPending ? 'Creating…' : 'Create project'}
-              </AppButton>
-            </div>
-          </AppCard>
-        </div>
-      ) : null}
+      {flowDraft && (
+        <SourceAction postId={flowDraft.postId} body={flowDraft.body} onClose={() => setFlowDraft(null)} />
+      )}
 
       {dmDraft ? (
-        <div className="fixed inset-0 z-40 flex items-start justify-center bg-ink/35 px-4 py-10 backdrop-blur-sm">
+        <AppDialog title={`Message ${dmDraft.displayName}`} onClose={() => setDmDraft(null)}>
           <AppCard className="w-full max-w-md space-y-4">
-            <SectionHeading eyebrow="Direct message" title={`Message ${dmDraft.displayName}?`} action={<button type="button" className="ui-soft-icon-button" onClick={() => setDmDraft(null)}><X className="h-4 w-4" /></button>} />
-            <AppPanel className="text-sm text-ink/70">
-              Direct messages are possible from a post, but with a little friction so people don’t feel instantly cold-opened.
-            </AppPanel>
+            <AppPanel className="text-sm text-ink/70">Start a private conversation.</AppPanel>
             <div className="flex justify-end gap-2">
-              <AppButton variant="ghost" onClick={() => setDmDraft(null)}>Cancel</AppButton>
-              <AppButton disabled={!session || dmShortcutMutation.isPending} onClick={() => dmShortcutMutation.mutate()}>
-                Open DM
+              <AppButton variant="ghost" onClick={() => setDmDraft(null)}>
+                Cancel
+              </AppButton>
+              <AppButton
+                disabled={!session || dmShortcutMutation.isPending}
+                onClick={() => dmShortcutMutation.mutate()}
+              >
+                Message
               </AppButton>
             </div>
           </AppCard>
-        </div>
+        </AppDialog>
       ) : null}
 
       {labelReviewDraft ? (
-        <div className="fixed inset-0 z-40 flex items-start justify-center bg-ink/35 px-4 py-10 backdrop-blur-sm">
+        <AppDialog title={'Report an incorrect label'} onClose={() => setLabelReviewDraft(null)}>
           <AppCard className="w-full max-w-md space-y-4">
-            <SectionHeading eyebrow="Review label" title="Report an incorrect label" action={<button type="button" className="ui-soft-icon-button" onClick={() => setLabelReviewDraft(null)}><X className="h-4 w-4" /></button>} />
             <AppPanel className="text-sm text-ink/75">
-              Current label: <span className="font-bold">{labelForKind(labelReviewDraft.currentKind)}</span>. If it looks off, suggest a better fit below.
+              Current label: <span className="font-bold">{labelForKind(labelReviewDraft.currentKind)}</span>.
+              If it looks off, suggest a better fit below.
             </AppPanel>
             {labelReviewDraft.isOwnPost ? (
               <div className="grid gap-2">
@@ -1228,15 +1544,25 @@ export function MessagesFeedPage({ linkedProjectId }: { linkedProjectId?: string
                     key={item}
                     variant={labelReviewDraft.currentKind === item ? 'primary' : 'ghost'}
                     disabled={labelReviewDraft.currentKind === item || ownLabelMutation.isPending}
-                    onClick={() => ownLabelMutation.mutate({ postId: labelReviewDraft.postId, contentKind: item })}
+                    onClick={() =>
+                      ownLabelMutation.mutate({
+                        postId: labelReviewDraft.postId,
+                        contentKind: item,
+                      })
+                    }
                   >
                     Change to {labelForKind(item)}
                   </AppButton>
                 ))}
                 <AppPanel tone="surface" className="text-sm text-ink/70">
-                  You can fix the label on your own post here. To switch a post to a fact claim, it needs supporting links first.
+                  You can fix the label on your own post here. To switch a post to a fact claim, it needs
+                  supporting links first.
                 </AppPanel>
-                {ownLabelMutation.error ? <AppPanel tone="peach" className="text-sm">{describeError(ownLabelMutation.error, 'Could not update the label.')}</AppPanel> : null}
+                {ownLabelMutation.error ? (
+                  <AppPanel tone="peach" className="text-sm">
+                    {describeError(ownLabelMutation.error, 'Could not update the label.')}
+                  </AppPanel>
+                ) : null}
               </div>
             ) : (
               <div className="grid gap-2">
@@ -1251,7 +1577,12 @@ export function MessagesFeedPage({ linkedProjectId }: { linkedProjectId?: string
                     key={item}
                     variant={labelReviewDraft.currentFlag === item ? 'primary' : 'ghost'}
                     disabled={item === labelReviewDraft.currentKind || labelFlagMutation.isPending}
-                    onClick={() => labelFlagMutation.mutate({ postId: labelReviewDraft.postId, suggestedKind: item })}
+                    onClick={() =>
+                      labelFlagMutation.mutate({
+                        postId: labelReviewDraft.postId,
+                        suggestedKind: item,
+                      })
+                    }
                   >
                     Flag as {labelForKind(item)}
                   </AppButton>
@@ -1259,10 +1590,10 @@ export function MessagesFeedPage({ linkedProjectId }: { linkedProjectId?: string
               </div>
             )}
             <AppPanel tone="butter" className="text-xs text-ink/70">
-              If enough people raise the same concern, the post is marked for review and the poster gets a gentle notice to check the label.
+              Repeated reports flag the label for review and notify the author.
             </AppPanel>
           </AppCard>
-        </div>
+        </AppDialog>
       ) : null}
     </>
   )
@@ -1270,12 +1601,17 @@ export function MessagesFeedPage({ linkedProjectId }: { linkedProjectId?: string
 
 function ProjectMessagesPage() {
   const { projectId } = projectMessagesRoute.useParams()
-  return <MessagesFeedPage linkedProjectId={projectId} />
+  return (
+    <ProjectShell projectId={projectId} activeTab="conversation">
+      <MessagesFeedPage linkedProjectId={projectId} />
+    </ProjectShell>
+  )
 }
 
 function PostDetailPage() {
   const { session } = useAppStore()
   const { postId } = postRoute.useParams()
+  const [action, setAction] = useState<{ id: string; body: string } | null>(null)
   const queryClient = useQueryClient()
   const [body, setBody] = useState('')
   const [autocomplete, setAutocomplete] = useState<AutocompleteState | null>(null)
@@ -1300,7 +1636,9 @@ function PostDetailPage() {
     mutationFn: () => createPost({ authorId: session!.user.id, body, replyToPostId: postId }),
     onSuccess: () => {
       setBody('')
-      void queryClient.invalidateQueries({ queryKey: ['post', postId, session?.user.id] })
+      void queryClient.invalidateQueries({
+        queryKey: ['post', postId, session?.user.id],
+      })
       void queryClient.invalidateQueries({ queryKey: ['social-feed'] })
     },
   })
@@ -1312,78 +1650,129 @@ function PostDetailPage() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-4">
+      {action && <SourceAction postId={action.id} body={action.body} onClose={() => setAction(null)} />}
+      <QueryFeedback query={postQuery} />
+      <MutationFeedback mutation={replyMutation} />
+      {!postQuery.isPending && !postQuery.isError && !postQuery.data && (
+        <AppCard>This post is unavailable.</AppCard>
+      )}
       {postQuery.data?.post ? (
         <AppCard className="space-y-4">
           <div className="flex items-center gap-3">
             <AvatarBadge label={postQuery.data.post.author?.display_name || 'U'} />
             <div>
-              <p className="text-xl font-extrabold text-ink">{postQuery.data.post.author?.display_name || 'User'}</p>
+              <p className="text-xl font-extrabold text-ink">
+                {postQuery.data.post.author?.display_name || 'User'}
+              </p>
               <p className="text-sm text-ink/55">@{postQuery.data.post.author?.handle || 'user'}</p>
             </div>
           </div>
           <div className="text-[17px] leading-8 text-ink">
-            <RichPostText body={postQuery.data.post.body} mentionMap={postQuery.data.post.mentionMap} />
+            <PostText body={postQuery.data.post.body} mentionMap={postQuery.data.post.mentionMap} />
+            <PostMedia paths={postQuery.data.post.mediaPaths ?? []} />
+            <SourceLinks postId={postId} />
+            <AppButton
+              variant="ghost"
+              onClick={() => setAction({ id: postId, body: postQuery.data!.post.body })}
+            >
+              Create…
+            </AppButton>
           </div>
         </AppCard>
       ) : null}
-      <AppCard className="space-y-4">
-        <div className="relative">
-          <AppTextarea
-            ref={replyComposerRef}
-            value={body}
-            onChange={(event) => {
-              setBody(event.target.value)
-              updateAutocomplete('reply', event.target.value, event.target.selectionStart ?? event.target.value.length, setAutocomplete, setActiveSuggestionIndex)
-            }}
-            onKeyDown={(event) =>
-              handleAutocompleteKeyDown({
-                event,
-                autocomplete,
-                options: autocompleteOptions,
-                activeSuggestionIndex,
-                setActiveSuggestionIndex,
-                applyOption: (option) =>
+      {postQuery.data?.post && (
+        <AppCard className="space-y-4">
+          <div className="relative">
+            <AppTextarea
+              ref={replyComposerRef}
+              value={body}
+              onChange={(event) => {
+                setBody(event.target.value)
+                updateAutocomplete(
+                  'reply',
+                  event.target.value,
+                  event.target.selectionStart ?? event.target.value.length,
+                  setAutocomplete,
+                  setActiveSuggestionIndex,
+                )
+              }}
+              onKeyDown={(event) =>
+                handleAutocompleteKeyDown({
+                  event,
+                  autocomplete,
+                  options: autocompleteOptions,
+                  activeSuggestionIndex,
+                  setActiveSuggestionIndex,
+                  applyOption: (option) =>
+                    applyAutocompleteOption({
+                      kind: 'reply',
+                      option,
+                      autocomplete,
+                      refs: { post: null, reply: replyComposerRef, dm: null },
+                      values: { post: '', reply: body, dm: '' },
+                      setters: {
+                        post: () => undefined,
+                        reply: setBody,
+                        dm: () => undefined,
+                      },
+                      clearAutocomplete: () => setAutocomplete(null),
+                    }),
+                  clearAutocomplete: () => setAutocomplete(null),
+                })
+              }
+              onClick={(event) =>
+                updateAutocomplete(
+                  'reply',
+                  event.currentTarget.value,
+                  event.currentTarget.selectionStart ?? event.currentTarget.value.length,
+                  setAutocomplete,
+                  setActiveSuggestionIndex,
+                )
+              }
+              onKeyUp={(event) =>
+                updateAutocomplete(
+                  'reply',
+                  event.currentTarget.value,
+                  event.currentTarget.selectionStart ?? event.currentTarget.value.length,
+                  setAutocomplete,
+                  setActiveSuggestionIndex,
+                )
+              }
+              className="min-h-28"
+              placeholder="Write a reply..."
+            />
+            {autocomplete?.kind === 'reply' ? (
+              <AutocompleteMenu
+                options={autocompleteOptions}
+                activeIndex={activeSuggestionIndex}
+                onSelect={(option) =>
                   applyAutocompleteOption({
                     kind: 'reply',
                     option,
                     autocomplete,
                     refs: { post: null, reply: replyComposerRef, dm: null },
                     values: { post: '', reply: body, dm: '' },
-                    setters: { post: () => undefined, reply: setBody, dm: () => undefined },
+                    setters: {
+                      post: () => undefined,
+                      reply: setBody,
+                      dm: () => undefined,
+                    },
                     clearAutocomplete: () => setAutocomplete(null),
-                  }),
-                clearAutocomplete: () => setAutocomplete(null),
-              })
-            }
-            onClick={(event) => updateAutocomplete('reply', event.currentTarget.value, event.currentTarget.selectionStart ?? event.currentTarget.value.length, setAutocomplete, setActiveSuggestionIndex)}
-            onKeyUp={(event) => updateAutocomplete('reply', event.currentTarget.value, event.currentTarget.selectionStart ?? event.currentTarget.value.length, setAutocomplete, setActiveSuggestionIndex)}
-            className="min-h-28"
-            placeholder="Write a reply..."
-          />
-          {autocomplete?.kind === 'reply' ? (
-            <AutocompleteMenu
-              options={autocompleteOptions}
-              activeIndex={activeSuggestionIndex}
-              onSelect={(option) =>
-                applyAutocompleteOption({
-                  kind: 'reply',
-                  option,
-                  autocomplete,
-                  refs: { post: null, reply: replyComposerRef, dm: null },
-                  values: { post: '', reply: body, dm: '' },
-                  setters: { post: () => undefined, reply: setBody, dm: () => undefined },
-                  clearAutocomplete: () => setAutocomplete(null),
-                })
-              }
-            />
-          ) : null}
-        </div>
-        <div className="flex justify-end">
-          <AppButton disabled={!session || replyMutation.isPending || !body.trim()} onClick={() => replyMutation.mutate()}>
-            Reply
-          </AppButton>
-        </div>
-      </AppCard>
+                  })
+                }
+              />
+            ) : null}
+          </div>
+          <div className="flex justify-end">
+            <AppButton
+              disabled={!session || !postQuery.data?.post || replyMutation.isPending || !body.trim()}
+              onClick={() => replyMutation.mutate()}
+            >
+              Reply
+            </AppButton>
+          </div>
+        </AppCard>
+      )}
       <div className="space-y-3">
         {(postQuery.data?.replies ?? []).map((reply) => (
           <AppPanel key={reply.id} className="space-y-2">
@@ -1391,7 +1780,11 @@ function PostDetailPage() {
               {reply.author?.display_name || reply.author?.handle || 'User'} · {timeAgo(reply.created_at)}
             </p>
             <div className="text-ink">
-              <RichPostText body={reply.body} mentionMap={reply.mentionMap} />
+              <PostText body={reply.body} mentionMap={reply.mentionMap} />
+              <PostMedia paths={reply.mediaPaths ?? []} />
+              <AppButton variant="ghost" onClick={() => setAction({ id: reply.id, body: reply.body })}>
+                Create…
+              </AppButton>
             </div>
           </AppPanel>
         ))}
@@ -1410,23 +1803,29 @@ function SocialProfilePage() {
     queryFn: () => fetchSocialProfile(profileId, session!.user.id),
     enabled: Boolean(session?.user.id),
   })
-  const feedQuery = useQuery({
-    queryKey: ['social-feed', session?.user.id, 'discover'],
-    queryFn: () => fetchFeed(session!.user.id, 'discover'),
+  const feedQuery = useInfiniteQuery({
+    queryKey: ['profile-posts', session?.user.id, profileId],
+    initialPageParam: undefined as { sort_at: string; id: string } | undefined,
+    getNextPageParam: (page: Awaited<ReturnType<typeof fetchFeed>>) => page[0]?._nextCursor,
+    queryFn: ({ pageParam }) =>
+      fetchFeed(session!.user.id, 'discover', {
+        authorId: profileId,
+        before: pageParam,
+      }),
     enabled: Boolean(session?.user.id),
   })
-  const dmThreadsQuery = useQuery({ queryKey: ['dm-threads'], queryFn: fetchDmThreads, enabled: Boolean(session?.user.id) })
   const followMutation = useMutation({
     mutationFn: () => toggleFollow({ followerId: session!.user.id, followeeId: profileId }),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['social-profile', profileId, session?.user.id] })
+      void queryClient.invalidateQueries({
+        queryKey: ['social-profile', profileId, session?.user.id],
+      })
       void queryClient.invalidateQueries({ queryKey: ['social-feed'] })
+      void queryClient.invalidateQueries({ queryKey: ['profile-posts'] })
     },
   })
   const dmMutation = useMutation({
     mutationFn: async () => {
-      const existing = (dmThreadsQuery.data ?? []).find((thread) => thread.title === (profileQuery.data?.profile?.display_name || 'Direct message'))
-      if (existing) return existing
       return createDmThread({
         ownerId: session!.user.id,
         title: profileQuery.data?.profile?.display_name || 'Direct message',
@@ -1436,28 +1835,43 @@ function SocialProfilePage() {
     },
     onSuccess: (thread) => {
       void queryClient.invalidateQueries({ queryKey: ['dm-threads'] })
-      void queryClient.invalidateQueries({ queryKey: ['social-profile', profileId, session?.user.id] })
-      void navigate({ to: '/app/messages/dm/$threadId', params: { threadId: thread.id } })
+      void queryClient.invalidateQueries({
+        queryKey: ['social-profile', profileId, session?.user.id],
+      })
+      void navigate({
+        to: '/app/messages/dm/$threadId',
+        params: { threadId: thread.id },
+      })
     },
   })
 
-  const posts = (feedQuery.data ?? []).filter((post) => post.author_id === profileId)
+  const posts = feedQuery.data?.pages.flat() ?? []
 
   return (
     <div className="mx-auto max-w-3xl space-y-4">
-      <Link to="/app/messages" className="inline-flex items-center gap-1 text-sm font-bold text-ink/60 hover:text-ink">
-        ← Messages
+      <Link
+        to="/app/messages"
+        className="inline-flex items-center gap-1 text-sm font-bold text-ink/60 hover:text-ink"
+      >
+        ← Home
       </Link>
       <AppCard className="space-y-4">
         <div className="flex items-start justify-between gap-3">
           <div className="flex gap-3">
             <AvatarBadge label={profileQuery.data?.profile?.display_name || 'U'} />
             <div>
-              <h2 className="ui-section-title text-2xl">{profileQuery.data?.profile?.display_name || 'User'}</h2>
+              <h2 className="ui-section-title text-2xl">
+                {profileQuery.data?.profile?.display_name || 'User'}
+              </h2>
               <p className="text-sm text-ink/55">@{profileQuery.data?.profile?.handle || 'user'}</p>
               <p className="mt-2 text-sm text-ink/70">{profileQuery.data?.profile?.bio || 'No bio yet.'}</p>
             </div>
           </div>
+          {session?.user.id === profileId && (
+            <Link to="/app/settings" className="ui-button ui-button--secondary">
+              Edit profile
+            </Link>
+          )}
           {session?.user.id !== profileId ? (
             <div className="flex gap-2">
               <AppButton onClick={() => followMutation.mutate()}>
@@ -1470,16 +1884,36 @@ function SocialProfilePage() {
           ) : null}
         </div>
         <p className="text-sm text-ink/60">
-          {profileQuery.data?.followerCount ?? 0} followers · {profileQuery.data?.followingCount ?? 0} following
+          {profileQuery.data?.followerCount ?? 0} followers · {profileQuery.data?.followingCount ?? 0}{' '}
+          following
         </p>
       </AppCard>
+      <QueryFeedback query={profileQuery} />
+      <QueryFeedback query={feedQuery} />
+      <MutationFeedback mutation={followMutation} />
+      <MutationFeedback mutation={dmMutation} />
       {posts.map((post) => (
         <AppCard key={post.id}>
-          <Link to="/app/messages/post/$postId" params={{ postId: post.id }} className="block whitespace-pre-wrap text-ink">
-            {post.body}
+          <PostText body={post.body} mentionMap={post.mentionMap} />
+          <PostMedia paths={post.mediaPaths ?? []} />
+          <Link
+            to="/app/messages/post/$postId"
+            params={{ postId: post.id }}
+            className="mt-3 inline-flex min-h-11 items-center text-sm underline"
+          >
+            Open conversation
           </Link>
         </AppCard>
       ))}
+      {feedQuery.hasNextPage && (
+        <AppButton
+          variant="secondary"
+          disabled={feedQuery.isFetchingNextPage}
+          onClick={() => void feedQuery.fetchNextPage()}
+        >
+          Load more
+        </AppButton>
+      )}
     </div>
   )
 }
@@ -1493,9 +1927,15 @@ function TopicFeedPage() {
     queryFn: () => fetchTopics(session?.user.id),
     enabled: Boolean(session?.user.id),
   })
-  const topicFeedQuery = useQuery({
+  const topicFeedQuery = useInfiniteQuery({
     queryKey: ['topic-feed', slug, session?.user.id],
-    queryFn: () => fetchTopicFeed(slug, session!.user.id),
+    initialPageParam: undefined as { sort_at: string; id: string } | undefined,
+    getNextPageParam: (page: Awaited<ReturnType<typeof fetchFeed>>) => page[0]?._nextCursor,
+    queryFn: ({ pageParam }) =>
+      fetchFeed(session!.user.id, 'discover', {
+        topic: slug,
+        before: pageParam,
+      }),
     enabled: Boolean(session?.user.id),
   })
   const topic = (topicsQuery.data ?? []).find((item) => item.slug === slug)
@@ -1512,19 +1952,40 @@ function TopicFeedPage() {
         <SectionHeading
           eyebrow="Topic"
           title={topic?.label || slug}
-          action={topic ? <AppButton onClick={() => subscriptionMutation.mutate()}>{topic.viewerSubscribed ? 'Following topic' : 'Follow topic'}</AppButton> : null}
+          action={
+            topic ? (
+              <AppButton onClick={() => subscriptionMutation.mutate()}>
+                {topic.viewerSubscribed ? 'Following topic' : 'Follow topic'}
+              </AppButton>
+            ) : null
+          }
         />
-        <p className="text-sm text-ink/60">
-          Follow themes to tune what shows up in your main feed.
-        </p>
+        <p className="text-sm text-ink/60">Posts about this topic.</p>
       </AppCard>
-      {(topicFeedQuery.data ?? []).map((post) => (
+      <QueryFeedback query={topicFeedQuery} />
+      <MutationFeedback mutation={subscriptionMutation} />
+      {(topicFeedQuery.data?.pages.flat() ?? []).map((post) => (
         <AppCard key={post.id}>
-          <Link to="/app/messages/post/$postId" params={{ postId: post.id }} className="block whitespace-pre-wrap text-ink">
-            {post.body}
+          <PostText body={post.body} mentionMap={post.mentionMap} />
+          <PostMedia paths={post.mediaPaths ?? []} />
+          <Link
+            to="/app/messages/post/$postId"
+            params={{ postId: post.id }}
+            className="mt-3 inline-flex min-h-11 items-center text-sm underline"
+          >
+            Open conversation
           </Link>
         </AppCard>
       ))}
+      {topicFeedQuery.hasNextPage && (
+        <AppButton
+          variant="secondary"
+          disabled={topicFeedQuery.isFetchingNextPage}
+          onClick={() => void topicFeedQuery.fetchNextPage()}
+        >
+          Load more
+        </AppButton>
+      )}
     </div>
   )
 }
@@ -1533,37 +1994,54 @@ function DmInboxPage() {
   const { session, profile } = useAppStore()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const threadsQuery = useQuery({ queryKey: ['dm-threads'], queryFn: fetchDmThreads })
+  const threadsQuery = useQuery({
+    queryKey: ['dm-threads'],
+    queryFn: fetchDmThreads,
+  })
   const peopleQuery = useQuery({
     queryKey: ['people-directory', session?.user.id],
     queryFn: () => fetchPeopleDirectory(session!.user.id),
     enabled: Boolean(session?.user.id),
   })
-  const [title, setTitle] = useState('')
   const [memberId, setMemberId] = useState('')
   const createMutation = useMutation({
     mutationFn: () =>
       createDmThread({
         ownerId: session!.user.id,
-        title: title || 'New chat',
+        title:
+          peopleQuery.data?.find((person) => person.id === memberId)?.display_name ||
+          peopleQuery.data?.find((person) => person.id === memberId)?.handle ||
+          'Messages',
         threadKind: 'direct',
         memberIds: memberId ? [memberId] : [],
       }),
     onSuccess: (thread) => {
-      setTitle('')
       setMemberId('')
       void queryClient.invalidateQueries({ queryKey: ['dm-threads'] })
-      void navigate({ to: '/app/messages/dm/$threadId', params: { threadId: thread.id } })
+      void navigate({
+        to: '/app/messages/dm/$threadId',
+        params: { threadId: thread.id },
+      })
     },
   })
 
   return (
     <div className="mx-auto max-w-3xl space-y-4">
       <AppCard className="space-y-4">
-        <SectionHeading eyebrow="DMs" title="Direct messages" action={<Link to="/app/messages"><AppButton variant="ghost">Back to feed</AppButton></Link>} />
-        <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
-          <AppInput value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Chat name" />
-          <AppSelect value={memberId} onChange={(event) => setMemberId(event.target.value)}>
+        <SectionHeading
+          title="Messages"
+          action={
+            <Link to="/app/messages">
+              <AppButton variant="ghost">Back to feed</AppButton>
+            </Link>
+          }
+        />
+        <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
+          <AppSelect
+            aria-label="Recipient"
+            value={memberId}
+            onChange={(event) => setMemberId(event.target.value)}
+          >
             <option value="">Choose a person</option>
             {(peopleQuery.data ?? []).map((person) => (
               <option key={person.id} value={person.id}>
@@ -1571,18 +2049,34 @@ function DmInboxPage() {
               </option>
             ))}
           </AppSelect>
-          <AppButton disabled={!session || createMutation.isPending || !memberId} onClick={() => createMutation.mutate()}>
+          <AppButton
+            disabled={!session || createMutation.isPending || !memberId}
+            onClick={() => createMutation.mutate()}
+          >
             Start
           </AppButton>
         </div>
       </AppCard>
+      <QueryFeedback query={threadsQuery} />
+      <MutationFeedback mutation={createMutation} />
+      {!threadsQuery.isPending && !threadsQuery.isError && !threadsQuery.data?.length && (
+        <AppCard>No messages yet. Choose a person to start a conversation.</AppCard>
+      )}
       {(threadsQuery.data ?? []).map((thread) => (
         <AppCard key={thread.id}>
-          <Link to="/app/messages/dm/$threadId" params={{ threadId: thread.id }} className="flex items-center gap-3">
+          <Link
+            to="/app/messages/dm/$threadId"
+            params={{ threadId: thread.id }}
+            className="flex items-center gap-3"
+          >
             <AvatarBadge label={thread.title || profile?.first_name || 'D'} />
             <div>
               <p className="font-extrabold text-ink">{thread.title || 'Direct message'}</p>
-              <p className="text-sm text-ink/55">{thread.thread_kind}</p>
+              <p className="line-clamp-1 text-sm text-ink/65">{thread.last_body || 'No messages yet'}</p>
+              <p className="text-xs text-ink/55">
+                {timeAgo(thread.last_at || thread.created_at)}
+                {thread.unread > 0 ? ` · ${thread.unread} unread` : ''}
+              </p>
             </div>
           </Link>
         </AppCard>
@@ -1594,6 +2088,8 @@ function DmInboxPage() {
 function DmThreadPage() {
   const { session } = useAppStore()
   const { threadId } = dmThreadRoute.useParams()
+  const [action, setAction] = useState<{ id: string; body: string } | null>(null)
+  const sendId = useRef(crypto.randomUUID())
   const queryClient = useQueryClient()
   const [body, setBody] = useState('')
   const [selectedImages, setSelectedImages] = useState<File[]>([])
@@ -1610,9 +2106,50 @@ function DmThreadPage() {
     queryFn: () => fetchTopics(session?.user.id),
     enabled: Boolean(session?.user.id),
   })
-  const messagesQuery = useQuery({ queryKey: ['dm-messages', threadId], queryFn: () => fetchDmMessages(threadId) })
+  const threadsQuery = useQuery({
+    queryKey: ['dm-threads'],
+    queryFn: fetchDmThreads,
+  })
+  const messagesQuery = useQuery({
+    queryKey: ['dm-messages', threadId],
+    queryFn: () => fetchDmMessages(threadId),
+    refetchInterval: 15000,
+  })
+  useEffect(() => {
+    if (!supabase) return
+    const client = supabase
+    void client
+      .rpc('mark_dm_read', { p_thread_id: threadId })
+      .then(() => queryClient.invalidateQueries({ queryKey: ['dm-threads'] }))
+    const channel = client
+      .channel(`dm:${threadId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'dm_messages',
+          filter: `thread_id=eq.${threadId}`,
+        },
+        () => {
+          void queryClient.invalidateQueries({
+            queryKey: ['dm-messages', threadId],
+          })
+          void client
+            .rpc('mark_dm_read', { p_thread_id: threadId })
+            .then(() => queryClient.invalidateQueries({ queryKey: ['dm-threads'] }))
+        },
+      )
+      .subscribe()
+    return () => {
+      void client.removeChannel(channel)
+    }
+  }, [threadId, queryClient])
   const imagePaths = useMemo(
-    () => (messagesQuery.data ?? []).flatMap((message) => (Array.isArray(message.metadata?.imagePaths) ? (message.metadata.imagePaths as string[]) : [])),
+    () =>
+      (messagesQuery.data ?? []).flatMap((message) =>
+        Array.isArray(message.metadata?.imagePaths) ? (message.metadata.imagePaths as string[]) : [],
+      ),
     [messagesQuery.data],
   )
   const signedImagesQuery = useQuery({
@@ -1623,12 +2160,21 @@ function DmThreadPage() {
   const sendMutation = useMutation({
     mutationFn: async () => {
       const imagePaths = selectedImages.length ? await uploadDmImages(session!.user.id, selectedImages) : []
-      return sendDmMessage({ threadId, authorId: session!.user.id, body, imagePaths })
+      return sendDmMessage({
+        threadId,
+        authorId: session!.user.id,
+        body,
+        imagePaths,
+        clientId: sendId.current,
+      })
     },
     onSuccess: () => {
+      sendId.current = crypto.randomUUID()
       setBody('')
       setSelectedImages([])
-      void queryClient.invalidateQueries({ queryKey: ['dm-messages', threadId] })
+      void queryClient.invalidateQueries({
+        queryKey: ['dm-messages', threadId],
+      })
     },
   })
 
@@ -1639,18 +2185,51 @@ function DmThreadPage() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-4">
+      {action && <SourceAction messageId={action.id} body={action.body} onClose={() => setAction(null)} />}
       <AppCard className="space-y-4">
-        <SectionHeading eyebrow="DM" title="Chat" action={<Link to="/app/messages/dm"><AppButton variant="ghost">Inbox</AppButton></Link>} />
+        <SectionHeading
+          title={threadsQuery.data?.find((thread) => thread.id === threadId)?.title || 'Messages'}
+          action={
+            <Link to="/app/messages/dm">
+              <AppButton variant="ghost">Inbox</AppButton>
+            </Link>
+          }
+        />
       </AppCard>
       <AppCard className="space-y-3">
+        <QueryFeedback query={messagesQuery} />
+        <MutationFeedback mutation={sendMutation} />
         {(messagesQuery.data ?? []).map((message) => (
-          <div key={message.id} className={`flex ${message.author_id === session?.user.id ? 'justify-end' : 'justify-start'}`}>
-            <div className={`max-w-[80%] rounded-[24px] px-4 py-3 ${message.author_id === session?.user.id ? 'bg-ink text-white' : 'bg-cloud text-ink'}`}>
-              <p className="whitespace-pre-wrap text-sm">{message.body}</p>
+          <div
+            key={message.id}
+            className={`flex ${message.author_id === session?.user.id ? 'justify-end' : 'justify-start'}`}
+          >
+            <div
+              className={`max-w-[80%] rounded-[24px] px-4 py-3 ${message.author_id === session?.user.id ? 'bg-ink text-white' : 'bg-cloud text-ink'}`}
+            >
+              <p className="whitespace-pre-wrap break-words text-sm">{message.body}</p>
+              <time dateTime={message.created_at} className="mt-1 block text-xs opacity-70">
+                {new Date(message.created_at).toLocaleString(undefined, {
+                  dateStyle: 'medium',
+                  timeStyle: 'short',
+                })}
+              </time>
+              <button
+                type="button"
+                className="mt-1 min-h-11 text-xs underline"
+                onClick={() => setAction({ id: message.id, body: message.body })}
+              >
+                Create task, event or project
+              </button>
               {Array.isArray(message.metadata?.imagePaths) && message.metadata.imagePaths.length ? (
                 <div className="mt-2 grid gap-2">
                   {(message.metadata.imagePaths as string[]).map((path) => (
-                    <img key={path} src={signedImagesQuery.data?.[path]} alt="" className="h-56 w-full rounded-[18px] object-cover" />
+                    <img
+                      key={path}
+                      src={signedImagesQuery.data?.[path]}
+                      alt=""
+                      className="h-56 w-full rounded-[18px] object-cover"
+                    />
                   ))}
                 </div>
               ) : null}
@@ -1663,7 +2242,13 @@ function DmThreadPage() {
             value={body}
             onChange={(event) => {
               setBody(event.target.value)
-              updateAutocomplete('dm', event.target.value, event.target.selectionStart ?? event.target.value.length, setAutocomplete, setActiveSuggestionIndex)
+              updateAutocomplete(
+                'dm',
+                event.target.value,
+                event.target.selectionStart ?? event.target.value.length,
+                setAutocomplete,
+                setActiveSuggestionIndex,
+              )
             }}
             onKeyDown={(event) =>
               handleAutocompleteKeyDown({
@@ -1679,14 +2264,34 @@ function DmThreadPage() {
                     autocomplete,
                     refs: { post: null, reply: null, dm: composerRef },
                     values: { post: '', reply: '', dm: body },
-                    setters: { post: () => undefined, reply: () => undefined, dm: setBody },
+                    setters: {
+                      post: () => undefined,
+                      reply: () => undefined,
+                      dm: setBody,
+                    },
                     clearAutocomplete: () => setAutocomplete(null),
                   }),
                 clearAutocomplete: () => setAutocomplete(null),
               })
             }
-            onClick={(event) => updateAutocomplete('dm', event.currentTarget.value, event.currentTarget.selectionStart ?? event.currentTarget.value.length, setAutocomplete, setActiveSuggestionIndex)}
-            onKeyUp={(event) => updateAutocomplete('dm', event.currentTarget.value, event.currentTarget.selectionStart ?? event.currentTarget.value.length, setAutocomplete, setActiveSuggestionIndex)}
+            onClick={(event) =>
+              updateAutocomplete(
+                'dm',
+                event.currentTarget.value,
+                event.currentTarget.selectionStart ?? event.currentTarget.value.length,
+                setAutocomplete,
+                setActiveSuggestionIndex,
+              )
+            }
+            onKeyUp={(event) =>
+              updateAutocomplete(
+                'dm',
+                event.currentTarget.value,
+                event.currentTarget.selectionStart ?? event.currentTarget.value.length,
+                setAutocomplete,
+                setActiveSuggestionIndex,
+              )
+            }
             className="min-h-24 bg-white"
             placeholder="Write a message..."
           />
@@ -1701,7 +2306,11 @@ function DmThreadPage() {
                   autocomplete,
                   refs: { post: null, reply: null, dm: composerRef },
                   values: { post: '', reply: '', dm: body },
-                  setters: { post: () => undefined, reply: () => undefined, dm: setBody },
+                  setters: {
+                    post: () => undefined,
+                    reply: () => undefined,
+                    dm: setBody,
+                  },
                   clearAutocomplete: () => setAutocomplete(null),
                 })
               }
@@ -1716,7 +2325,11 @@ function DmThreadPage() {
                 <button
                   type="button"
                   className="ui-soft-icon-button absolute right-2 top-2"
-                  onClick={() => setSelectedImages((current) => current.filter((_, currentIndex) => currentIndex !== index))}
+                  onClick={() =>
+                    setSelectedImages((current) =>
+                      current.filter((_, currentIndex) => currentIndex !== index),
+                    )
+                  }
                 >
                   <X className="h-4 w-4" />
                 </button>
@@ -1733,10 +2346,15 @@ function DmThreadPage() {
               accept="image/*"
               multiple
               className="hidden"
-              onChange={(event) => setSelectedImages((current) => [...current, ...Array.from(event.target.files ?? [])])}
+              onChange={(event) =>
+                setSelectedImages((current) => [...current, ...Array.from(event.target.files ?? [])])
+              }
             />
           </label>
-          <AppButton disabled={!session || sendMutation.isPending || (!body.trim() && !selectedImages.length)} onClick={() => sendMutation.mutate()}>
+          <AppButton
+            disabled={!session || sendMutation.isPending || (!body.trim() && !selectedImages.length)}
+            onClick={() => sendMutation.mutate()}
+          >
             <Send className="mr-2 h-4 w-4" />
             Send
           </AppButton>
@@ -1750,51 +2368,26 @@ function AvatarBadge({ label }: { label: string }) {
   return <div className="ui-avatar-badge">{label.slice(0, 1).toUpperCase()}</div>
 }
 
-function ActionButton({ icon, label, count, onClick }: { icon: ReactNode; label: string; count?: number; onClick?: () => void }) {
+function ActionButton({
+  icon,
+  label,
+  count,
+  onClick,
+}: {
+  icon: ReactNode
+  label: string
+  count?: number
+  onClick?: () => void
+}) {
   return (
     <button type="button" className="group relative ui-action-button" onClick={onClick} aria-label={label}>
       {icon}
       {typeof count === 'number' ? <span>{count}</span> : null}
-      <span className="pointer-events-none absolute left-1/2 top-[calc(100%+0.55rem)] z-[70] w-max max-w-[220px] -translate-x-1/2 rounded-[16px] border border-ink/10 bg-white px-3 py-2 text-xs font-medium text-ink/80 opacity-0 shadow-xl transition-all duration-150 ease-out delay-500 group-hover:translate-y-1 group-hover:opacity-100 group-hover:delay-500">
+      <span className="pointer-events-none absolute left-1/2 top-[calc(100%+0.55rem)] z-[70] w-max max-w-[220px] -translate-x-1/2 rounded-[16px] border border-ink/10 bg-white px-3 py-2 text-xs font-medium text-ink/80 opacity-0 shadow-xl transition-all duration-150 ease-out delay-500 group-hover:translate-y-1 group-hover:opacity-100 group-hover:delay-500 group-focus-visible:opacity-100">
         {label}
         <span className="absolute left-1/2 top-0 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rotate-45 border-l border-t border-ink/10 bg-white" />
       </span>
     </button>
-  )
-}
-
-function RichPostText({ body, mentionMap }: { body: string; mentionMap?: Record<string, string> }) {
-  const parts = body.split(/(@[a-z0-9_-]+|#[a-z0-9_-]+)/gi)
-
-  return (
-    <p className="whitespace-pre-wrap">
-      {parts.map((part, index) => {
-        if (/^@[a-z0-9_-]+$/i.test(part)) {
-          const handle = part.slice(1).toLowerCase()
-          const profileId = mentionMap?.[handle]
-          return profileId ? (
-            <Link key={`${part}-${index}`} to="/app/messages/profile/$profileId" params={{ profileId }} className="font-bold text-sky hover:underline">
-              {part}
-            </Link>
-          ) : (
-            <span key={`${part}-${index}`} className="font-bold text-sky">
-              {part}
-            </span>
-          )
-        }
-
-        if (/^#[a-z0-9_-]+$/i.test(part)) {
-          const slug = part.slice(1).toLowerCase()
-          return (
-            <Link key={`${part}-${index}`} to="/app/messages/topics/$slug" params={{ slug }} className="font-bold text-sky hover:underline">
-              {part}
-            </Link>
-          )
-        }
-
-        return <span key={`${part}-${index}`}>{part}</span>
-      })}
-    </p>
   )
 }
 
@@ -1859,7 +2452,11 @@ function LabelBadge({
           <div className="absolute left-1/2 top-0 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rotate-45 border-l border-t border-ink/10 bg-white" />
           <p className="text-xs font-black uppercase tracking-[0.18em] text-ink/45">{labelForKind(kind)}</p>
           <p className="mt-1 text-sm leading-6 text-ink/80">{statusText}</p>
-          {flagCount ? <p className="mt-1 text-xs font-bold text-berry/80">{flagCount} peer flag{flagCount === 1 ? '' : 's'}</p> : null}
+          {flagCount ? (
+            <p className="mt-1 text-xs font-bold text-berry/80">
+              {flagCount} peer flag{flagCount === 1 ? '' : 's'}
+            </p>
+          ) : null}
         </div>
       </div>
     </div>
@@ -1879,11 +2476,29 @@ function labelNarration(kind: 'update' | 'product' | 'opinion' | 'claim' | 'revi
 }
 
 function kindLetter(kind: 'update' | 'product' | 'opinion' | 'claim' | 'review') {
-  return kind === 'product' ? 'P' : kind === 'opinion' ? 'O' : kind === 'claim' ? 'F' : kind === 'review' ? 'R' : 'U'
+  return kind === 'product'
+    ? 'P'
+    : kind === 'opinion'
+      ? 'O'
+      : kind === 'claim'
+        ? 'F'
+        : kind === 'review'
+          ? 'R'
+          : 'U'
 }
 
 function labelForKind(kind: 'note' | 'update' | 'product' | 'opinion' | 'claim' | 'review') {
-  return kind === 'product' ? 'Product' : kind === 'opinion' ? 'Opinion' : kind === 'claim' ? 'Fact claim' : kind === 'review' ? 'Review' : kind === 'note' ? 'Note' : 'Update'
+  return kind === 'product'
+    ? 'Product'
+    : kind === 'opinion'
+      ? 'Opinion'
+      : kind === 'claim'
+        ? 'Fact claim'
+        : kind === 'review'
+          ? 'Review'
+          : kind === 'note'
+            ? 'Note'
+            : 'Update'
 }
 
 function AutocompleteMenu({
@@ -1933,7 +2548,12 @@ function buildAutocompleteOptions(
 
   if (autocomplete.trigger === '@') {
     return people
-      .filter((person) => !query || person.handle.toLowerCase().includes(query) || (person.display_name || '').toLowerCase().includes(query))
+      .filter(
+        (person) =>
+          !query ||
+          person.handle.toLowerCase().includes(query) ||
+          (person.display_name || '').toLowerCase().includes(query),
+      )
       .slice(0, 6)
       .map((person) => ({
         id: person.id,
@@ -1957,7 +2577,10 @@ function buildAutocompleteOptions(
   }
 
   return topics
-    .filter((topic) => !query || topic.slug.toLowerCase().includes(query) || topic.label.toLowerCase().includes(query))
+    .filter(
+      (topic) =>
+        !query || topic.slug.toLowerCase().includes(query) || topic.label.toLowerCase().includes(query),
+    )
     .slice(0, 6)
     .map((topic) => ({
       id: topic.id,
@@ -2095,7 +2718,7 @@ function applyAutocompleteOption({
     if (!el) return
     el.focus()
     if ('setSelectionRange' in el && typeof (el as HTMLTextAreaElement).setSelectionRange === 'function') {
-      (el as HTMLTextAreaElement).setSelectionRange(nextCaret, nextCaret)
+      ;(el as HTMLTextAreaElement).setSelectionRange(nextCaret, nextCaret)
     }
   })
 }
@@ -2126,7 +2749,12 @@ function parseSupportingLinks(value: string) {
   return unique
 }
 
-function extractReviewMeta(metadata: unknown): { rating: number; listingId: string; listingTitle: string | null; reviewId: string } | null {
+function extractReviewMeta(metadata: unknown): {
+  rating: number
+  listingId: string
+  listingTitle: string | null
+  reviewId: string
+} | null {
   if (!metadata || typeof metadata !== 'object') return null
   const m = metadata as Record<string, unknown>
   if (!m.review_id || typeof m.rating !== 'number' || typeof m.listing_id !== 'string') return null
@@ -2156,11 +2784,21 @@ function extractSupportingLinks(metadata: unknown) {
 }
 
 function isEditedPost(metadata: unknown) {
-  return Boolean(metadata && typeof metadata === 'object' && 'editedAt' in metadata && typeof metadata.editedAt === 'string')
+  return Boolean(
+    metadata &&
+    typeof metadata === 'object' &&
+    'editedAt' in metadata &&
+    typeof metadata.editedAt === 'string',
+  )
 }
 
 function formatEditedAt(metadata: unknown) {
-  if (!metadata || typeof metadata !== 'object' || !('editedAt' in metadata) || typeof metadata.editedAt !== 'string') {
+  if (
+    !metadata ||
+    typeof metadata !== 'object' ||
+    !('editedAt' in metadata) ||
+    typeof metadata.editedAt !== 'string'
+  ) {
     return 'recently'
   }
   const value = new Date(metadata.editedAt)

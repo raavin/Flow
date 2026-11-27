@@ -1,14 +1,7 @@
 import { useState } from 'react'
 import { createRoute, Link } from '@tanstack/react-router'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import {
-  AppCard,
-  AppButton,
-  AppInput,
-  AppSelect,
-  FieldLabel,
-  SectionHeading,
-} from '@superapp/ui'
+import { AppCard, AppButton, AppInput, AppSelect, FieldLabel, SectionHeading } from '@superapp/ui'
 import { appRoute } from '@/components/layout'
 import { useAppStore } from '@/hooks/useAppStore'
 import { fetchProjects } from '@/lib/projects'
@@ -24,19 +17,13 @@ import {
   type SupplierRequest,
   type SupplierQuote,
 } from '@/lib/supplier-requests'
-const textArea =
-  'min-h-24 w-full rounded-xl border border-border bg-surface p-3 text-ink'
+const textArea = 'min-h-24 w-full rounded-xl border border-border bg-surface p-3 text-ink'
 function Brief({
   request: r,
 }: {
   request: Pick<
     SupplierRequest,
-    | 'title'
-    | 'description'
-    | 'context_note'
-    | 'location_label'
-    | 'due_on'
-    | 'budget_cents'
+    'title' | 'description' | 'context_note' | 'location_label' | 'due_on' | 'budget_cents'
   >
 }) {
   return (
@@ -44,11 +31,8 @@ function Brief({
       <h2 className="text-xl font-bold">{r.title}</h2>
       <p className="whitespace-pre-wrap">{r.description}</p>
       <p>
-        {r.location_label || 'Location to discuss'} ·{' '}
-        {r.due_on || 'Timing flexible'} ·{' '}
-        {r.budget_cents === null
-          ? 'Budget open to quotes'
-          : `${formatCurrency(r.budget_cents)} AUD budget`}
+        {r.location_label || 'Location to discuss'} · {r.due_on || 'Timing flexible'} ·{' '}
+        {r.budget_cents === null ? 'Budget open to quotes' : `${formatCurrency(r.budget_cents)} AUD budget`}
       </p>
       {r.context_note ? (
         <div className="ui-panel">
@@ -121,9 +105,7 @@ export function RequestsPage() {
   })
   const [validation, setValidation] = useState('')
   const ownQuotes = new Set(
-    (quotes.data ?? [])
-      .filter((q) => q.supplier_id === session?.user.id)
-      .map((q) => q.request_id),
+    (quotes.data ?? []).filter((q) => q.supplier_id === session?.user.id).map((q) => q.request_id),
   )
   const rows = (requests.data ?? []).filter((r) =>
     tab === 'mine'
@@ -144,14 +126,9 @@ export function RequestsPage() {
             </Link>
           }
         />
-        <p className="text-sm text-ink/70">
-          Find suppliers and compare quotes for your project.
-        </p>
+        <p className="text-sm text-ink/70">Find suppliers and compare quotes for your project.</p>
       </AppCard>
-      <div
-        className="flex flex-wrap items-center justify-between gap-3"
-        aria-label="Request list controls"
-      >
+      <div className="flex flex-wrap items-center justify-between gap-3" aria-label="Request list controls">
         <div className="flex flex-wrap gap-2">
           {[
             ['open', 'Open requests'],
@@ -168,11 +145,7 @@ export function RequestsPage() {
             </AppButton>
           ))}
         </div>
-        <AppButton
-          aria-expanded={create}
-          aria-controls="request-form"
-          onClick={() => setCreate(!create)}
-        >
+        <AppButton aria-expanded={create} aria-controls="request-form" onClick={() => setCreate(!create)}>
           {create ? 'Close request form' : 'Request a quote'}
         </AppButton>
       </div>
@@ -189,29 +162,19 @@ export function RequestsPage() {
                     context_note: draft.context,
                     location_label: draft.location,
                     due_on: draft.due || null,
-                    budget_cents: draft.budget
-                      ? parseBudgetAmount(draft.budget)
-                      : null,
+                    budget_cents: draft.budget ? parseBudgetAmount(draft.budget) : null,
                   }}
                 />
                 <p className="text-sm">
-                  Visible to signed-in marketplace members. Your project,
-                  conversations, budget records and receipts remain private. A
-                  request cannot be edited after publication; cancel it and
-                  publish a replacement if the brief changes.
+                  Visible to signed-in marketplace members. Your project, conversations, budget records and
+                  receipts remain private. A request cannot be edited after publication; cancel it and publish
+                  a replacement if the brief changes.
                 </p>
                 <div className="flex gap-2">
-                  <AppButton
-                    disabled={publish.isPending}
-                    onClick={() => publish.mutate()}
-                  >
+                  <AppButton disabled={publish.isPending} onClick={() => publish.mutate()}>
                     Publish request
                   </AppButton>
-                  <AppButton
-                    variant="ghost"
-                    disabled={publish.isPending}
-                    onClick={() => setPreview(false)}
-                  >
+                  <AppButton variant="ghost" disabled={publish.isPending} onClick={() => setPreview(false)}>
                     Edit brief
                   </AppButton>
                 </div>
@@ -236,9 +199,7 @@ export function RequestsPage() {
                     required
                     maxLength={160}
                     value={draft.title}
-                    onChange={(e) =>
-                      setDraft({ ...draft, title: e.target.value })
-                    }
+                    onChange={(e) => setDraft({ ...draft, title: e.target.value })}
                     placeholder="Catering for a birthday, logo for a new business…"
                   />
                 </FieldLabel>
@@ -249,9 +210,7 @@ export function RequestsPage() {
                     required
                     maxLength={6000}
                     value={draft.description}
-                    onChange={(e) =>
-                      setDraft({ ...draft, description: e.target.value })
-                    }
+                    onChange={(e) => setDraft({ ...draft, description: e.target.value })}
                   />
                 </FieldLabel>
                 <FieldLabel>
@@ -260,9 +219,7 @@ export function RequestsPage() {
                     className={textArea}
                     maxLength={4000}
                     value={draft.context}
-                    onChange={(e) =>
-                      setDraft({ ...draft, context: e.target.value })
-                    }
+                    onChange={(e) => setDraft({ ...draft, context: e.target.value })}
                     placeholder="Only include details you want suppliers to see. Avoid addresses or private information."
                   />
                 </FieldLabel>
@@ -272,9 +229,7 @@ export function RequestsPage() {
                     <AppInput
                       maxLength={160}
                       value={draft.location}
-                      onChange={(e) =>
-                        setDraft({ ...draft, location: e.target.value })
-                      }
+                      onChange={(e) => setDraft({ ...draft, location: e.target.value })}
                     />
                   </FieldLabel>
                   <FieldLabel>
@@ -282,9 +237,7 @@ export function RequestsPage() {
                     <AppInput
                       type="date"
                       value={draft.due}
-                      onChange={(e) =>
-                        setDraft({ ...draft, due: e.target.value })
-                      }
+                      onChange={(e) => setDraft({ ...draft, due: e.target.value })}
                     />
                   </FieldLabel>
                   <FieldLabel>
@@ -292,9 +245,7 @@ export function RequestsPage() {
                     <AppInput
                       inputMode="decimal"
                       value={draft.budget}
-                      onChange={(e) =>
-                        setDraft({ ...draft, budget: e.target.value })
-                      }
+                      onChange={(e) => setDraft({ ...draft, budget: e.target.value })}
                     />
                   </FieldLabel>
                 </div>
@@ -323,9 +274,7 @@ export function RequestsPage() {
                     Budget allocation (private)
                     <AppSelect
                       value={draft.allocation}
-                      onChange={(e) =>
-                        setDraft({ ...draft, allocation: e.target.value })
-                      }
+                      onChange={(e) => setDraft({ ...draft, allocation: e.target.value })}
                     >
                       <option value="">Unallocated</option>
                       {allocations.data?.map((a) => (
@@ -340,9 +289,7 @@ export function RequestsPage() {
               </form>
             )}
             {validation || publish.error || allocations.error ? (
-              <p role="alert">
-                {validation || featureError(publish.error || allocations.error)}
-              </p>
+              <p role="alert">{validation || featureError(publish.error || allocations.error)}</p>
             ) : null}
           </AppCard>
         </section>
@@ -371,9 +318,7 @@ export function RequestsPage() {
           </Link>
           <p>
             {r.status} · {r.location_label || 'Location flexible'} ·{' '}
-            {r.budget_cents === null
-              ? 'Open to quotes'
-              : formatCurrency(r.budget_cents)}
+            {r.budget_cents === null ? 'Open to quotes' : formatCurrency(r.budget_cents)}
           </p>
           <p className="line-clamp-2">{r.description}</p>
         </AppCard>
@@ -419,9 +364,7 @@ function QuoteDiscussion({ quote, me }: { quote: SupplierQuote; me: string }) {
       </AppButton>
       {open ? (
         <div className="space-y-2">
-          <p className="text-xs">
-            Only the requester and this supplier can read these messages.
-          </p>
+          <p className="text-xs">Only the requester and this supplier can read these messages.</p>
           {messages.data?.map((m) => (
             <p key={m.id} className="ui-panel whitespace-pre-wrap">
               <strong>
@@ -450,9 +393,7 @@ function QuoteDiscussion({ quote, me }: { quote: SupplierQuote; me: string }) {
               value={body}
               onChange={(e) => setBody(e.target.value)}
             />
-            <AppButton disabled={!body.trim() || send.isPending}>
-              Send message
-            </AppButton>
+            <AppButton disabled={!body.trim() || send.isPending}>Send message</AppButton>
           </form>
           {messages.error || send.error ? (
             <p role="alert">{featureError(messages.error || send.error)}</p>
@@ -471,9 +412,7 @@ function QuoteEditor({
   quote?: SupplierQuote
   onSaved: () => void
 }) {
-  const [amount, setAmount] = useState(
-    quote ? String(quote.amount_cents / 100) : '',
-  )
+  const [amount, setAmount] = useState(quote ? String(quote.amount_cents / 100) : '')
   const [details, setDetails] = useState(quote?.details ?? '')
   const [available, setAvailable] = useState(quote?.available_on ?? '')
   const [valid, setValid] = useState(quote?.valid_until ?? '')
@@ -497,18 +436,10 @@ function QuoteEditor({
           save.mutate()
         }}
       >
-        <SectionHeading
-          eyebrow="Your private quote"
-          title={quote ? 'Revise your quote' : 'Submit a quote'}
-        />
+        <SectionHeading eyebrow="Your private quote" title={quote ? 'Revise your quote' : 'Submit a quote'} />
         <FieldLabel>
           Total price including fees (AUD)
-          <AppInput
-            required
-            inputMode="decimal"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-          />
+          <AppInput required inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} />
         </FieldLabel>
         <FieldLabel>
           Inclusions, exclusions and delivery terms
@@ -523,29 +454,18 @@ function QuoteEditor({
         <div className="grid gap-3 sm:grid-cols-2">
           <FieldLabel>
             Available from
-            <AppInput
-              type="date"
-              value={available}
-              onChange={(e) => setAvailable(e.target.value)}
-            />
+            <AppInput type="date" value={available} onChange={(e) => setAvailable(e.target.value)} />
           </FieldLabel>
           <FieldLabel>
             Quote valid through (optional)
-            <AppInput
-              type="date"
-              value={valid}
-              onChange={(e) => setValid(e.target.value)}
-            />
+            <AppInput type="date" value={valid} onChange={(e) => setValid(e.target.value)} />
           </FieldLabel>
         </div>
         <p className="text-sm">
-          Only you and the requester can see your quote. You can revise or
-          withdraw it until a supplier is selected. Selection does not collect
-          money.
+          Only you and the requester can see your quote. You can revise or withdraw it until a supplier is
+          selected. Selection does not collect money.
         </p>
-        <AppButton disabled={save.isPending}>
-          {quote ? 'Save revised quote' : 'Submit quote'}
-        </AppButton>
+        <AppButton disabled={save.isPending}>{quote ? 'Save revised quote' : 'Submit quote'}</AppButton>
         {save.error ? <p role="alert">{featureError(save.error)}</p> : null}
       </form>
     </AppCard>
@@ -580,13 +500,7 @@ export function RequestDetail() {
     setConfirm(null)
   }
   const action = useMutation({
-    mutationFn: ({
-      name,
-      args,
-    }: {
-      name: string
-      args: Record<string, unknown>
-    }) => rpc(name, args),
+    mutationFn: ({ name, args }: { name: string; args: Record<string, unknown> }) => rpc(name, args),
     onSuccess: refresh,
   })
   const r = request.data
@@ -636,88 +550,120 @@ export function RequestDetail() {
           </AppButton>
         ) : null}
       </AppCard>
-      <h2 className="text-xl font-bold">
-        {owner ? 'Compare quotes' : 'Your quote'}
-      </h2>
+      <h2 className="text-xl font-bold">{owner ? 'Compare quotes' : 'Your quote'}</h2>
       {quotes.isPending ? <p>Loading quotes…</p> : null}
-      {!quotes.isPending && !quotes.error && !quotes.data?.length ? (
-        <p>No quotes yet.</p>
-      ) : null}
+      {!quotes.isPending && !quotes.error && !quotes.data?.length ? <p>No quotes yet.</p> : null}
+      {owner && !!quotes.data?.length && (
+        <div className="overflow-x-auto">
+          <table className="budget-table w-full">
+            <caption className="sr-only">Supplier quote comparison, amounts in AUD</caption>
+            <thead>
+              <tr>
+                <th scope="col">Supplier</th>
+                <th scope="col">Quote</th>
+                <th scope="col">Available</th>
+                <th scope="col">Valid until</th>
+                <th scope="col">Status</th>
+                <th scope="col">
+                  <span className="sr-only">Details</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {quotes.data.map((q) => (
+                <tr key={q.id}>
+                  <th scope="row">{q.supplier_label}</th>
+                  <td className="budget-money">{formatCurrency(q.amount_cents)}</td>
+                  <td>
+                    {q.available_on
+                      ? new Date(`${q.available_on}T12:00:00`).toLocaleDateString()
+                      : 'To agree'}
+                  </td>
+                  <td>
+                    {q.valid_until
+                      ? new Date(`${q.valid_until}T12:00:00`).toLocaleDateString()
+                      : 'No expiry set'}
+                  </td>
+                  <td>{q.status}</td>
+                  <td>
+                    <a className="underline" href={`#quote-${q.id}`}>
+                      View details
+                    </a>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
       {quotes.data?.map((q) => (
-        <AppCard key={q.id} className="space-y-2">
-          <div className="flex flex-wrap justify-between gap-2">
-            <h3 className="font-bold">{q.supplier_label}</h3>
-            <strong>
-              {formatCurrency(q.amount_cents)} AUD · {q.status}
-            </strong>
-          </div>
-          <p className="whitespace-pre-wrap">{q.details}</p>
-          <p>
-            Available: {q.available_on || 'To agree'} · Valid through:{' '}
-            {q.valid_until || 'Until withdrawn or request closes'}
-          </p>
-          {r.budget_cents !== null && q.amount_cents > r.budget_cents ? (
-            <p className="font-bold">
-              {formatCurrency(q.amount_cents - r.budget_cents)} above the
-              request budget
+        <div key={q.id} id={`quote-${q.id}`} className="scroll-mt-4">
+          <AppCard className="space-y-2">
+            <div className="flex flex-wrap justify-between gap-2">
+              <h3 className="font-bold">{q.supplier_label}</h3>
+              <strong>
+                {formatCurrency(q.amount_cents)} AUD · {q.status}
+              </strong>
+            </div>
+            <p className="whitespace-pre-wrap">{q.details}</p>
+            <p>
+              Available: {q.available_on || 'To agree'} · Valid through:{' '}
+              {q.valid_until || 'Until withdrawn or request closes'}
             </p>
-          ) : null}
-          {owner && r.status === 'open' && q.status === 'pending' ? (
-            confirm === q.id ? (
-              <div className="ui-panel space-y-2">
-                <p>
-                  Choose this supplier for {formatCurrency(q.amount_cents)}?{' '}
-                  {r.project_id
-                    ? 'This adds a committed cost to your project budget.'
-                    : 'This request has no project, so no budget cost will be created.'}{' '}
-                  Other pending quotes will be declined. No money is
-                  transferred.
-                </p>
-                <AppButton
-                  disabled={action.isPending}
-                  onClick={() =>
+            {r.budget_cents !== null && q.amount_cents > r.budget_cents ? (
+              <p className="font-bold">
+                {formatCurrency(q.amount_cents - r.budget_cents)} above the request budget
+              </p>
+            ) : null}
+            {owner && r.status === 'open' && q.status === 'pending' ? (
+              confirm === q.id ? (
+                <div className="ui-panel space-y-2">
+                  <p>
+                    Choose this supplier for {formatCurrency(q.amount_cents)}?{' '}
+                    {r.project_id
+                      ? 'This adds a committed cost to your project budget.'
+                      : 'This request has no project, so no budget cost will be created.'}{' '}
+                    Other pending quotes will be declined. No money is transferred.
+                  </p>
+                  <AppButton
+                    disabled={action.isPending}
+                    onClick={() =>
+                      action.mutate({
+                        name: 'choose_supplier_quote',
+                        args: { p_quote: q.id },
+                      })
+                    }
+                  >
+                    Confirm supplier
+                  </AppButton>
+                  <AppButton variant="ghost" disabled={action.isPending} onClick={() => setConfirm(null)}>
+                    Keep comparing
+                  </AppButton>
+                </div>
+              ) : (
+                <AppButton disabled={action.isPending} onClick={() => setConfirm(q.id)}>
+                  Choose this quote
+                </AppButton>
+              )
+            ) : null}
+            {!owner && r.status === 'open' && q.status === 'pending' ? (
+              <AppButton
+                variant="ghost"
+                disabled={action.isPending}
+                onClick={() => {
+                  if (window.confirm('Withdraw your quote?'))
                     action.mutate({
-                      name: 'choose_supplier_quote',
+                      name: 'withdraw_supplier_quote',
                       args: { p_quote: q.id },
                     })
-                  }
-                >
-                  Confirm supplier
-                </AppButton>
-                <AppButton
-                  variant="ghost"
-                  disabled={action.isPending}
-                  onClick={() => setConfirm(null)}
-                >
-                  Keep comparing
-                </AppButton>
-              </div>
-            ) : (
-              <AppButton
-                disabled={action.isPending}
-                onClick={() => setConfirm(q.id)}
+                }}
               >
-                Choose this quote
+                Withdraw quote
               </AppButton>
-            )
-          ) : null}
-          {!owner && r.status === 'open' && q.status === 'pending' ? (
-            <AppButton
-              variant="ghost"
-              disabled={action.isPending}
-              onClick={() => {
-                if (window.confirm('Withdraw your quote?'))
-                  action.mutate({
-                    name: 'withdraw_supplier_quote',
-                    args: { p_quote: q.id },
-                  })
-              }}
-            >
-              Withdraw quote
-            </AppButton>
-          ) : null}
-          {session ? <QuoteDiscussion quote={q} me={session.user.id} /> : null}
-        </AppCard>
+            ) : null}
+            {session ? <QuoteDiscussion quote={q} me={session.user.id} /> : null}
+          </AppCard>
+        </div>
       ))}
       {session &&
       !owner &&
@@ -732,20 +678,15 @@ export function RequestDetail() {
           onSaved={refresh}
         />
       ) : null}
-      {quotes.error || action.error ? (
-        <p role="alert">{featureError(quotes.error || action.error)}</p>
-      ) : null}
+      {quotes.error || action.error ? <p role="alert">{featureError(quotes.error || action.error)}</p> : null}
     </div>
   )
 }
 export const requestsRoute = createRoute({
   getParentRoute: () => appRoute,
   path: 'marketplace/requests',
-  validateSearch: (
-    search: Record<string, unknown>,
-  ): { projectId?: string } => ({
-    projectId:
-      typeof search.projectId === 'string' ? search.projectId : undefined,
+  validateSearch: (search: Record<string, unknown>): { projectId?: string } => ({
+    projectId: typeof search.projectId === 'string' ? search.projectId : undefined,
   }),
   component: RequestsPage,
 })

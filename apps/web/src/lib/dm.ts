@@ -1,14 +1,19 @@
 import { supabase } from './supabase'
-import { syncDmThreadCoordinationObject } from './coordination-objects'
 
 export async function fetchDmThreads() {
   if (!supabase) return []
-  const { data, error } = await supabase
-    .from('dm_threads')
-    .select('id, title, thread_kind, linked_project_id, created_at')
-    .order('created_at', { ascending: false })
+  const { data, error } = await supabase.rpc('dm_inbox')
   if (error) throw error
-  return data ?? []
+  return (data ?? []) as {
+    id: string
+    title: string
+    thread_kind: string
+    linked_project_id: string | null
+    created_at: string
+    last_body: string | null
+    last_at: string
+    unread: number
+  }[]
 }
 
 export async function createDmThread(input: {
@@ -31,13 +36,6 @@ export async function createDmThread(input: {
   if (!thread) {
     throw new Error('Direct message thread could not be created.')
   }
-  await syncDmThreadCoordinationObject({
-    ownerId: input.ownerId,
-    threadId: thread.id,
-    title: thread.title,
-    linkedProjectId: thread.linked_project_id,
-    threadKind: thread.thread_kind,
-  })
   return thread
 }
 
@@ -57,13 +55,15 @@ export async function sendDmMessage(input: {
   authorId: string
   body: string
   imagePaths?: string[]
+  clientId?: string
 }) {
   if (!supabase) throw new Error('Supabase is not configured.')
   const { error } = await supabase.from('dm_messages').insert({
+    client_id: input.clientId,
     thread_id: input.threadId,
     author_id: input.authorId,
     body: input.body,
     metadata: { imagePaths: input.imagePaths ?? [] },
   })
-  if (error) throw error
+  if (error && !(input.clientId && error.code === '23505')) throw error
 }
