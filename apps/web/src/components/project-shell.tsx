@@ -40,7 +40,11 @@ export function ProjectShell({
 
   useEffect(() => {
     if (typeof window === 'undefined') return
-    window.localStorage.setItem('flow:last-project', JSON.stringify({ projectId, activeTab }))
+    try {
+      window.localStorage.setItem('flow:last-project', JSON.stringify({ projectId, activeTab }))
+    } catch {
+      // Remembering the last view is optional; project pages must still open.
+    }
   }, [activeTab, projectId])
 
   const project = detailQuery.data?.project

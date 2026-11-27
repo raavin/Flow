@@ -40,9 +40,9 @@ async function openPage(path: string) {
       <RouterProvider router={router} />
     </QueryClientProvider>,
   )
-  await waitFor(() => expect(router.state.status).toBe('idle'))
+  await waitFor(() => expect(router.state.status).toBe('idle'), { timeout: 5000 })
   const main = await screen.findByRole('main')
-  await waitFor(() => expect(queryClient.isFetching()).toBe(0))
+  await waitFor(() => expect(queryClient.isFetching()).toBe(0), { timeout: 5000 })
   return { main, router, queryClient }
 }
 
@@ -50,6 +50,7 @@ const routes = [
   '/app/home',
   '/app/messages',
   '/app/messages/post/sample-post',
+  '/app/messages/project/sample-party',
   '/app/messages/profile/audit-owner',
   '/app/messages/topics/food',
   '/app/messages/dm',
@@ -97,6 +98,19 @@ const routes = [
   '/app/integrations',
   '/app/support',
 ]
+
+it('covers every registered app page', () => {
+  const pagePaths = Object.values(appRouter.routesById)
+    .map((route) => route.fullPath)
+    .filter((path) => path.startsWith('/app/'))
+  for (const path of pagePaths) {
+    const pattern = new RegExp(`^${path.replace(/\$[^/]+/g, '[^/]+')}$`)
+    expect(
+      routes.some((url) => pattern.test(url.split('?')[0])),
+      path,
+    ).toBe(true)
+  }
+})
 
 it.each(routes)('renders %s with a signed-in account and no failed data queries', async (path) => {
   const { main, queryClient } = await openPage(path)
@@ -196,4 +210,14 @@ it('keeps navigation available and supports retry when a page throws', async () 
   })
   fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
   expect(await screen.findByRole('heading', { name: 'Projects' })).toBeVisible()
+})
+
+it('opens project pages when browser storage is blocked', async () => {
+  vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+    throw new DOMException('Blocked', 'SecurityError')
+  })
+  const { main } = await openPage('/app/projects/sample-party/notes')
+  expect(within(main).getByRole('heading', { name: 'Birthday dinner' })).toBeVisible()
+  expect(within(main).getByRole('navigation', { name: 'Project navigation' })).toBeVisible()
+  expect(within(main).queryByRole('alert')).not.toBeInTheDocument()
 })
