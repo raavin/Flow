@@ -3,11 +3,12 @@ import { PageNavigation } from './page-navigation'
 const linkClass = 'inline-flex min-h-11 items-center border-b-2 px-4 py-2 text-sm font-semibold'
 const activeClass = 'border-ink text-ink'
 const inactiveClass = 'border-transparent text-ink/65 hover:border-ink/30 hover:text-ink'
-export function MoneyViews({ active }: { active: 'budgets' | 'records' }) {
+export function MoneyViews({ active, budgetView }: { active: 'budgets' | 'records'; budgetView?: string }) {
   return (
     <nav aria-label="Money views" className="flex border-b border-border">
       <Link
         to="/app/budgets"
+        search={{ view: budgetView }}
         className={`${linkClass} ${active === 'budgets' ? activeClass : inactiveClass}`}
         aria-current={active === 'budgets' ? 'page' : undefined}
       >
@@ -15,7 +16,11 @@ export function MoneyViews({ active }: { active: 'budgets' | 'records' }) {
       </Link>
       <Link
         to="/app/wallet"
-        search={{ highlight: undefined }}
+        search={{
+          projectId: budgetView?.startsWith('project:') ? budgetView.slice(8) : undefined,
+          fundId: budgetView?.startsWith('fund:') ? budgetView.slice(5) : undefined,
+          scope: budgetView?.startsWith('project:') || budgetView?.startsWith('fund:') ? undefined : 'all',
+        }}
         className={`${linkClass} ${active === 'records' ? activeClass : inactiveClass}`}
         aria-current={active === 'records' ? 'page' : undefined}
       >

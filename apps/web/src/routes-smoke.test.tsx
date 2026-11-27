@@ -267,15 +267,43 @@ it('keeps owner-only budgets out of both project navigation layouts for collabor
   expect(within(summary.closest('details')!).queryByRole('link', { name: 'Budget' })).not.toBeInTheDocument()
 })
 
-it('puts the project limit and allocations before costs and receipt management', async () => {
+it('combines project budgets, allocations and costs in one navigable table', async () => {
   const { main } = await openPage('/app/projects/sample-party/budget')
-  const limit = within(main).getByLabelText('Budget limit (AUD)')
-  const allocations = within(main).getByRole('heading', { name: 'Allocations' })
-  const costs = within(main).getByRole('heading', { name: 'Costs' })
-  expect(limit.compareDocumentPosition(allocations) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0)
-  expect(allocations.compareDocumentPosition(costs) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0)
-  expect(within(main).getByRole('region', { name: 'Allocations table' })).toBeInTheDocument()
-  expect(within(main).getByRole('region', { name: 'Project costs table' })).toBeInTheDocument()
+  const table = within(main).getByRole('region', { name: 'Budget breakdown' })
+  expect(within(table).getByRole('button', { name: 'Edit budget for Birthday dinner' })).toBeInTheDocument()
+  fireEvent.click(within(table).getByRole('button', { name: 'Open Food budget' }))
+  expect(await within(main).findByRole('heading', { name: 'Food' })).toBeInTheDocument()
+  expect(within(main).getByRole('button', { name: 'Edit budget for Food' })).toBeInTheDocument()
+  fireEvent.click(within(main).getByRole('button', { name: 'Birthday dinner' }))
+  expect(await within(main).findByRole('heading', { name: 'Birthday dinner', level: 2 })).toBeInTheDocument()
+})
+
+it('drills from overall funds to groups and projects and supports browser back', async () => {
+  const { main, router } = await openPage('/app/budgets')
+  fireEvent.click(within(main).getByRole('button', { name: 'Open Personal budget' }))
+  await waitFor(() => expect(router.state.location.search).toMatchObject({ view: 'fund:sample-personal' }))
+  fireEvent.click(await within(main).findByRole('button', { name: 'Open Birthday dinner budget' }))
+  await waitFor(() => expect(router.state.location.search).toMatchObject({ view: 'project:sample-party' }))
+  router.history.back()
+  expect(await within(main).findByRole('heading', { name: 'Personal' })).toBeInTheDocument()
+})
+
+it('keeps group activity scoped and links back to the same budget', async () => {
+  const { main, router } = await openPage('/app/budgets?view=fund:sample-personal')
+  fireEvent.click(within(main).getByRole('link', { name: 'Group activity & receipts' }))
+  await waitFor(() => expect(router.state.location.search).toMatchObject({ fundId: 'sample-personal' }))
+  expect(await within(main).findByRole('heading', { name: 'Personal activity' })).toBeInTheDocument()
+  const activity = within(main).getByRole('region', { name: 'Money activity table' })
+  expect(activity).toHaveTextContent('Guest contributions')
+  expect(activity).not.toHaveTextContent('Equipment')
+  fireEvent.click(within(main).getByRole('link', { name: 'View budget' }))
+  await waitFor(() => expect(router.state.location.search).toMatchObject({ view: 'fund:sample-personal' }))
+})
+
+it('does not replace an unavailable group with all financial records', async () => {
+  const { main } = await openPage('/app/wallet?fundId=missing-group')
+  expect(await within(main).findByRole('alert')).toHaveTextContent('This budget group is unavailable')
+  expect(within(main).queryByRole('region', { name: 'Money activity table' })).not.toBeInTheDocument()
 })
 
 it('keeps marketplace sections connected with one current page in each navigation layout', async () => {

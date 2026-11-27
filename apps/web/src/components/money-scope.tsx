@@ -29,7 +29,9 @@ export function MoneyProjectFilter({
   projects,
   selected,
   onChange,
+  label,
 }: {
+  label?: string
   projects: { id: string; title: string }[]
   selected: string[]
   onChange: (ids: string[]) => void
@@ -66,18 +68,19 @@ export function MoneyProjectFilter({
   return (
     <details className="relative w-full max-w-full sm:w-auto">
       <summary className="ui-button ui-button--secondary cursor-pointer">
-        {!selected.length
-          ? 'All projects'
-          : selected.length === 1
-            ? (projects.find((p) => p.id === selected[0])?.title ?? 'Selected project')
-            : `${selected.length} projects`}
+        {label ??
+          (!selected.length
+            ? 'All projects'
+            : selected.length === 1
+              ? (projects.find((p) => p.id === selected[0])?.title ?? 'Selected project')
+              : `${selected.length} projects`)}
       </summary>
       <div
         className="absolute left-0 sm:left-auto sm:right-0 z-20 mt-2 max-h-80 w-full sm:w-72 sm:max-w-[80vw] space-y-2 overflow-auto border border-border p-3 shadow-lg"
         style={{ backgroundColor: 'rgb(var(--color-surface))' }}
       >
         <label className="grid gap-1 text-sm">
-          Saved group
+          Saved view
           <AppSelect
             value=""
             onChange={(e) => {
@@ -85,7 +88,7 @@ export function MoneyProjectFilter({
               if (group) onChange(group.project_ids)
             }}
           >
-            <option value="">Choose group</option>
+            <option value="">Choose view</option>
             {groups.data?.map((g) => (
               <option key={g.id} value={g.id}>
                 {g.name}
@@ -117,16 +120,16 @@ export function MoneyProjectFilter({
             }}
           >
             <AppInput
-              aria-label="Group name"
+              aria-label="View name"
               maxLength={80}
-              placeholder="Save selection as a group"
+              placeholder="Save this selection"
               value={name}
               onChange={(e) => setName(e.target.value)}
             />
             <AppButton type="submit" variant="secondary" disabled={!name.trim() || save.isPending}>
-              Save group
+              Save view
             </AppButton>
-            {save.isError && <p role="alert">Could not save this group.</p>}
+            {save.isError && <p role="alert">Could not save this view.</p>}
           </form>
         )}
       </div>

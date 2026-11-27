@@ -1,286 +1,31 @@
-import { MoneyViews } from '@/components/section-views'
-import { useState } from 'react'
-import { Link, createRoute } from '@tanstack/react-router'
-import { useQuery } from '@tanstack/react-query'
-import { AppCard, AppSelect, SectionHeading } from '@superapp/ui'
+import { createRoute } from '@tanstack/react-router'
 import { appRoute } from '@/components/layout'
-import { fetchProjects } from '@/lib/projects'
-import { fetchExpenses } from '@/lib/planning'
-import { summarizeCosts } from '@/lib/budget'
-import { formatCurrency } from '@/lib/commerce'
-import { fetchWalletEntries } from '@/lib/wallet'
-import { moneyRecords, filterMoneyRecords } from '@/lib/money'
-import { MoneyActivityTable } from '@/components/money-activity'
-import { MoneyProjectFilter, useMoneyScope } from '@/components/money-scope'
+import { MoneyViews } from '@/components/section-views'
+import { BudgetLedger } from '@/components/budget-ledger'
 
 function BudgetsPage() {
-  const projects = useQuery({ queryKey: ['projects'], queryFn: fetchProjects })
-  const expenses = useQuery({
-    queryKey: ['expenses', 'all'],
-    queryFn: () => fetchExpenses(),
-  })
-  const [scope, setScope] = useState('all')
-  const [selected, setSelected] = useMoneyScope()
-  const entries = useQuery({
-    queryKey: ['wallet'],
-    queryFn: fetchWalletEntries,
-  })
-  const rows = (projects.data ?? [])
-    .filter(
-      (project) =>
-        project.isOwner &&
-        (!selected.length || selected.includes(project.id)) &&
-        (scope === 'all' || project.status !== 'completed'),
-    )
-    .map((project) => ({
-      project,
-      ...summarizeCosts((expenses.data ?? []).filter((cost) => cost.project_id === project.id)),
-    }))
-  const totals = rows.reduce(
-    (sum, row) => ({
-      budget: sum.budget + (row.project.budgetCents ?? 0),
-      forecast: sum.forecast + row.forecast,
-      paid: sum.paid + row.paid,
-      remaining: sum.remaining + row.remaining,
-    }),
-    { budget: 0, forecast: 0, paid: 0, remaining: 0 },
-  )
-  const unset = rows.filter((row) => row.project.budgetCents == null).length
-
-  const scopedIds = rows.map((r) => r.project.id)
-  const activity = filterMoneyRecords(
-    moneyRecords(expenses.data ?? [], entries.data ?? []),
-    selected,
-    'all',
-    '',
-  ).filter((r) => !r.projectId || scopedIds.includes(r.projectId))
-  const income = activity.filter((r) => r.direction === 'in')
-  const currencies = [...new Set(income.map((r) => r.currency))]
+  const { view } = budgetsRoute.useSearch()
+  const navigate = budgetsRoute.useNavigate()
   return (
     <div className="space-y-4 min-w-0">
-      <MoneyViews active="budgets" />
-      <AppCard className="min-w-0 space-y-4">
-        <SectionHeading title="Money" />
-        <p className="text-sm text-ink/70">Budgets and recent activity across your projects.</p>
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <h2 className="text-lg font-semibold">
-            Project budgets <span className="text-xs font-normal text-ink/60">AUD</span>
-          </h2>
-          <div className="flex flex-wrap items-center gap-2">
-            <MoneyProjectFilter
-              projects={(projects.data ?? []).filter((p) => p.isOwner)}
-              selected={selected}
-              onChange={setSelected}
-            />
-            <div className="w-56 max-w-full">
-              <AppSelect aria-label="Project scope" value={scope} onChange={(e) => setScope(e.target.value)}>
-                <option value="open">Active and upcoming</option>
-                <option value="all">Any status</option>
-              </AppSelect>
-            </div>
-          </div>
-        </div>
-        {projects.isPending || expenses.isPending ? (
-          <p role="status">Loading budgets…</p>
-        ) : projects.isError || expenses.isError ? (
-          <p role="alert">Budgets could not be loaded. Please refresh to try again.</p>
-        ) : rows.length ? (
-          <>
-            <div
-              className="ui-ledger-shell relative"
-              role="region"
-              aria-label="Project budgets table"
-              tabIndex={0}
-            >
-              <table className="ui-budget-table min-w-[760px]">
-                <caption className="sr-only">Project budgets in Australian dollars</caption>
-                <thead>
-                  <tr>
-                    <th scope="col">Project</th>
-                    <th scope="col" className="budget-money">
-                      Budget
-                    </th>
-                    <th scope="col" className="budget-money">
-                      Forecast
-                    </th>
-                    <th scope="col" className="budget-money">
-                      Paid
-                    </th>
-                    <th scope="col" className="budget-money">
-                      To pay
-                    </th>
-                    <th scope="col" className="budget-money">
-                      Budget left
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((row) => {
-                    const balance =
-                      row.project.budgetCents == null ? null : row.project.budgetCents - row.forecast
-                    return (
-                      <tr key={row.project.id}>
-                        <th scope="row" className="min-w-52 font-normal">
-                          <Link
-                            to="/app/projects/$projectId/budget"
-                            params={{ projectId: row.project.id }}
-                            className="font-semibold underline decoration-ink/30 underline-offset-4 hover:decoration-ink"
-                          >
-                            {row.project.title}
-                          </Link>
-                          <p className="mt-1 text-xs font-normal text-ink/65">
-                            {[
-                              row.project.category,
-                              row.project.status.charAt(0).toUpperCase() + row.project.status.slice(1),
-                            ]
-                              .filter(Boolean)
-                              .join(' · ')}
-                          </p>
-                        </th>
-                        <td className="budget-money">
-                          {row.project.budgetCents == null ? (
-                            <span className="text-ink/60">Not set</span>
-                          ) : (
-                            formatCurrency(row.project.budgetCents)
-                          )}
-                        </td>
-                        <td className="budget-money">{formatCurrency(row.forecast)}</td>
-                        <td className="budget-money">{formatCurrency(row.paid)}</td>
-                        <td className="budget-money">{formatCurrency(row.remaining)}</td>
-                        <td
-                          className={`budget-money ${balance !== null && balance < 0 ? 'text-berry font-semibold' : ''}`}
-                        >
-                          {balance === null ? (
-                            <span aria-label="Budget not set">—</span>
-                          ) : (
-                            <>
-                              {formatCurrency(balance)}
-                              {balance < 0 ? <span className="block text-xs">Over budget</span> : null}
-                            </>
-                          )}
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-                <tfoot>
-                  <tr>
-                    <th scope="row">Total</th>
-                    <td className="budget-money">
-                      {formatCurrency(totals.budget)}
-                      {unset ? <span className="block text-xs font-normal">Set limits only</span> : null}
-                    </td>
-                    <td className="budget-money">{formatCurrency(totals.forecast)}</td>
-                    <td className="budget-money">{formatCurrency(totals.paid)}</td>
-                    <td className="budget-money">{formatCurrency(totals.remaining)}</td>
-                    <td
-                      className={`budget-money ${!unset && totals.forecast > totals.budget ? 'text-berry' : ''}`}
-                    >
-                      {unset ? (
-                        <span aria-label="Some projects have no budget limit">—</span>
-                      ) : (
-                        formatCurrency(totals.budget - totals.forecast)
-                      )}
-                    </td>
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
-            <p className="text-xs text-ink/65">
-              Budget left is the limit minus forecast costs. To pay is the forecast for costs not marked paid.
-            </p>
-            <p className="text-xs text-ink/65">
-              {unset ? `${unset} project${unset === 1 ? ' has' : 's have'} no budget limit. ` : ''}
-              All-time project costs.{' '}
-              {activity.some((r) => r.target.kind === 'transaction' && r.direction === 'out' && r.projectId)
-                ? 'Older project payments are shown separately in Activity.'
-                : ''}
-            </p>
-          </>
-        ) : projects.data?.length ? (
-          <p className="text-sm">
-            No projects match these filters. Choose All projects and Any status to see every budget.
-          </p>
-        ) : (
-          <p className="text-sm">
-            No projects yet.{' '}
-            <Link to="/app/projects" className="underline">
-              Start a project
-            </Link>{' '}
-            to set a budget.
-          </p>
-        )}
-      </AppCard>
-      {currencies.length ? (
-        <AppCard className="min-w-0 space-y-3">
-          <SectionHeading title="Income" />
-          <div className="ui-ledger-shell relative" role="region" aria-label="Income summary" tabIndex={0}>
-            <table className="ui-budget-table min-w-[360px]">
-              <caption className="sr-only">Income for the selected projects, by currency</caption>
-              <thead>
-                <tr>
-                  <th scope="col">Currency</th>
-                  <th scope="col" className="budget-money">
-                    Received
-                  </th>
-                  <th scope="col" className="budget-money">
-                    Expected
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {currencies.map((currency) => (
-                  <tr key={currency}>
-                    <th scope="row">{currency}</th>
-                    <td className="budget-money">
-                      {formatCurrency(
-                        income
-                          .filter((r) => r.currency === currency && r.status === 'paid')
-                          .reduce((n, r) => n + r.amount, 0),
-                        currency,
-                      )}
-                    </td>
-                    <td className="budget-money">
-                      {formatCurrency(
-                        income
-                          .filter((r) => r.currency === currency && r.status === 'pending')
-                          .reduce((n, r) => n + r.amount, 0),
-                        currency,
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </AppCard>
-      ) : null}
-      <AppCard className="min-w-0 space-y-4">
-        <SectionHeading
-          title="Recent activity"
-          action={
-            <Link to="/app/wallet" className="ui-button ui-button--secondary">
-              View all activity
-            </Link>
-          }
-        />
-        {entries.isPending || expenses.isPending || projects.isPending ? (
-          <p role="status">Loading activity…</p>
-        ) : entries.isError || expenses.isError || projects.isError ? (
-          <p role="alert">Activity could not be loaded. Please refresh to try again.</p>
-        ) : (
-          <MoneyActivityTable
-            rows={activity.slice(0, 8)}
-            projects={(projects.data ?? []).filter((p) => p.isOwner)}
-          />
-        )}
-      </AppCard>
+      <MoneyViews active="budgets" budgetView={view} />
+      <BudgetLedger
+        focus={view ?? 'overall'}
+        onFocus={(id) => {
+          void navigate({ search: { view: id === 'overall' ? undefined : id } })
+        }}
+      />
     </div>
   )
 }
-
 export const budgetsRoute = createRoute({
   getParentRoute: () => appRoute,
   path: 'budgets',
+  validateSearch: (search: Record<string, unknown>): { view?: string } => ({
+    view:
+      typeof search.view === 'string' && /^(fund|project|allocation):[a-zA-Z0-9-]+$/.test(search.view)
+        ? search.view
+        : undefined,
+  }),
   component: BudgetsPage,
 })

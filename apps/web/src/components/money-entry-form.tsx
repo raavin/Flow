@@ -24,6 +24,7 @@ export function MoneyEntryForm({
   defaultDirection = 'out',
   defaultTitle = '',
   defaultCounterparty = '',
+  defaultAllocationId = '',
   onSaved,
   onCancel,
 }: {
@@ -33,6 +34,7 @@ export function MoneyEntryForm({
   defaultDirection?: 'in' | 'out'
   defaultTitle?: string
   defaultCounterparty?: string
+  defaultAllocationId?: string
   onSaved: (target: ReceiptTarget) => void
   onCancel?: () => void
 }) {
@@ -55,7 +57,7 @@ export function MoneyEntryForm({
       : '',
   )
   const [category, setCategory] = useState(record?.category ?? 'General')
-  const [allocation, setAllocation] = useState(record?.allocationId ?? '')
+  const [allocation, setAllocation] = useState(record?.allocationId ?? defaultAllocationId)
   const [status, setStatus] = useState(
     (expenseId ? 'paid' : record?.hasPayments ? 'committed' : record?.status) ??
       (defaultDirection === 'in' ? 'pending' : initialProject ? 'planned' : 'paid'),
