@@ -217,7 +217,8 @@ export async function createWalletEntry(input: {
   linkedListingId?: string | null
   relatedProfileId?: string | null
   entryKind: 'send' | 'request' | 'iou'
-  transactionType?: 'transfer' | 'purchase' | 'sale' | 'request' | 'refund' | 'payout'
+  transactionType?:
+    'transfer' | 'purchase' | 'sale' | 'request' | 'refund' | 'payout'
   sourceKind?: 'manual' | 'marketplace' | 'peer' | 'project'
   direction: 'in' | 'out'
   amountCents: number
@@ -231,11 +232,26 @@ export async function createWalletEntry(input: {
   assertBudgetAmount(input.amountCents)
   if (!input.amountCents) throw new Error('Enter an amount greater than zero.')
   const transactionType =
-    input.transactionType ?? (input.entryKind === 'request' ? 'request' : input.sourceKind === 'marketplace' ? 'purchase' : 'transfer')
-  const sourceKind = input.sourceKind ?? (input.linkedListingId ? 'marketplace' : input.relatedProfileId ? 'peer' : input.linkedProjectId ? 'project' : 'manual')
+    input.transactionType ??
+    (input.entryKind === 'request'
+      ? 'request'
+      : input.sourceKind === 'marketplace'
+        ? 'purchase'
+        : 'transfer')
+  const sourceKind =
+    input.sourceKind ??
+    (input.linkedListingId
+      ? 'marketplace'
+      : input.relatedProfileId
+        ? 'peer'
+        : input.linkedProjectId
+          ? 'project'
+          : 'manual')
   const status = input.entryKind === 'send' ? 'settled' : 'pending'
 
+  const id = crypto.randomUUID()
   const { error } = await supabase.from('financial_transactions').insert({
+    id,
     profile_id: input.profileId,
     counterparty_profile_id: input.relatedProfileId ?? null,
     linked_project_id: input.linkedProjectId ?? null,
@@ -266,37 +282,69 @@ export async function createWalletEntry(input: {
 
   await createNotification({
     profileId: input.profileId,
-    title: sourceKind === 'marketplace' ? 'Purchase recorded' : 'Transaction recorded',
+    title:
+      sourceKind === 'marketplace'
+        ? 'Purchase recorded'
+        : 'Transaction recorded',
     body: `${input.counterparty} · $${(input.amountCents / 100).toFixed(2)}`,
     kind: 'payments',
     linkUrl: '/app/wallet',
-  })
+  }).catch(() => {})
+  return id
 }
 
-export async function updateWalletEntry(entryId: string, input: { description?: string; amountCents?: number; direction?: 'in' | 'out' }) {
+export async function updateWalletEntry(
+  entryId: string,
+  input: {
+    description?: string
+    amountCents?: number
+    direction?: 'in' | 'out'
+    status?: 'pending' | 'settled'
+    counterparty?: string
+    occurredAt?: string
+  },
+) {
   if (!supabase) throw new Error('Supabase is not configured.')
   const payload: Record<string, unknown> = {}
-  if (input.description !== undefined) payload.description = input.description.trim()
+  if (input.status !== undefined) payload.status = input.status
+  if (input.counterparty !== undefined)
+    payload.counterparty_label = input.counterparty
+  if (input.occurredAt !== undefined) payload.occurred_at = input.occurredAt
+  if (input.description !== undefined)
+    payload.description = input.description.trim()
   if (input.amountCents !== undefined) {
     assertBudgetAmount(input.amountCents)
-    if (!input.amountCents) throw new Error('Enter an amount greater than zero.')
+    if (!input.amountCents)
+      throw new Error('Enter an amount greater than zero.')
     payload.subtotal_cents = input.amountCents
     payload.total_cents = input.amountCents
     payload.seller_net_cents = input.amountCents
   }
   if (input.direction !== undefined) payload.direction = input.direction
-  const { error } = await supabase.from('financial_transactions').update(payload).eq('id', entryId).eq('transaction_role', 'manual')
+  const { error } = await supabase
+    .from('financial_transactions')
+    .update(payload)
+    .eq('id', entryId)
+    .eq('transaction_role', 'manual')
   if (error) throw error
 }
 
 export async function deleteWalletEntry(entryId: string) {
   if (!supabase) throw new Error('Supabase is not configured.')
-  const { error } = await supabase.from('financial_transactions').delete().eq('id', entryId)
+  const { error } = await supabase
+    .from('financial_transactions')
+    .delete()
+    .eq('id', entryId)
+    .eq('transaction_role', 'manual')
   if (error) throw error
 }
 
 export async function settleWalletEntry(entryId: string) {
   if (!supabase) throw new Error('Supabase is not configured.')
-  const { error } = await supabase.from('financial_transactions').update({ status: 'settled' }).eq('id', entryId).eq('transaction_role', 'manual')
+  const { error } = await supabase
+    .from('financial_transactions')
+    .update({ status: 'settled' })
+    .eq('id', entryId)
+    .eq('transaction_role', 'manual')
   if (error) throw error
 }

@@ -86,23 +86,18 @@ it('previews only the explicitly written brief before publishing', async () => {
   fireEvent.change(screen.getByLabelText('Request title'), {
     target: { value: 'Catering' },
   })
-  fireEvent.change(
-    screen.getByLabelText('Requirements and what the quote should include'),
-    { target: { value: 'Dinner for 12' } },
-  )
+  fireEvent.change(screen.getByLabelText('Requirements'), {
+    target: { value: 'Dinner for 12' },
+  })
   fireEvent.change(
     screen.getByLabelText('Project context to share (optional)'),
     { target: { value: 'Vegan food' } },
   )
-  fireEvent.change(screen.getByLabelText('Budget ceiling (AUD, optional)'), {
+  fireEvent.change(screen.getByLabelText('Budget (AUD, optional)'), {
     target: { value: '120.50' },
   })
-  fireEvent.click(
-    screen.getByRole('button', { name: 'Preview supplier brief' }),
-  )
-  expect(
-    screen.getByText('Review exactly what suppliers will see'),
-  ).toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: 'Preview request' }))
+  expect(screen.getByText('Review your request')).toBeInTheDocument()
   expect(screen.queryByText('Private party')).not.toBeInTheDocument()
   expect(mocks.rpc).not.toHaveBeenCalled()
   fireEvent.click(screen.getByRole('button', { name: 'Publish request' }))

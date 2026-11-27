@@ -99,8 +99,8 @@ function HomePage() {
                 <p className="text-sm text-ink/65">
                   {profile.active_mode === 'business'
                     ? pendingWallet.length
-                      ? 'Review outstanding payments and IOUs.'
-                      : 'No outstanding payments or IOUs.'
+                      ? 'Review unpaid entries in Money.'
+                      : 'No unpaid entries.'
                     : dmThreads.length
                       ? 'Continue a private conversation.'
                       : 'No direct messages yet.'}
@@ -119,7 +119,7 @@ function HomePage() {
                 <AppPanel tone="peach">Add a plan or choose a template.</AppPanel>
               ) : null}
               {pendingWallet.length > 0 ? (
-                <AppPanel tone="teal">Review your outstanding payments and IOUs.</AppPanel>
+                <AppPanel tone="teal">Review unpaid entries in Money.</AppPanel>
               ) : null}
               {dueSoonCoordination.length > 0 && (
                 <AppPanel tone="teal">You have {dueSoonCoordination.length} scheduled plans. View your calendar.</AppPanel>

@@ -33,6 +33,10 @@ beforeAll(async () => {
  alter table public.project_expenses enable row level security;
  create policy own on public.project_expenses for all using(owner_id=auth.uid()) with check(owner_id=auth.uid());
  grant select,insert,update,delete on public.projects,public.project_expenses to authenticated;
+ create table public.financial_transactions(id uuid primary key, profile_id uuid);
+ alter table public.financial_transactions enable row level security;
+ create policy own on public.financial_transactions for all to authenticated using(profile_id=auth.uid()) with check(profile_id=auth.uid());
+ grant select,insert,update,delete on public.financial_transactions to authenticated;
  create table storage.buckets(id text primary key,name text,public boolean,file_size_limit bigint,allowed_mime_types text[]);
  create table storage.objects(id uuid default gen_random_uuid(),bucket_id text,name text);
  alter table storage.objects enable row level security;
@@ -43,6 +47,15 @@ beforeAll(async () => {
     readFileSync(
       new URL(
         '../../../../supabase/migrations/20261126015336_budget_receipts_supplier_requests.sql',
+        import.meta.url,
+      ),
+      'utf8',
+    ),
+  )
+  await db.exec(
+    readFileSync(
+      new URL(
+        '../../../../supabase/migrations/20261127003809_transaction_receipts.sql',
         import.meta.url,
       ),
       'utf8',
@@ -278,6 +291,91 @@ it('denies anonymous table access and RPC execution even with a forged subject s
   await db.exec('reset role; set role anon')
   await db.query("select set_config('request.jwt.claim.sub',$1,false)", [owner])
   await expect(db.query('select * from supplier_quotes')).rejects.toThrow()
-  await expect(db.query("select publish_supplier_request('Bad','Bad')")).rejects.toThrow()
-  await expect(db.query('select choose_supplier_quote($1)', [quote])).rejects.toThrow()
+  await expect(
+    db.query("select publish_supplier_request('Bad','Bad')"),
+  ).rejects.toThrow()
+  await expect(
+    db.query('select choose_supplier_quote($1)', [quote]),
+  ).rejects.toThrow()
+})
+
+it('allows private transaction receipts but rejects cross-owner files and wrong parent paths', async () => {
+  const payment = '00000000-0000-0000-0000-000000000051'
+  await as(owner)
+  await db.query('insert into financial_transactions values($1,$2)', [
+    payment,
+    owner,
+  ])
+  const path = `${owner}/transactions/${payment}/receipt.jpg`
+  await db.query(
+    "insert into storage.objects(bucket_id,name) values('expense-receipts',$1)",
+    [path],
+  )
+  await db.query(
+    "insert into expense_receipts(owner_id,transaction_id,storage_path,file_name,mime_type,size_bytes) values($1,$2,$3,'receipt.jpg','image/jpeg',20)",
+    [owner, payment, path],
+  )
+  expect(
+    await scalar(
+      'select count(*)::int as value from expense_receipts where transaction_id=$1',
+      [payment],
+    ),
+  ).toBe(1)
+  await expect(
+    db.query('delete from financial_transactions where id=$1', [payment]),
+  ).rejects.toThrow()
+  await expect(
+    db.query(
+      "insert into expense_receipts(owner_id,expense_id,transaction_id,storage_path,file_name,mime_type,size_bytes) values($1,$2,$3,$4,'bad.pdf','application/pdf',10)",
+      [owner, cost, payment, `${owner}/${cost}/bad.pdf`],
+    ),
+  ).rejects.toThrow()
+  await expect(
+    db.query(
+      "insert into expense_receipts(owner_id,transaction_id,storage_path,file_name,mime_type,size_bytes) values($1,$2,$3,'bad.pdf','application/pdf',10)",
+      [owner, payment, `${owner}/transactions/${cost}/bad.pdf`],
+    ),
+  ).rejects.toThrow()
+  await as(supplier)
+  expect(
+    await scalar('select count(*)::int as value from expense_receipts'),
+  ).toBe(0)
+  expect(
+    await scalar(
+      "select count(*)::int as value from storage.objects where bucket_id='expense-receipts'",
+    ),
+  ).toBe(0)
+  await expect(
+    db.query(
+      "insert into storage.objects(bucket_id,name) values('expense-receipts',$1)",
+      [`${supplier}/transactions/${payment}/bad.jpg`],
+    ),
+  ).rejects.toThrow()
+  await expect(
+    db.query(
+      "insert into expense_receipts(owner_id,transaction_id,storage_path,file_name,mime_type,size_bytes) values($1,$2,$3,'bad.jpg','image/jpeg',10)",
+      [supplier, payment, `${supplier}/transactions/${payment}/bad.jpg`],
+    ),
+  ).rejects.toThrow()
+  await db.query('delete from expense_receipts where transaction_id=$1', [
+    payment,
+  ])
+  await as(owner)
+  expect(
+    await scalar(
+      'select count(*)::int as value from expense_receipts where transaction_id=$1',
+      [payment],
+    ),
+  ).toBe(1)
+  await db.query('delete from storage.objects where name=$1', [path])
+  await db.query('delete from expense_receipts where transaction_id=$1', [
+    payment,
+  ])
+  await db.query('delete from financial_transactions where id=$1', [payment])
+})
+it('does not grant anonymous access to receipts or storage after the migration', async () => {
+  await db.exec('reset role; set role anon')
+  await db.query("select set_config('request.jwt.claim.sub',$1,false)", [owner])
+  await expect(db.query('select * from expense_receipts')).rejects.toThrow()
+  await expect(db.query('select * from storage.objects')).rejects.toThrow()
 })

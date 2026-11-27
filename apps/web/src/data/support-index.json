@@ -184,7 +184,7 @@
     "slug": "project-budgets",
     "title": "Budgets and receipts",
     "summary": "Plan costs and record spending.",
-    "body": "Open a project\u2019s Budget to set a limit, allocate amounts and add costs. Record estimates, actual spending and payment status. Attach a receipt image or PDF to a saved cost. Money shows budgets across projects; Payments & IOUs are separate records and are not counted again.",
+    "body": "Money has two views: Overview compares project budgets and shows income and recent activity; Activity lists costs, payments and income. Select one or several projects to filter both views. Use Add entry to record an expense or income. Project expenses update the budget automatically. Choose a receipt photo or PDF before saving, or use Receipts beside an existing entry. Take photo opens the camera on supported devices. Older payment records stay in Activity and are not added to budget totals.",
     "tags": [
       "budgets",
       "projects",
@@ -196,7 +196,11 @@
       "budget",
       "estimate",
       "paid",
-      "forecast"
+      "forecast",
+      "receipt",
+      "photo",
+      "income",
+      "activity"
     ],
     "route": "/app/budgets"
   },

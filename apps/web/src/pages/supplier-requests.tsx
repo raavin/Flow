@@ -136,7 +136,7 @@ export function RequestsPage() {
     <div className="space-y-4">
       <AppCard className="space-y-3">
         <SectionHeading
-          eyebrow="Marketplace · Requests & quotes"
+          eyebrow="Marketplace"
           title="Requests & quotes"
           action={
             <Link to="/app/marketplace" className="underline">
@@ -144,208 +144,220 @@ export function RequestsPage() {
             </Link>
           }
         />
-        <p>
-          Publish a focused brief, compare private quotes, and record the chosen
-          cost in your plan. Agree on delivery and payment directly with your
-          supplier.
+        <p className="text-sm text-ink/70">
+          Find suppliers and compare quotes for your project.
         </p>
-        <AppButton onClick={() => setCreate(!create)}>
+      </AppCard>
+      <div
+        className="flex flex-wrap items-center justify-between gap-3"
+        aria-label="Request list controls"
+      >
+        <div className="flex flex-wrap gap-2">
+          {[
+            ['open', 'Open requests'],
+            ['mine', 'My requests'],
+            ['quotes', 'My quotes'],
+          ].map(([id, label]) => (
+            <AppButton
+              key={id}
+              variant={tab === id ? 'primary' : 'ghost'}
+              aria-pressed={tab === id}
+              onClick={() => setTab(id)}
+            >
+              {label}
+            </AppButton>
+          ))}
+        </div>
+        <AppButton
+          aria-expanded={create}
+          aria-controls="request-form"
+          onClick={() => setCreate(!create)}
+        >
           {create ? 'Close request form' : 'Request a quote'}
         </AppButton>
-      </AppCard>
+      </div>
       {create ? (
-        <AppCard className="space-y-3">
-          {preview ? (
-            <>
-              <p className="font-bold">
-                Review exactly what suppliers will see
-              </p>
-              <Brief
-                request={{
-                  title: draft.title,
-                  description: draft.description,
-                  context_note: draft.context,
-                  location_label: draft.location,
-                  due_on: draft.due || null,
-                  budget_cents: draft.budget
-                    ? parseBudgetAmount(draft.budget)
-                    : null,
+        <section id="request-form">
+          <AppCard className="space-y-3">
+            {preview ? (
+              <>
+                <p className="font-bold">Review your request</p>
+                <Brief
+                  request={{
+                    title: draft.title,
+                    description: draft.description,
+                    context_note: draft.context,
+                    location_label: draft.location,
+                    due_on: draft.due || null,
+                    budget_cents: draft.budget
+                      ? parseBudgetAmount(draft.budget)
+                      : null,
+                  }}
+                />
+                <p className="text-sm">
+                  Visible to signed-in marketplace members. Your project,
+                  conversations, budget records and receipts remain private. A
+                  request cannot be edited after publication; cancel it and
+                  publish a replacement if the brief changes.
+                </p>
+                <div className="flex gap-2">
+                  <AppButton
+                    disabled={publish.isPending}
+                    onClick={() => publish.mutate()}
+                  >
+                    Publish request
+                  </AppButton>
+                  <AppButton
+                    variant="ghost"
+                    disabled={publish.isPending}
+                    onClick={() => setPreview(false)}
+                  >
+                    Edit brief
+                  </AppButton>
+                </div>
+              </>
+            ) : (
+              <form
+                className="space-y-3"
+                onSubmit={(e) => {
+                  e.preventDefault()
+                  try {
+                    if (draft.budget) parseBudgetAmount(draft.budget)
+                    setValidation('')
+                    setPreview(true)
+                  } catch (err) {
+                    setValidation(featureError(err))
+                  }
                 }}
-              />
-              <p className="text-sm">
-                Visible to signed-in marketplace members. Your project,
-                conversations, budget records and receipts remain private. A
-                request cannot be edited after publication; cancel it and
-                publish a replacement if the brief changes.
-              </p>
-              <div className="flex gap-2">
-                <AppButton
-                  disabled={publish.isPending}
-                  onClick={() => publish.mutate()}
-                >
-                  Publish request
-                </AppButton>
-                <AppButton
-                  variant="ghost"
-                  disabled={publish.isPending}
-                  onClick={() => setPreview(false)}
-                >
-                  Edit brief
-                </AppButton>
-              </div>
-            </>
-          ) : (
-            <form
-              className="space-y-3"
-              onSubmit={(e) => {
-                e.preventDefault()
-                try {
-                  if (draft.budget) parseBudgetAmount(draft.budget)
-                  setValidation('')
-                  setPreview(true)
-                } catch (err) {
-                  setValidation(featureError(err))
-                }
-              }}
-            >
-              <FieldLabel>
-                Request title
-                <AppInput
-                  required
-                  maxLength={160}
-                  value={draft.title}
-                  onChange={(e) =>
-                    setDraft({ ...draft, title: e.target.value })
-                  }
-                  placeholder="Catering for a birthday, logo for a new business…"
-                />
-              </FieldLabel>
-              <FieldLabel>
-                Requirements and what the quote should include
-                <textarea
-                  className={textArea}
-                  required
-                  maxLength={6000}
-                  value={draft.description}
-                  onChange={(e) =>
-                    setDraft({ ...draft, description: e.target.value })
-                  }
-                />
-              </FieldLabel>
-              <FieldLabel>
-                Project context to share (optional)
-                <textarea
-                  className={textArea}
-                  maxLength={4000}
-                  value={draft.context}
-                  onChange={(e) =>
-                    setDraft({ ...draft, context: e.target.value })
-                  }
-                  placeholder="Only include details you want suppliers to see. Avoid addresses or private information."
-                />
-              </FieldLabel>
-              <div className="grid gap-3 sm:grid-cols-3">
+              >
                 <FieldLabel>
-                  Broad location / remote
+                  Request title
                   <AppInput
+                    required
                     maxLength={160}
-                    value={draft.location}
+                    value={draft.title}
                     onChange={(e) =>
-                      setDraft({ ...draft, location: e.target.value })
+                      setDraft({ ...draft, title: e.target.value })
+                    }
+                    placeholder="Catering for a birthday, logo for a new business…"
+                  />
+                </FieldLabel>
+                <FieldLabel>
+                  Requirements
+                  <textarea
+                    className={textArea}
+                    required
+                    maxLength={6000}
+                    value={draft.description}
+                    onChange={(e) =>
+                      setDraft({ ...draft, description: e.target.value })
                     }
                   />
                 </FieldLabel>
                 <FieldLabel>
-                  Needed by (optional)
-                  <AppInput
-                    type="date"
-                    value={draft.due}
+                  Project context to share (optional)
+                  <textarea
+                    className={textArea}
+                    maxLength={4000}
+                    value={draft.context}
                     onChange={(e) =>
-                      setDraft({ ...draft, due: e.target.value })
+                      setDraft({ ...draft, context: e.target.value })
                     }
+                    placeholder="Only include details you want suppliers to see. Avoid addresses or private information."
                   />
                 </FieldLabel>
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <FieldLabel>
+                    Location
+                    <AppInput
+                      maxLength={160}
+                      value={draft.location}
+                      onChange={(e) =>
+                        setDraft({ ...draft, location: e.target.value })
+                      }
+                    />
+                  </FieldLabel>
+                  <FieldLabel>
+                    Needed by (optional)
+                    <AppInput
+                      type="date"
+                      value={draft.due}
+                      onChange={(e) =>
+                        setDraft({ ...draft, due: e.target.value })
+                      }
+                    />
+                  </FieldLabel>
+                  <FieldLabel>
+                    Budget (AUD, optional)
+                    <AppInput
+                      inputMode="decimal"
+                      value={draft.budget}
+                      onChange={(e) =>
+                        setDraft({ ...draft, budget: e.target.value })
+                      }
+                    />
+                  </FieldLabel>
+                </div>
                 <FieldLabel>
-                  Budget ceiling (AUD, optional)
-                  <AppInput
-                    inputMode="decimal"
-                    value={draft.budget}
-                    onChange={(e) =>
-                      setDraft({ ...draft, budget: e.target.value })
-                    }
-                  />
-                </FieldLabel>
-              </div>
-              <FieldLabel>
-                Link your project (private)
-                <AppSelect
-                  value={draft.project}
-                  onChange={(e) =>
-                    setDraft({
-                      ...draft,
-                      project: e.target.value,
-                      allocation: '',
-                    })
-                  }
-                >
-                  <option value="">No project</option>
-                  {projects.data?.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.title}
-                    </option>
-                  ))}
-                </AppSelect>
-              </FieldLabel>
-              {draft.project ? (
-                <FieldLabel>
-                  Budget allocation (private)
+                  Link your project (private)
                   <AppSelect
-                    value={draft.allocation}
+                    value={draft.project}
                     onChange={(e) =>
-                      setDraft({ ...draft, allocation: e.target.value })
+                      setDraft({
+                        ...draft,
+                        project: e.target.value,
+                        allocation: '',
+                      })
                     }
                   >
-                    <option value="">Unallocated</option>
-                    {allocations.data?.map((a) => (
-                      <option key={a.id} value={a.id}>
-                        {a.name}
+                    <option value="">No project</option>
+                    {projects.data?.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.title}
                       </option>
                     ))}
                   </AppSelect>
                 </FieldLabel>
-              ) : null}
-              <AppButton type="submit">Preview supplier brief</AppButton>
-            </form>
-          )}
-          {validation || publish.error || allocations.error ? (
-            <p role="alert">
-              {validation || featureError(publish.error || allocations.error)}
-            </p>
-          ) : null}
-        </AppCard>
+                {draft.project ? (
+                  <FieldLabel>
+                    Budget allocation (private)
+                    <AppSelect
+                      value={draft.allocation}
+                      onChange={(e) =>
+                        setDraft({ ...draft, allocation: e.target.value })
+                      }
+                    >
+                      <option value="">Unallocated</option>
+                      {allocations.data?.map((a) => (
+                        <option key={a.id} value={a.id}>
+                          {a.name}
+                        </option>
+                      ))}
+                    </AppSelect>
+                  </FieldLabel>
+                ) : null}
+                <AppButton type="submit">Preview request</AppButton>
+              </form>
+            )}
+            {validation || publish.error || allocations.error ? (
+              <p role="alert">
+                {validation || featureError(publish.error || allocations.error)}
+              </p>
+            ) : null}
+          </AppCard>
+        </section>
       ) : null}
-      <div className="flex flex-wrap gap-2">
-        {[
-          ['open', 'Open requests'],
-          ['mine', 'My requests'],
-          ['quotes', 'My quotes'],
-        ].map(([id, label]) => (
-          <AppButton
-            key={id}
-            variant={tab === id ? 'primary' : 'ghost'}
-            onClick={() => setTab(id)}
-          >
-            {label}
-          </AppButton>
-        ))}
-      </div>
       {requests.isPending ? <p>Loading requests…</p> : null}
       {requests.error || quotes.error ? (
         <p role="alert">{featureError(requests.error || quotes.error)}</p>
       ) : null}
       {!requests.isPending && !requests.error && !rows.length ? (
         <AppCard>
-          No requests here yet. Start with something your plan needs.
+          {tab === 'quotes'
+            ? 'You haven’t submitted any quotes yet.'
+            : tab === 'mine'
+              ? 'You haven’t posted any requests yet.'
+              : 'No open requests yet.'}
         </AppCard>
       ) : null}
       {rows.map((r) => (

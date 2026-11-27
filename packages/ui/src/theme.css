@@ -207,7 +207,8 @@
   .ui-action-button:hover { background-color: rgb(var(--color-cloud)); }
 
   /* Typography */
-  .ui-section-heading { @apply flex items-end justify-between gap-4; }
+  .ui-section-heading { @apply flex flex-wrap items-end justify-between gap-4; }
+  .ui-section-heading > * { min-width: 0; max-width: 100%; }
 
   .ui-eyebrow {
     @apply text-xs font-black uppercase tracking-[0.25em];
@@ -216,6 +217,7 @@
 
   .ui-section-title {
     @apply text-2xl;
+    overflow-wrap: anywhere;
     font-family: var(--font-display);
     color: rgb(var(--color-ink));
     font-weight: 700;

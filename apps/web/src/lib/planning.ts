@@ -2,20 +2,44 @@ import { assertBudgetAmount } from './budget'
 import { supabase } from './supabase'
 import { createActivity, createNotification } from './coordination'
 
-export async function fetchExpenses(projectId?: string) {
+export type Expense = {
+  id: string
+  project_id: string
+  category: string
+  title: string
+  estimate_cents: number
+  actual_cents: number
+  payment_status: 'unpaid' | 'pending' | 'paid'
+  linked_listing_id: string | null
+  allocation_id: string | null
+  created_at?: string
+  incurred_on?: string | null
+  counterparty_label?: string
+}
+export async function fetchExpenses(projectId?: string): Promise<Expense[]> {
   if (!supabase) return []
   let query = supabase
     .from('project_expenses')
-    .select('id, project_id, category, title, estimate_cents, actual_cents, payment_status, linked_listing_id, allocation_id')
+    .select(
+      'id, project_id, category, title, estimate_cents, actual_cents, payment_status, linked_listing_id, allocation_id, created_at, incurred_on, counterparty_label',
+    )
     .order('created_at', { ascending: true })
   if (projectId) query = query.eq('project_id', projectId)
   const { data, error } = await query
   if (error?.code === '42703' || error?.code === 'PGRST204') {
-    let legacy = supabase.from('project_expenses').select('id, project_id, category, title, estimate_cents, actual_cents, payment_status, linked_listing_id').order('created_at', { ascending: true })
+    let legacy = supabase
+      .from('project_expenses')
+      .select(
+        'id, project_id, category, title, estimate_cents, actual_cents, payment_status, linked_listing_id',
+      )
+      .order('created_at', { ascending: true })
     if (projectId) legacy = legacy.eq('project_id', projectId)
     const result = await legacy
     if (result.error) throw result.error
-    return (result.data ?? []).map(row => ({ ...row, allocation_id: null as string | null }))
+    return (result.data ?? []).map((row) => ({
+      ...row,
+      allocation_id: null as string | null,
+    }))
   }
   if (error) throw error
   return data ?? []
@@ -31,12 +55,18 @@ export async function createExpense(input: {
   paymentStatus: 'unpaid' | 'pending' | 'paid'
   allocationId?: string | null
   linkedListingId?: string | null
+  incurredOn?: string
+  counterparty?: string
 }) {
   if (!supabase) throw new Error('Supabase is not configured.')
   if (!input.title.trim()) throw new Error('Give this cost a name.')
   assertBudgetAmount(input.estimateCents)
   assertBudgetAmount(input.actualCents)
+  const id = crypto.randomUUID()
   const { error } = await supabase.from('project_expenses').insert({
+    id,
+    incurred_on: input.incurredOn ?? null,
+    counterparty_label: input.counterparty ?? '',
     owner_id: input.ownerId,
     project_id: input.projectId,
     category: input.category,
@@ -45,7 +75,7 @@ export async function createExpense(input: {
     actual_cents: input.actualCents,
     payment_status: input.paymentStatus,
     linked_listing_id: input.linkedListingId ?? null,
-    ...(input.allocationId ? {allocation_id: input.allocationId} : {}),
+    ...(input.allocationId ? { allocation_id: input.allocationId } : {}),
   })
   if (error) throw error
   await createActivity({
@@ -54,28 +84,55 @@ export async function createExpense(input: {
     activityType: 'expense_added',
     title: 'Expense added',
     detail: `${input.title} added under ${input.category}.`,
-  })
+  }).catch(() => {})
+  return id
 }
 
 export async function updateExpense(
   expenseId: string,
-  input: { allocationId?: string | null; title?: string; category?: string; estimateCents?: number; actualCents?: number; paymentStatus?: 'unpaid' | 'pending' | 'paid' },
+  input: {
+    incurredOn?: string
+    counterparty?: string
+    allocationId?: string | null
+    title?: string
+    category?: string
+    estimateCents?: number
+    actualCents?: number
+    paymentStatus?: 'unpaid' | 'pending' | 'paid'
+  },
 ) {
   if (!supabase) throw new Error('Supabase is not configured.')
   const payload: Record<string, unknown> = {}
-  if (input.allocationId !== undefined) payload.allocation_id = input.allocationId
+  if (input.incurredOn !== undefined) payload.incurred_on = input.incurredOn
+  if (input.counterparty !== undefined)
+    payload.counterparty_label = input.counterparty
+  if (input.allocationId !== undefined)
+    payload.allocation_id = input.allocationId
   if (input.title !== undefined) payload.title = input.title.trim()
   if (input.category !== undefined) payload.category = input.category.trim()
-  if (input.estimateCents !== undefined) { assertBudgetAmount(input.estimateCents); payload.estimate_cents = input.estimateCents }
-  if (input.actualCents !== undefined) { assertBudgetAmount(input.actualCents); payload.actual_cents = input.actualCents }
-  if (input.paymentStatus !== undefined) payload.payment_status = input.paymentStatus
-  const { error } = await supabase.from('project_expenses').update(payload).eq('id', expenseId)
+  if (input.estimateCents !== undefined) {
+    assertBudgetAmount(input.estimateCents)
+    payload.estimate_cents = input.estimateCents
+  }
+  if (input.actualCents !== undefined) {
+    assertBudgetAmount(input.actualCents)
+    payload.actual_cents = input.actualCents
+  }
+  if (input.paymentStatus !== undefined)
+    payload.payment_status = input.paymentStatus
+  const { error } = await supabase
+    .from('project_expenses')
+    .update(payload)
+    .eq('id', expenseId)
   if (error) throw error
 }
 
 export async function deleteExpense(expenseId: string) {
   if (!supabase) throw new Error('Supabase is not configured.')
-  const { error } = await supabase.from('project_expenses').delete().eq('id', expenseId)
+  const { error } = await supabase
+    .from('project_expenses')
+    .delete()
+    .eq('id', expenseId)
   if (error) throw error
 }
 
