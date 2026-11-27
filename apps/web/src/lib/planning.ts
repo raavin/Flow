@@ -9,6 +9,8 @@ export type Expense = {
   title: string
   estimate_cents: number
   actual_cents: number
+  paid_cents?: number
+  linked_payment_count?: number
   payment_status: 'unpaid' | 'pending' | 'paid'
   linked_listing_id: string | null
   allocation_id: string | null
@@ -42,7 +44,29 @@ export async function fetchExpenses(projectId?: string): Promise<Expense[]> {
     }))
   }
   if (error) throw error
-  return data ?? []
+  if (!data?.length) return []
+  const { data: payments, error: paymentError } = await supabase
+    .from('financial_transactions')
+    .select('expense_id,total_cents,status')
+    .in(
+      'expense_id',
+      (data ?? []).map((row) => row.id),
+    )
+  if (paymentError) throw paymentError
+  return (data ?? []).map((row) => {
+    const linked = (payments ?? []).filter((p) => p.expense_id === row.id)
+    return {
+      ...row,
+      linked_payment_count: linked.length,
+      ...(linked.length
+        ? {
+            paid_cents: linked
+              .filter((p) => ['settled', 'paid'].includes(p.status))
+              .reduce((sum, p) => sum + p.total_cents, 0),
+          }
+        : {}),
+    }
+  })
 }
 
 export async function createExpense(input: {
@@ -104,10 +128,8 @@ export async function updateExpense(
   if (!supabase) throw new Error('Supabase is not configured.')
   const payload: Record<string, unknown> = {}
   if (input.incurredOn !== undefined) payload.incurred_on = input.incurredOn
-  if (input.counterparty !== undefined)
-    payload.counterparty_label = input.counterparty
-  if (input.allocationId !== undefined)
-    payload.allocation_id = input.allocationId
+  if (input.counterparty !== undefined) payload.counterparty_label = input.counterparty
+  if (input.allocationId !== undefined) payload.allocation_id = input.allocationId
   if (input.title !== undefined) payload.title = input.title.trim()
   if (input.category !== undefined) payload.category = input.category.trim()
   if (input.estimateCents !== undefined) {
@@ -118,21 +140,14 @@ export async function updateExpense(
     assertBudgetAmount(input.actualCents)
     payload.actual_cents = input.actualCents
   }
-  if (input.paymentStatus !== undefined)
-    payload.payment_status = input.paymentStatus
-  const { error } = await supabase
-    .from('project_expenses')
-    .update(payload)
-    .eq('id', expenseId)
+  if (input.paymentStatus !== undefined) payload.payment_status = input.paymentStatus
+  const { error } = await supabase.from('project_expenses').update(payload).eq('id', expenseId)
   if (error) throw error
 }
 
 export async function deleteExpense(expenseId: string) {
   if (!supabase) throw new Error('Supabase is not configured.')
-  const { error } = await supabase
-    .from('project_expenses')
-    .delete()
-    .eq('id', expenseId)
+  const { error } = await supabase.from('project_expenses').delete().eq('id', expenseId)
   if (error) throw error
 }
 
@@ -251,7 +266,9 @@ export async function computeAvailabilitySuggestion(projectId: string) {
   if (error) throw error
 
   const active = (data ?? []).filter((item) =>
-    ['available Saturday', 'available Sunday afternoon', 'available Saturday morning'].includes(item.availability_status),
+    ['available Saturday', 'available Sunday afternoon', 'available Saturday morning'].includes(
+      item.availability_status,
+    ),
   )
 
   if (!active.length) {
@@ -266,7 +283,9 @@ export async function computeAvailabilitySuggestion(projectId: string) {
 
   return {
     recommendation:
-      saturday.length >= sunday.length ? 'Saturday morning looks strongest' : 'Sunday afternoon looks strongest',
+      saturday.length >= sunday.length
+        ? 'Saturday morning looks strongest'
+        : 'Sunday afternoon looks strongest',
     supportingPeople: (saturday.length >= sunday.length ? saturday : sunday).map((item) => item.name),
   }
 }

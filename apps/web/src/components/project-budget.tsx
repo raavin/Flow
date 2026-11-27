@@ -1,3 +1,4 @@
+import { CostPayment } from './cost-payment'
 import { BudgetAllocations } from './budget-allocations'
 import { MoneyEntryForm } from './money-entry-form'
 import { ReceiptPanel } from './money-activity'
@@ -6,13 +7,7 @@ import { featureError, fetchAllocations } from '@/lib/supplier-requests'
 import { useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import {
-  AppButton,
-  AppCard,
-  AppInput,
-  FieldLabel,
-  SectionHeading,
-} from '@superapp/ui'
+import { AppButton, AppCard, AppInput, FieldLabel, SectionHeading } from '@superapp/ui'
 import { useAppStore } from '@/hooks/useAppStore'
 import { fetchProjectDetail, updateProject } from '@/lib/projects'
 import { deleteExpense, fetchExpenses } from '@/lib/planning'
@@ -69,12 +64,15 @@ export function ProjectBudget({ projectId }: { projectId: string }) {
   const loading = costs.isPending || project.isPending
   const records = moneyRecords(costs.data ?? [], [])
   const receipt = records.find((r) => r.target.id === receiptsFor)
+  if (project.data && project.data.ownerId !== session?.user.id)
+    return (
+      <ProjectShell projectId={projectId} activeTab="budget">
+        <AppCard>The project budget is private to its owner.</AppCard>
+      </ProjectShell>
+    )
   return (
     <div className="space-y-4 min-w-0">
-      <nav
-        aria-label="Breadcrumb"
-        className="flex flex-wrap items-center gap-2 text-sm"
-      >
+      <nav aria-label="Breadcrumb" className="flex flex-wrap items-center gap-2 text-sm">
         <Link to="/app/budgets" className="underline font-semibold">
           Money overview
         </Link>
@@ -88,18 +86,13 @@ export function ProjectBudget({ projectId }: { projectId: string }) {
               eyebrow="AUD"
               title="Budget"
               action={
-                <Link
-                  to="/app/wallet"
-                  search={{ projectId }}
-                  className="text-sm underline"
-                >
+                <Link to="/app/wallet" search={{ projectId }} className="text-sm underline">
                   Project activity
                 </Link>
               }
             />
             <p className="text-sm text-ink/70">
-              Plan costs, track spending and keep receipts. Your financial
-              records are private.
+              Plan costs, track spending and keep receipts. Your financial records are private.
             </p>
             {loading ? (
               <p role="status">Loading budget…</p>
@@ -112,22 +105,14 @@ export function ProjectBudget({ projectId }: { projectId: string }) {
                   tabIndex={0}
                 >
                   <table className="ui-budget-table min-w-[520px]">
-                    <caption className="sr-only">
-                      Project budget summary in Australian dollars
-                    </caption>
+                    <caption className="sr-only">Project budget summary in Australian dollars</caption>
                     <thead>
                       <tr>
-                        {['Budget', 'Forecast', 'Paid', 'Budget left'].map(
-                          (label) => (
-                            <th
-                              key={label}
-                              scope="col"
-                              className="budget-money"
-                            >
-                              {label}
-                            </th>
-                          ),
-                        )}
+                        {['Budget', 'Forecast', 'Paid', 'Budget left'].map((label) => (
+                          <th key={label} scope="col" className="budget-money">
+                            {label}
+                          </th>
+                        ))}
                       </tr>
                     </thead>
                     <tbody>
@@ -135,12 +120,8 @@ export function ProjectBudget({ projectId }: { projectId: string }) {
                         <td className="budget-money">
                           {budget === null ? 'Not set' : formatCurrency(budget)}
                         </td>
-                        <td className="budget-money">
-                          {formatCurrency(totals.forecast)}
-                        </td>
-                        <td className="budget-money">
-                          {formatCurrency(totals.paid)}
-                        </td>
+                        <td className="budget-money">{formatCurrency(totals.forecast)}</td>
+                        <td className="budget-money">{formatCurrency(totals.paid)}</td>
                         <td
                           className={`budget-money ${budget !== null && totals.forecast > budget ? 'text-berry font-semibold' : ''}`}
                         >
@@ -150,9 +131,7 @@ export function ProjectBudget({ projectId }: { projectId: string }) {
                             <>
                               {formatCurrency(budget - totals.forecast)}
                               {totals.forecast > budget ? (
-                                <span className="block text-xs">
-                                  Over budget
-                                </span>
+                                <span className="block text-xs">Over budget</span>
                               ) : null}
                             </>
                           )}
@@ -162,9 +141,8 @@ export function ProjectBudget({ projectId }: { projectId: string }) {
                   </table>
                 </div>
                 <p className="text-xs text-ink/65">
-                  To pay: {formatCurrency(totals.remaining)}. Forecast uses
-                  actual costs where recorded, otherwise estimates. Budget left
-                  is the limit minus the forecast.
+                  To pay: {formatCurrency(totals.remaining)}. Forecast uses actual costs where recorded,
+                  otherwise estimates. Budget left is the limit minus the forecast.
                 </p>
                 <div className="flex flex-wrap items-end gap-3">
                   <FieldLabel>
@@ -173,9 +151,7 @@ export function ProjectBudget({ projectId }: { projectId: string }) {
                       aria-label="Budget limit (AUD)"
                       inputMode="decimal"
                       placeholder="No limit set"
-                      value={
-                        target ?? (budget === null ? '' : String(budget / 100))
-                      }
+                      value={target ?? (budget === null ? '' : String(budget / 100))}
                       onChange={(e) => setTarget(e.target.value)}
                     />
                   </FieldLabel>
@@ -186,9 +162,7 @@ export function ProjectBudget({ projectId }: { projectId: string }) {
                   >
                     {saveTarget.isPending ? 'Saving…' : 'Save limit'}
                   </AppButton>
-                  <span className="text-xs text-ink/70">
-                    Leave blank to remove the limit.
-                  </span>
+                  <span className="text-xs text-ink/70">Leave blank to remove the limit.</span>
                 </div>
               </>
             ) : null}
@@ -222,13 +196,8 @@ export function ProjectBudget({ projectId }: { projectId: string }) {
               }
             />
             {editing ? (
-              <section
-                aria-label="Money entry"
-                className="border-y border-border py-4 space-y-3"
-              >
-                <SectionHeading
-                  title={editing === 'new' ? 'Add entry' : 'Edit entry'}
-                />
+              <section aria-label="Money entry" className="border-y border-border py-4 space-y-3">
+                <SectionHeading title={editing === 'new' ? 'Add entry' : 'Edit entry'} />
                 <MoneyEntryForm
                   key={editing === 'new' ? `new-${formVersion}` : editing.id}
                   projectId={projectId}
@@ -241,9 +210,7 @@ export function ProjectBudget({ projectId }: { projectId: string }) {
             {loading ? (
               <p role="status">Loading costs…</p>
             ) : !costs.isError && !costs.data?.length ? (
-              <p className="text-sm text-ink/70">
-                No costs yet. Add an entry to start planning.
-              </p>
+              <p className="text-sm text-ink/70">No costs yet. Add an entry to start planning.</p>
             ) : costs.data?.length ? (
               <div
                 className="ui-ledger-shell relative"
@@ -252,9 +219,7 @@ export function ProjectBudget({ projectId }: { projectId: string }) {
                 tabIndex={0}
               >
                 <table className="ui-budget-table min-w-[840px]">
-                  <caption className="sr-only">
-                    Project costs in Australian dollars
-                  </caption>
+                  <caption className="sr-only">Project costs in Australian dollars</caption>
                   <thead>
                     <tr>
                       <th scope="col">Cost</th>
@@ -276,54 +241,41 @@ export function ProjectBudget({ projectId }: { projectId: string }) {
                       <tr
                         key={cost.id}
                         className={
-                          editing &&
-                          editing !== 'new' &&
-                          editing.target.id === cost.id
-                            ? 'bg-teal/10'
-                            : ''
+                          editing && editing !== 'new' && editing.target.id === cost.id ? 'bg-teal/10' : ''
                         }
                       >
                         <th scope="row" className="min-w-44 font-semibold">
                           {cost.title}
-                          <p className="mt-1 text-xs font-normal text-ink/65">
-                            {cost.category}
-                          </p>
+                          <p className="mt-1 text-xs font-normal text-ink/65">{cost.category}</p>
                         </th>
                         <td className="text-ink/70">
                           {cost.allocation_id
-                            ? (allocations.data?.find(
-                                (a) => a.id === cost.allocation_id,
-                              )?.name ?? '—')
+                            ? (allocations.data?.find((a) => a.id === cost.allocation_id)?.name ?? '—')
                             : 'Unallocated'}
                         </td>
+                        <td className="budget-money">{formatCurrency(cost.estimate_cents)}</td>
                         <td className="budget-money">
-                          {formatCurrency(cost.estimate_cents)}
-                        </td>
-                        <td className="budget-money">
-                          {cost.payment_status === 'paid' ||
-                          cost.actual_cents > 0 ? (
+                          {cost.payment_status === 'paid' || cost.actual_cents > 0 ? (
                             formatCurrency(cost.actual_cents)
                           ) : (
                             <span aria-label="Actual cost not recorded">—</span>
                           )}
                         </td>
                         <td className="whitespace-nowrap">
-                          {cost.payment_status === 'paid'
-                            ? 'Paid'
-                            : cost.payment_status === 'pending'
-                              ? 'Committed'
-                              : 'Planned'}
+                          {cost.linked_payment_count
+                            ? `${formatCurrency(cost.paid_cents ?? 0)} paid`
+                            : cost.payment_status === 'paid'
+                              ? 'Paid'
+                              : cost.payment_status === 'pending'
+                                ? 'Committed'
+                                : 'Planned'}
                         </td>
                         <td className="budget-actions">
+                          <CostPayment record={records.find((r) => r.target.id === cost.id)!} />
                           <AppButton
                             variant="ghost"
                             disabled={remove.isPending}
-                            onClick={() =>
-                              setEditing(
-                                records.find((r) => r.target.id === cost.id) ??
-                                  null,
-                              )
-                            }
+                            onClick={() => setEditing(records.find((r) => r.target.id === cost.id) ?? null)}
                           >
                             Edit
                           </AppButton>
@@ -331,11 +283,7 @@ export function ProjectBudget({ projectId }: { projectId: string }) {
                             <AppButton
                               variant="ghost"
                               aria-expanded={receiptsFor === cost.id}
-                              onClick={() =>
-                                setReceiptsFor(
-                                  receiptsFor === cost.id ? null : cost.id,
-                                )
-                              }
+                              onClick={() => setReceiptsFor(receiptsFor === cost.id ? null : cost.id)}
                             >
                               Receipts
                             </AppButton>
@@ -349,18 +297,20 @@ export function ProjectBudget({ projectId }: { projectId: string }) {
                               >
                                 Confirm delete
                               </AppButton>
-                              <AppButton
-                                variant="ghost"
-                                onClick={() => setDeleting(null)}
-                              >
+                              <AppButton variant="ghost" onClick={() => setDeleting(null)}>
                                 Cancel
                               </AppButton>
                             </>
                           ) : (
                             <AppButton
                               variant="ghost"
-                              disabled={remove.isPending}
+                              disabled={remove.isPending || !!cost.linked_payment_count}
                               onClick={() => setDeleting(cost.id)}
+                              title={
+                                cost.linked_payment_count
+                                  ? 'Remove the linked payments before deleting this cost'
+                                  : undefined
+                              }
                             >
                               Delete
                             </AppButton>
@@ -374,12 +324,8 @@ export function ProjectBudget({ projectId }: { projectId: string }) {
                       <th scope="row" colSpan={2}>
                         Total
                       </th>
-                      <td className="budget-money">
-                        {formatCurrency(totals.estimated)}
-                      </td>
-                      <td className="budget-money">
-                        {formatCurrency(totals.actual)}
-                      </td>
+                      <td className="budget-money">{formatCurrency(totals.estimated)}</td>
+                      <td className="budget-money">{formatCurrency(totals.actual)}</td>
                       <td colSpan={2} />
                     </tr>
                   </tfoot>
@@ -387,12 +333,7 @@ export function ProjectBudget({ projectId }: { projectId: string }) {
               </div>
             ) : null}
           </AppCard>
-          {receipt ? (
-            <ReceiptPanel
-              record={receipt}
-              onClose={() => setReceiptsFor(null)}
-            />
-          ) : null}
+          {receipt ? <ReceiptPanel record={receipt} onClose={() => setReceiptsFor(null)} /> : null}
           {session ? (
             <BudgetAllocations
               projectId={projectId}

@@ -1,3 +1,4 @@
+import { coordinationDays } from '@/lib/coordination-dates'
 import { ScheduleViews } from '@/components/section-views'
 import { createRoute, Link } from '@tanstack/react-router'
 import { useMemo, useRef, useState } from 'react'
@@ -28,12 +29,7 @@ import {
   toIsoDate,
   updateCalendarEvent,
 } from '@/lib/calendar'
-import type {
-  CalendarEventRow,
-  CalendarOccurrence,
-  RecurrenceConfig,
-  RecurringEditScope,
-} from '@/lib/calendar'
+import type { CalendarOccurrence, RecurrenceConfig, RecurringEditScope } from '@/lib/calendar'
 import { createMilestone, createTask, fetchProjects } from '@/lib/projects'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -50,8 +46,8 @@ const COLOR_SWATCHES = [
   { value: '#1A1A1A', label: 'Black' },
 ]
 
-const HOURS_START = 7   // 7 am
-const HOURS_END = 22    // 10 pm
+const HOURS_START = 7 // 7 am
+const HOURS_END = 22 // 10 pm
 const PX_PER_HOUR = 60
 
 // ─── Main page ────────────────────────────────────────────────────────────────
@@ -62,7 +58,9 @@ export function CalendarPage({ linkedProjectId }: { linkedProjectId?: string | n
 
   // ── Navigation state
   const [editorOpen, setEditorOpen] = useState(false)
-  const [view, setView] = useState<CalendarView>('month')
+  const [view, setView] = useState<CalendarView>(() =>
+    window.matchMedia?.('(max-width: 639px)').matches ? 'agenda' : 'month',
+  )
   const [cursor, setCursor] = useState(() => startOfMonth(new Date()))
   const [selectedDay, setSelectedDay] = useState(() => toIsoDate(new Date()))
 
@@ -99,15 +97,15 @@ export function CalendarPage({ linkedProjectId }: { linkedProjectId?: string | n
   const rangeEnd = useMemo(() => addDays(startOfMonth(cursor), 92), [cursor])
 
   // ── Queries
-  const projectsQuery = useQuery({ queryKey: ['projects'], queryFn: fetchProjects })
+  const projectsQuery = useQuery({
+    queryKey: ['projects'],
+    queryFn: fetchProjects,
+  })
   const eventsQuery = useQuery({
     queryKey: ['calendar-events'],
     queryFn: fetchAllCalendarEvents,
   })
-  const eventIds = useMemo(
-    () => (eventsQuery.data ?? []).map((e) => e.id),
-    [eventsQuery.data],
-  )
+  const eventIds = useMemo(() => (eventsQuery.data ?? []).map((e) => e.id), [eventsQuery.data])
   const exceptionsQuery = useQuery({
     queryKey: ['calendar-exceptions', eventIds],
     queryFn: () => fetchExceptionsForEvents(eventIds),
@@ -124,14 +122,13 @@ export function CalendarPage({ linkedProjectId }: { linkedProjectId?: string | n
   const allExceptions = useMemo(() => exceptionsQuery.data ?? [], [exceptionsQuery.data])
 
   const occurrences = useMemo(
-    () => expandOccurrences(
-      linkedProjectId
-        ? allEvents.filter((e) => e.projectId === linkedProjectId)
-        : allEvents,
-      allExceptions,
-      rangeStart,
-      rangeEnd,
-    ),
+    () =>
+      expandOccurrences(
+        linkedProjectId ? allEvents.filter((e) => e.projectId === linkedProjectId) : allEvents,
+        allExceptions,
+        rangeStart,
+        rangeEnd,
+      ),
     [allEvents, allExceptions, rangeStart, rangeEnd, linkedProjectId],
   )
 
@@ -156,8 +153,8 @@ export function CalendarPage({ linkedProjectId }: { linkedProjectId?: string | n
   const selectedDayFlows = useMemo(
     () =>
       timedFlows.filter((item) => {
-        const start = (item.time.startsAt ?? item.time.dueAt)?.slice(0, 10)
-        const end = (item.time.endsAt ?? item.time.startsAt ?? item.time.dueAt)?.slice(0, 10)
+        const start = coordinationDays(item).start
+        const end = coordinationDays(item).end
         return Boolean(start && end && selectedDay >= start && selectedDay <= end)
       }),
     [selectedDay, timedFlows],
@@ -193,9 +190,7 @@ export function CalendarPage({ linkedProjectId }: { linkedProjectId?: string | n
   const updateMutation = useMutation({
     mutationFn: (params: { scope: RecurringEditScope }) => {
       if (!editingOccurrence) throw new Error('No occurrence selected')
-      const dtstart = isAllDay
-        ? new Date(`${startsAt}T00:00:00`)
-        : new Date(startsAt)
+      const dtstart = isAllDay ? new Date(`${startsAt}T00:00:00`) : new Date(startsAt)
       return updateCalendarEvent({
         eventId: editingOccurrence.eventId,
         ownerId: session!.user.id,
@@ -221,11 +216,7 @@ export function CalendarPage({ linkedProjectId }: { linkedProjectId?: string | n
   const deleteMutation = useMutation({
     mutationFn: (params: { scope: RecurringEditScope }) => {
       if (!editingOccurrence) throw new Error('No occurrence selected')
-      return deleteCalendarEvent(
-        editingOccurrence.eventId,
-        params.scope,
-        editingOccurrence.instanceDate,
-      )
+      return deleteCalendarEvent(editingOccurrence.eventId, params.scope, editingOccurrence.instanceDate)
     },
     onSuccess: () => {
       setScopeModal(null)
@@ -245,7 +236,9 @@ export function CalendarPage({ linkedProjectId }: { linkedProjectId?: string | n
       setTaskTitle('')
       setTaskDueOn(selectedDay)
       setProjectAddModal(null)
-      void queryClient.invalidateQueries({ queryKey: ['project-detail', linkedProjectId] })
+      void queryClient.invalidateQueries({
+        queryKey: ['project-detail', linkedProjectId],
+      })
     },
   })
 
@@ -264,7 +257,9 @@ export function CalendarPage({ linkedProjectId }: { linkedProjectId?: string | n
       setMilestoneEnd(selectedDay)
       setMilestoneLane('Planning')
       setProjectAddModal(null)
-      void queryClient.invalidateQueries({ queryKey: ['project-detail', linkedProjectId] })
+      void queryClient.invalidateQueries({
+        queryKey: ['project-detail', linkedProjectId],
+      })
     },
   })
 
@@ -360,17 +355,25 @@ export function CalendarPage({ linkedProjectId }: { linkedProjectId?: string | n
   // ── Render
   return (
     <>
-      {!linkedProjectId ? <ScheduleViews active="calendar"/> : null}
+      {!linkedProjectId ? <ScheduleViews active="calendar" /> : null}
       <div className={`mt-4 grid gap-4 ${editorOpen ? 'xl:grid-cols-[1.6fr_1fr]' : ''}`}>
         {/* LEFT: calendar grid + selected day panel */}
         <div className="space-y-4">
           <AppCard className="space-y-4">
             <SectionHeading
               eyebrow={undefined}
-              title={linkedProjectId ? 'Project calendar' : 'Calendar'}
+              title="Calendar"
               action={
                 <div className="flex flex-wrap gap-2">
-                  <AppButton disabled={editorOpen} onClick={() => { resetEditor(); setEditorOpen(true) }}>New event</AppButton>
+                  <AppButton
+                    disabled={editorOpen}
+                    onClick={() => {
+                      resetEditor()
+                      setEditorOpen(true)
+                    }}
+                  >
+                    New event
+                  </AppButton>
                   <AppButton variant="ghost" onClick={() => setCursor(stepCursor(cursor, view, -1))}>
                     Previous
                   </AppButton>
@@ -395,11 +398,7 @@ export function CalendarPage({ linkedProjectId }: { linkedProjectId?: string | n
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex flex-wrap gap-2">
                 {(['month', 'week', 'day', 'agenda'] as CalendarView[]).map((v) => (
-                  <AppButton
-                    key={v}
-                    variant={view === v ? 'primary' : 'ghost'}
-                    onClick={() => setView(v)}
-                  >
+                  <AppButton key={v} variant={view === v ? 'primary' : 'ghost'} onClick={() => setView(v)}>
                     {v[0].toUpperCase() + v.slice(1)}
                   </AppButton>
                 ))}
@@ -415,7 +414,6 @@ export function CalendarPage({ linkedProjectId }: { linkedProjectId?: string | n
                     </AppButton>
                   </>
                 ) : null}
-
               </div>
             </div>
 
@@ -429,9 +427,7 @@ export function CalendarPage({ linkedProjectId }: { linkedProjectId?: string | n
                       ? selectedDay
                       : monthLabel(cursor)}
                 </p>
-
               </div>
-
             </AppPanel>
 
             {view === 'month' ? (
@@ -473,7 +469,15 @@ export function CalendarPage({ linkedProjectId }: { linkedProjectId?: string | n
 
           {/* Selected day panel */}
           <AppCard className="space-y-4">
-            <SectionHeading eyebrow="Selected day" title={new Date(`${selectedDay}T12:00:00`).toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })} />
+            <SectionHeading
+              eyebrow="Selected day"
+              title={new Date(`${selectedDay}T12:00:00`).toLocaleDateString('en-AU', {
+                weekday: 'short',
+                day: 'numeric',
+                month: 'short',
+                year: 'numeric',
+              })}
+            />
             <div className="grid gap-4 lg:grid-cols-2">
               {/* Calendar events for this day */}
               <div className="space-y-3">
@@ -514,14 +518,8 @@ export function CalendarPage({ linkedProjectId }: { linkedProjectId?: string | n
                         </Link>
                       ) : null}
                       <Link
-                        to={
-                          occ.projectId
-                            ? '/app/projects/$projectId/timeline'
-                            : '/app/gantt'
-                        }
-                        params={
-                          occ.projectId ? { projectId: occ.projectId } : (undefined as never)
-                        }
+                        to={occ.projectId ? '/app/projects/$projectId/timeline' : '/app/gantt'}
+                        params={occ.projectId ? { projectId: occ.projectId } : (undefined as never)}
                       >
                         <AppButton variant="ghost">Timeline</AppButton>
                       </Link>
@@ -548,10 +546,7 @@ export function CalendarPage({ linkedProjectId }: { linkedProjectId?: string | n
                       <AppPill tone="butter">{item.state}</AppPill>
                     </div>
                     <div className="flex flex-wrap gap-2">
-                      <Link
-                        to="/app/coordination/$coordinationId"
-                        params={{ coordinationId: item.id }}
-                      >
+                      <Link to="/app/coordination/$coordinationId" params={{ coordinationId: item.id }}>
                         <AppButton variant="secondary">Open plan</AppButton>
                       </Link>
                       <Link to="/app/gantt">
@@ -569,9 +564,7 @@ export function CalendarPage({ linkedProjectId }: { linkedProjectId?: string | n
                   </AppPanel>
                 ))}
                 {!selectedDayFlows.length ? (
-                  <AppPanel className="text-sm text-ink/60">
-                    No plans on this day.
-                  </AppPanel>
+                  <AppPanel className="text-sm text-ink/60">No plans on this day.</AppPanel>
                 ) : null}
                 <AppButton
                   variant="secondary"
@@ -589,163 +582,151 @@ export function CalendarPage({ linkedProjectId }: { linkedProjectId?: string | n
         </div>
 
         {/* Event editor opens on demand. */}
-        {editorOpen ? <AppCard className="space-y-4">
-          <SectionHeading
-            eyebrow={undefined}
-            title={
-              editingOccurrence
-                ? 'Edit event'
-                : linkedProjectId
-                  ? 'New project event'
-                  : 'New event'
-            }
-          />
-
-          <FieldLabel>
-            Title
-            <AppInput
-              ref={titleInputRef}
-              autoFocus
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              className="mt-2"
-              placeholder="Doctor appointment, dinner, leave request..."
+        {editorOpen ? (
+          <AppCard className="space-y-4">
+            <SectionHeading
+              eyebrow={undefined}
+              title={editingOccurrence ? 'Edit event' : linkedProjectId ? 'New project event' : 'New event'}
             />
-          </FieldLabel>
 
-          {/* All-day toggle */}
-          <label className="flex cursor-pointer items-center gap-3">
-            <input
-              type="checkbox"
-              checked={isAllDay}
-              onChange={(e) => {
-                setIsAllDay(e.target.checked)
-                if (e.target.checked) {
-                  // Collapse to date-only values
-                  setStartsAt(startsAt.slice(0, 10))
-                  setEndsAt(endsAt.slice(0, 10))
-                } else {
-                  // Expand back to datetime
-                  const base = startsAt.length === 10 ? `${startsAt}T09:00` : startsAt
-                  setStartsAt(base)
-                  setEndsAt(base.slice(0, 10) + 'T10:00')
-                }
-              }}
-              className="h-4 w-4 accent-teal"
-            />
-            <span className="text-sm font-bold text-ink">All day</span>
-          </label>
-
-          <FieldLabel>
-            Starts
-            <AppInput
-              type={isAllDay ? 'date' : 'datetime-local'}
-              value={startsAt}
-              onChange={(e) => setStartsAt(e.target.value)}
-              className="mt-2"
-            />
-          </FieldLabel>
-          <FieldLabel>
-            Ends
-            <AppInput
-              type={isAllDay ? 'date' : 'datetime-local'}
-              value={endsAt}
-              onChange={(e) => setEndsAt(e.target.value)}
-              className="mt-2"
-            />
-          </FieldLabel>
-
-          {/* Colour picker */}
-          <div>
-            <p className="mb-2 text-sm font-bold text-ink">Colour</p>
-            <div className="flex flex-wrap gap-2">
-              {COLOR_SWATCHES.map((swatch) => (
-                <button
-                  key={swatch.value}
-                  type="button"
-                  title={swatch.label}
-                  onClick={() => setColor(swatch.value)}
-                  className={`h-7 w-7 rounded-full border-2 transition ${
-                    color === swatch.value
-                      ? 'border-ink scale-110'
-                      : 'border-transparent hover:border-ink/30'
-                  } ${swatch.value === '' ? 'bg-cloud/80' : ''}`}
-                  style={swatch.value ? { background: swatch.value } : undefined}
-                >
-                  {swatch.value === '' ? (
-                    <span className="flex h-full w-full items-center justify-center text-[9px] font-black text-ink/40">
-                      ∅
-                    </span>
-                  ) : null}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {!linkedProjectId ? (
             <FieldLabel>
-              Linked project
-              <AppSelect
-                value={projectId}
-                onChange={(e) => setProjectId(e.target.value)}
+              Title
+              <AppInput
+                ref={titleInputRef}
+                autoFocus
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
                 className="mt-2"
-              >
-                <option value="">No linked project</option>
-                {projects.map((project) => (
-                  <option key={project.id} value={project.id}>
-                    {project.title}
-                  </option>
-                ))}
-              </AppSelect>
+                placeholder="Doctor appointment, dinner, leave request..."
+              />
             </FieldLabel>
-          ) : null}
 
-          <FieldLabel>
-            Notes
-            <AppTextarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              className="mt-2 min-h-24"
-              placeholder="Add notes"
-            />
-          </FieldLabel>
+            {/* All-day toggle */}
+            <label className="flex cursor-pointer items-center gap-3">
+              <input
+                type="checkbox"
+                checked={isAllDay}
+                onChange={(e) => {
+                  setIsAllDay(e.target.checked)
+                  if (e.target.checked) {
+                    // Collapse to date-only values
+                    setStartsAt(startsAt.slice(0, 10))
+                    setEndsAt(endsAt.slice(0, 10))
+                  } else {
+                    // Expand back to datetime
+                    const base = startsAt.length === 10 ? `${startsAt}T09:00` : startsAt
+                    setStartsAt(base)
+                    setEndsAt(base.slice(0, 10) + 'T10:00')
+                  }
+                }}
+                className="h-4 w-4 accent-teal"
+              />
+              <span className="text-sm font-bold text-ink">All day</span>
+            </label>
 
-          {/* Recurrence editor */}
-          <RecurrenceEditor
-            value={rruleConfig}
-            onChange={setRruleConfig}
-            existingRrule={editingOccurrence?.rrule ?? null}
-            startsAt={isAllDay ? `${startsAt}T00:00:00` : startsAt}
-          />
+            <FieldLabel>
+              Starts
+              <AppInput
+                type={isAllDay ? 'date' : 'datetime-local'}
+                value={startsAt}
+                onChange={(e) => setStartsAt(e.target.value)}
+                className="mt-2"
+              />
+            </FieldLabel>
+            <FieldLabel>
+              Ends
+              <AppInput
+                type={isAllDay ? 'date' : 'datetime-local'}
+                value={endsAt}
+                onChange={(e) => setEndsAt(e.target.value)}
+                className="mt-2"
+              />
+            </FieldLabel>
 
-          <div className="flex flex-wrap gap-2">
-            <AppButton
-              disabled={
-                !session ||
-                !title.trim() ||
-                !startsAt ||
-                !endsAt ||
-                createMutation.isPending ||
-                updateMutation.isPending
-              }
-              onClick={handleSaveClick}
-            >
-              {editingOccurrence ? 'Save changes' : 'Add event'}
-            </AppButton>
-            <AppButton variant="ghost" onClick={resetEditor}>
-              Close
-            </AppButton>
-            {editingOccurrence ? (
-              <AppButton
-                variant="ghost"
-                disabled={deleteMutation.isPending}
-                onClick={handleDeleteClick}
-              >
-                Delete
-              </AppButton>
+            {/* Colour picker */}
+            <div>
+              <p className="mb-2 text-sm font-bold text-ink">Colour</p>
+              <div className="flex flex-wrap gap-2">
+                {COLOR_SWATCHES.map((swatch) => (
+                  <button
+                    key={swatch.value}
+                    type="button"
+                    title={swatch.label}
+                    onClick={() => setColor(swatch.value)}
+                    className={`h-7 w-7 rounded-full border-2 transition ${
+                      color === swatch.value
+                        ? 'border-ink scale-110'
+                        : 'border-transparent hover:border-ink/30'
+                    } ${swatch.value === '' ? 'bg-cloud/80' : ''}`}
+                    style={swatch.value ? { background: swatch.value } : undefined}
+                  >
+                    {swatch.value === '' ? (
+                      <span className="flex h-full w-full items-center justify-center text-[9px] font-black text-ink/40">
+                        ∅
+                      </span>
+                    ) : null}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {!linkedProjectId ? (
+              <FieldLabel>
+                Linked project
+                <AppSelect value={projectId} onChange={(e) => setProjectId(e.target.value)} className="mt-2">
+                  <option value="">No linked project</option>
+                  {projects.map((project) => (
+                    <option key={project.id} value={project.id}>
+                      {project.title}
+                    </option>
+                  ))}
+                </AppSelect>
+              </FieldLabel>
             ) : null}
-          </div>
-        </AppCard> : null}
+
+            <FieldLabel>
+              Notes
+              <AppTextarea
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                className="mt-2 min-h-24"
+                placeholder="Add notes"
+              />
+            </FieldLabel>
+
+            {/* Recurrence editor */}
+            <RecurrenceEditor
+              value={rruleConfig}
+              onChange={setRruleConfig}
+              existingRrule={editingOccurrence?.rrule ?? null}
+              startsAt={isAllDay ? `${startsAt}T00:00:00` : startsAt}
+            />
+
+            <div className="flex flex-wrap gap-2">
+              <AppButton
+                disabled={
+                  !session ||
+                  !title.trim() ||
+                  !startsAt ||
+                  !endsAt ||
+                  createMutation.isPending ||
+                  updateMutation.isPending
+                }
+                onClick={handleSaveClick}
+              >
+                {editingOccurrence ? 'Save changes' : 'Add event'}
+              </AppButton>
+              <AppButton variant="ghost" onClick={resetEditor}>
+                Close
+              </AppButton>
+              {editingOccurrence ? (
+                <AppButton variant="ghost" disabled={deleteMutation.isPending} onClick={handleDeleteClick}>
+                  Delete
+                </AppButton>
+              ) : null}
+            </div>
+          </AppCard>
+        ) : null}
       </div>
 
       {/* ── Scope modal for recurring events */}
@@ -772,9 +753,7 @@ export function CalendarPage({ linkedProjectId }: { linkedProjectId?: string | n
             setScopeModal(null)
           }}
           isEditMode={scopeModal.mode === 'edit'}
-          hasLoadedOccurrence={
-            editingOccurrence?.key === scopeModal.occurrence.key
-          }
+          hasLoadedOccurrence={editingOccurrence?.key === scopeModal.occurrence.key}
         />
       ) : null}
 
@@ -845,21 +824,14 @@ export function CalendarPage({ linkedProjectId }: { linkedProjectId?: string | n
                   onChange={(e) => setTaskTitle(e.target.value)}
                   placeholder="Send invites, confirm transport..."
                 />
-                <AppInput
-                  type="date"
-                  value={taskDueOn}
-                  onChange={(e) => setTaskDueOn(e.target.value)}
-                />
+                <AppInput type="date" value={taskDueOn} onChange={(e) => setTaskDueOn(e.target.value)} />
                 <div className="flex justify-end gap-2">
                   <AppButton variant="ghost" onClick={() => setProjectAddModal(null)}>
                     Cancel
                   </AppButton>
                   <AppButton
                     disabled={
-                      !linkedProjectId ||
-                      !taskTitle.trim() ||
-                      !taskDueOn ||
-                      createTaskMutation.isPending
+                      !linkedProjectId || !taskTitle.trim() || !taskDueOn || createTaskMutation.isPending
                     }
                     onClick={() => createTaskMutation.mutate()}
                   >
@@ -907,34 +879,18 @@ function RecurringScopeModal({
         <p className="text-sm text-ink/65">How many occurrences should be affected?</p>
         <div className="grid gap-2">
           {isEditMode && !hasLoadedOccurrence ? (
-            <AppButton
-              variant="secondary"
-              disabled={isPending}
-              onClick={onLoadAndEdit}
-            >
+            <AppButton variant="secondary" disabled={isPending} onClick={onLoadAndEdit}>
               {verb} just this event
             </AppButton>
           ) : (
-            <AppButton
-              variant="secondary"
-              disabled={isPending}
-              onClick={() => onConfirm('this')}
-            >
+            <AppButton variant="secondary" disabled={isPending} onClick={() => onConfirm('this')}>
               {verb} just this event
             </AppButton>
           )}
-          <AppButton
-            variant="secondary"
-            disabled={isPending}
-            onClick={() => onConfirm('future')}
-          >
+          <AppButton variant="secondary" disabled={isPending} onClick={() => onConfirm('future')}>
             {verb} this and all following events
           </AppButton>
-          <AppButton
-            variant="secondary"
-            disabled={isPending}
-            onClick={() => onConfirm('all')}
-          >
+          <AppButton variant="secondary" disabled={isPending} onClick={() => onConfirm('all')}>
             {verb} all events in the series
           </AppButton>
         </div>
@@ -995,7 +951,11 @@ function RecurrenceEditor({
           <p className="text-sm font-bold text-ink">Recurrence</p>
           <p className="text-xs text-ink/60">{description}</p>
         </div>
-        {open ? <ChevronUp className="h-4 w-4 text-ink/40" /> : <ChevronDown className="h-4 w-4 text-ink/40" />}
+        {open ? (
+          <ChevronUp className="h-4 w-4 text-ink/40" />
+        ) : (
+          <ChevronDown className="h-4 w-4 text-ink/40" />
+        )}
       </button>
 
       {open ? (
@@ -1028,7 +988,10 @@ function RecurrenceEditor({
                     max={99}
                     value={value.interval}
                     onChange={(e) =>
-                      onChange({ ...value, interval: Math.max(1, parseInt(e.target.value) || 1) })
+                      onChange({
+                        ...value,
+                        interval: Math.max(1, parseInt(e.target.value) || 1),
+                      })
                     }
                     className="w-20"
                   />
@@ -1063,9 +1026,7 @@ function RecurrenceEditor({
                         <label
                           key={label}
                           className={`flex cursor-pointer items-center gap-1 rounded-pill px-2 py-1 text-xs font-bold transition ${
-                            checked
-                              ? 'bg-teal text-white'
-                              : 'bg-white/80 text-ink/70 hover:bg-white'
+                            checked ? 'bg-teal text-white' : 'bg-white/80 text-ink/70 hover:bg-white'
                           }`}
                         >
                           <input
@@ -1092,9 +1053,7 @@ function RecurrenceEditor({
 
               {/* Monthly: just show the day number */}
               {value.freq === 'monthly' ? (
-                <p className="text-sm text-ink/60">
-                  On day {new Date(startsAt).getDate()} of the month
-                </p>
+                <p className="text-sm text-ink/60">On day {new Date(startsAt).getDate()} of the month</p>
               ) : null}
 
               {/* End condition */}
@@ -1106,7 +1065,10 @@ function RecurrenceEditor({
                       { key: 'never', label: 'Never' },
                       { key: 'date', label: 'On date' },
                       { key: 'count', label: 'After N occurrences' },
-                    ] as Array<{ key: RecurrenceConfig['endType']; label: string }>
+                    ] as Array<{
+                      key: RecurrenceConfig['endType']
+                      label: string
+                    }>
                   ).map(({ key, label }) => (
                     <label key={key} className="flex cursor-pointer items-center gap-2 text-sm">
                       <input
@@ -1169,7 +1131,7 @@ function MonthView({
 }: {
   days: Date[]
   occurrences: CalendarOccurrence[]
-  flows: ReturnType<typeof buildFlowList>
+  flows: FlowItem[]
   selectedDay: string
   onSelectDay: (day: string, focusComposer?: boolean) => void
   onClickOccurrence: (occ: CalendarOccurrence) => void
@@ -1187,20 +1149,16 @@ function MonthView({
           const iso = toIsoDate(day)
           const dayOccs = occurrences.filter((o) => o.instanceDate === iso)
           const dayFlows = flows.filter((item) => {
-            const start = (item.time.startsAt ?? item.time.dueAt)?.slice(0, 10)
-            const end = (item.time.endsAt ?? item.time.startsAt ?? item.time.dueAt)?.slice(0, 10)
+            const start = coordinationDays(item).start
+            const end = coordinationDays(item).end
             return Boolean(start && end && iso >= start && iso <= end)
           })
           const isSelected = iso === selectedDay
           const isToday = iso === today
           const isCurrentMonth = day.getMonth() === days[10].getMonth()
           const visibleOccs = dayOccs.slice(0, 3)
-          const extraCount = dayOccs.length - visibleOccs.length + Math.max(0, dayFlows.length - (3 - visibleOccs.length > 0 ? 3 - visibleOccs.length : 0))
           const visibleFlows = dayFlows.slice(0, Math.max(0, 3 - visibleOccs.length))
-          const realExtra =
-            dayOccs.length + dayFlows.length -
-            visibleOccs.length -
-            visibleFlows.length
+          const realExtra = dayOccs.length + dayFlows.length - visibleOccs.length - visibleFlows.length
 
           return (
             <button
@@ -1240,9 +1198,7 @@ function MonthView({
                     <span
                       className="h-2 w-2 shrink-0 rounded-full"
                       style={
-                        occ.color
-                          ? { background: occ.color }
-                          : { background: 'var(--color-teal, #0d9488)' }
+                        occ.color ? { background: occ.color } : { background: 'var(--color-teal, #0d9488)' }
                       }
                     />
                     <span className="truncate">{occ.title}</span>
@@ -1280,7 +1236,7 @@ function WeekView({
 }: {
   days: Date[]
   occurrences: CalendarOccurrence[]
-  flows: ReturnType<typeof buildFlowList>
+  flows: FlowItem[]
   selectedDay: string
   onSelectDay: (day: string, focusComposer?: boolean) => void
   onClickOccurrence: (occ: CalendarOccurrence) => void
@@ -1344,7 +1300,9 @@ function WeekView({
                     type="button"
                     onClick={() => onClickOccurrence(occ)}
                     className="w-full truncate rounded-pill px-1.5 py-0.5 text-[10px] font-bold text-white text-left"
-                    style={{ background: occ.color ?? 'var(--color-teal, #0d9488)' }}
+                    style={{
+                      background: occ.color ?? 'var(--color-teal, #0d9488)',
+                    }}
                   >
                     {occ.title}
                   </button>
@@ -1363,37 +1321,28 @@ function WeekView({
         <div className="grid grid-cols-[3rem_1fr_1fr_1fr_1fr_1fr_1fr_1fr]" style={{ height: totalHeight }}>
           {/* Hour labels */}
           <div className="relative">
-            {Array.from({ length: HOURS_END - HOURS_START }, (_, i) => i + HOURS_START).map(
-              (hour) => (
-                <div
-                  key={hour}
-                  className="absolute right-1 text-[9px] font-bold text-ink/35"
-                  style={{ top: (hour - HOURS_START) * PX_PER_HOUR - 6 }}
-                >
-                  {formatHour(hour)}
-                </div>
-              ),
-            )}
+            {Array.from({ length: HOURS_END - HOURS_START }, (_, i) => i + HOURS_START).map((hour) => (
+              <div
+                key={hour}
+                className="absolute right-1 text-[9px] font-bold text-ink/35"
+                style={{ top: (hour - HOURS_START) * PX_PER_HOUR - 6 }}
+              >
+                {formatHour(hour)}
+              </div>
+            ))}
           </div>
 
           {/* Day columns */}
           {days.map((day) => {
             const iso = toIsoDate(day)
-            const timedOccs = occurrences.filter(
-              (o) => !o.isAllDay && o.instanceDate === iso,
-            )
+            const timedOccs = occurrences.filter((o) => !o.isAllDay && o.instanceDate === iso)
             const dayFlows = flows.filter((item) => {
-              const start = (item.time.startsAt ?? item.time.dueAt)?.slice(0, 10)
-              const end =
-                (item.time.endsAt ?? item.time.startsAt ?? item.time.dueAt)?.slice(0, 10)
+              const start = coordinationDays(item).start
+              const end = coordinationDays(item).end
               return Boolean(start && end && iso >= start && iso <= end)
             })
             return (
-              <div
-                key={iso}
-                className="relative border-l border-white/50"
-                style={{ height: totalHeight }}
-              >
+              <div key={iso} className="relative border-l border-white/50" style={{ height: totalHeight }}>
                 {/* Hour lines */}
                 {Array.from({ length: HOURS_END - HOURS_START }, (_, i) => i).map((i) => (
                   <div
@@ -1421,9 +1370,7 @@ function WeekView({
                       }}
                     >
                       <p className="truncate">{occ.title}</p>
-                      {height > 28 ? (
-                        <p className="truncate opacity-80">{formatTime(occ.startsAt)}</p>
-                      ) : null}
+                      {height > 28 ? <p className="truncate opacity-80">{formatTime(occ.startsAt)}</p> : null}
                     </button>
                   )
                 })}
@@ -1457,15 +1404,15 @@ function DayView({
 }: {
   day: string
   occurrences: CalendarOccurrence[]
-  flows: ReturnType<typeof buildFlowList>
+  flows: FlowItem[]
   onClickOccurrence: (occ: CalendarOccurrence) => void
 }) {
   const totalHeight = (HOURS_END - HOURS_START) * PX_PER_HOUR
   const timedOccs = occurrences.filter((o) => !o.isAllDay && o.instanceDate === day)
   const allDayOccs = occurrences.filter((o) => o.isAllDay && o.instanceDate === day)
   const dayFlows = flows.filter((item) => {
-    const start = (item.time.startsAt ?? item.time.dueAt)?.slice(0, 10)
-    const end = (item.time.endsAt ?? item.time.startsAt ?? item.time.dueAt)?.slice(0, 10)
+    const start = coordinationDays(item).start
+    const end = coordinationDays(item).end
     return Boolean(start && end && day >= start && day <= end)
   })
 
@@ -1497,17 +1444,15 @@ function DayView({
         <div className="grid grid-cols-[3rem_1fr]" style={{ height: totalHeight }}>
           {/* Hour labels */}
           <div className="relative">
-            {Array.from({ length: HOURS_END - HOURS_START }, (_, i) => i + HOURS_START).map(
-              (hour) => (
-                <div
-                  key={hour}
-                  className="absolute right-1 text-[10px] font-bold text-ink/35"
-                  style={{ top: (hour - HOURS_START) * PX_PER_HOUR - 6 }}
-                >
-                  {formatHour(hour)}
-                </div>
-              ),
-            )}
+            {Array.from({ length: HOURS_END - HOURS_START }, (_, i) => i + HOURS_START).map((hour) => (
+              <div
+                key={hour}
+                className="absolute right-1 text-[10px] font-bold text-ink/35"
+                style={{ top: (hour - HOURS_START) * PX_PER_HOUR - 6 }}
+              >
+                {formatHour(hour)}
+              </div>
+            ))}
           </div>
 
           {/* Single day column */}
@@ -1627,9 +1572,7 @@ function AgendaView({
         </AppPanel>
       ))}
       {!days.length ? (
-        <AppPanel className="text-sm text-ink/60">
-          No upcoming items in the next four weeks.
-        </AppPanel>
+        <AppPanel className="text-sm text-ink/60">No upcoming items in the next four weeks.</AppPanel>
       ) : null}
     </div>
   )
@@ -1651,9 +1594,6 @@ function buildWeekDays(selectedDay: string) {
 
 // Type helper to get the right return type for flow list filtering
 type FlowItem = Awaited<ReturnType<typeof fetchCoordinationObjects>>[number]
-function buildFlowList(items: FlowItem[]) {
-  return items
-}
 
 function buildAgendaDays(
   selectedDay: string,
@@ -1670,23 +1610,20 @@ function buildAgendaDays(
             key: occ.key,
             title: occ.title,
             kind: occ.isRecurring ? 'recurring event' : 'event',
-            timeLabel: occ.isAllDay
-              ? 'all day'
-              : `${formatTime(occ.startsAt)}–${formatTime(occ.endsAt)}`,
+            timeLabel: occ.isAllDay ? 'all day' : `${formatTime(occ.startsAt)}–${formatTime(occ.endsAt)}`,
             occ,
           })),
         ...flows
           .filter((item) => {
-            const startDay = (item.time.startsAt ?? item.time.dueAt)?.slice(0, 10)
-            const endDay =
-              (item.time.endsAt ?? item.time.startsAt ?? item.time.dueAt)?.slice(0, 10)
+            const startDay = coordinationDays(item).start
+            const endDay = coordinationDays(item).end
             return Boolean(startDay && endDay && day >= startDay && day <= endDay)
           })
           .map((item) => ({
             key: item.id,
             title: item.title,
             kind: item.displayKind,
-            timeLabel: 'coordination clip',
+            timeLabel: item.time.isAllDay ? 'all day' : 'task',
             occ: null,
           })),
       ]
@@ -1745,13 +1682,19 @@ function addHours(date: Date, hours: number) {
 // ─── Formatting ───────────────────────────────────────────────────────────────
 
 function formatTime(value: string) {
-  return new Date(value).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' })
+  return new Date(value).toLocaleTimeString('en-AU', {
+    hour: 'numeric',
+    minute: '2-digit',
+  })
 }
 
 function formatHour(hour: number) {
   const date = new Date()
   date.setHours(hour, 0, 0, 0)
-  return date.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' })
+  return date.toLocaleTimeString('en-AU', {
+    hour: 'numeric',
+    minute: '2-digit',
+  })
 }
 
 function toLocalDateTimeValue(value: string) {
@@ -1767,7 +1710,10 @@ function defaultDateTime(value: Date) {
 
 // ─── Time-grid positioning ────────────────────────────────────────────────────
 
-function occurrencePosition(occ: CalendarOccurrence): { top: number; height: number } {
+function occurrencePosition(occ: CalendarOccurrence): {
+  top: number
+  height: number
+} {
   const start = new Date(occ.startsAt)
   const end = new Date(occ.endsAt)
   const startMinutes = start.getHours() * 60 + start.getMinutes()

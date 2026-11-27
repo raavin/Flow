@@ -11,7 +11,7 @@ function LandingPage() {
   const navigate = useNavigate()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [mode, setMode] = useState<'sign-in' | 'sign-up'>('sign-up')
+  const [mode, setMode] = useState<'sign-in' | 'sign-up'>('sign-in')
   const [submitting, setSubmitting] = useState(false)
   const [notice, setNotice] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -47,8 +47,8 @@ function LandingPage() {
       <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
         <HeroPanel
           badge="Flow"
-          title="Messages, projects and plans"
-          subtitle="Discuss ideas, create projects and organise tasks, dates and costs."
+          title="Flow"
+          subtitle="Follow people, join conversations and share what interests you. Create a task or project when you want to take an idea further."
         >
           <div className="mt-6 grid gap-3 sm:grid-cols-3">
             {[
@@ -74,35 +74,53 @@ function LandingPage() {
               Sign in
             </AppButton>
           </div>
-          <FieldLabel>
-            Email
-            <AppInput
-              type="email"
-              autoComplete="email"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              placeholder="you@example.com"
-              className="mt-2 border border-ink/10"
-            />
-          </FieldLabel>
-          <FieldLabel>
-            Password
-            <AppInput
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              type="password"
-              autoComplete={mode === 'sign-up' ? 'new-password' : 'current-password'}
-              placeholder="Enter a password"
-              className="mt-2 border border-ink/10"
-            />
-          </FieldLabel>
-          <div className="grid gap-3">
-            <AppButton disabled={submitting || !email.trim() || !password} onClick={() => void submit()}>
-              {submitting ? 'Please wait…' : mode === 'sign-up' ? 'Create account' : 'Sign in'}
-            </AppButton>
-          </div>
-          {notice ? <p role="status" className="text-sm text-teal">{notice}</p> : null}
-          {error ? <p role="alert" className="rounded-2xl bg-berry/10 p-3 text-sm text-berry">{error}</p> : null}
+          <form
+            className="space-y-4"
+            onSubmit={(event) => {
+              event.preventDefault()
+              void submit()
+            }}
+          >
+            <FieldLabel>
+              Email
+              <AppInput
+                type="email"
+                required
+                autoComplete="email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                placeholder="you@example.com"
+                className="mt-2 border border-ink/10"
+              />
+            </FieldLabel>
+            <FieldLabel>
+              Password
+              <AppInput
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                type="password"
+                required
+                autoComplete={mode === 'sign-up' ? 'new-password' : 'current-password'}
+                placeholder="Enter a password"
+                className="mt-2 border border-ink/10"
+              />
+            </FieldLabel>
+            <div className="grid gap-3">
+              <AppButton type="submit" disabled={submitting || !email.trim() || !password}>
+                {submitting ? 'Please wait…' : mode === 'sign-up' ? 'Create account' : 'Sign in'}
+              </AppButton>
+            </div>
+          </form>
+          {notice ? (
+            <p role="status" className="text-sm text-teal">
+              {notice}
+            </p>
+          ) : null}
+          {error ? (
+            <p role="alert" className="rounded-2xl bg-berry/10 p-3 text-sm text-berry">
+              {error}
+            </p>
+          ) : null}
           <p className="text-xs text-ink/60">
             Keep a thought private, share it with your followers, or build a plan with your project team.
           </p>

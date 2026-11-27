@@ -1,56 +1,106 @@
 import { useState } from 'react'
-import { Link, createRoute, useNavigate } from '@tanstack/react-router'
+import { createRoute, Link } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import type { CoordinationTemplate } from '@superapp/types'
-import { AppButton, AppCard, AppInput, AppPanel, AppSelect, FieldLabel, SectionHeading } from '@superapp/ui'
+import { AppButton, AppCard, AppInput, SectionHeading } from '@superapp/ui'
 import { appRoute } from '@/components/layout'
-import { TemplatePreview } from '@/components/template-preview'
+import { ApplyTemplateDialog } from '@/components/apply-template-dialog'
+import { QueryFeedback, MutationFeedback } from '@/components/request-feedback'
+import { TemplateEditorPage } from './coordination'
 import { useAppStore } from '@/hooks/useAppStore'
-import { fetchProjects } from '@/lib/projects'
-import { fetchCoordinationTemplates, instantiateCoordinationTemplate, seedStarterCoordinationTemplates } from '@/lib/coordination-objects'
-
+import { fetchCoordinationTemplates, seedStarterCoordinationTemplates } from '@/lib/coordination-objects'
+import type { CoordinationTemplate } from '@superapp/types'
 function PlanningHelperPage() {
   const { session } = useAppStore()
-  const navigate = useNavigate()
   const client = useQueryClient()
   const [search, setSearch] = useState('')
-  const [anchorDate, setAnchorDate] = useState('')
-  const [projectId, setProjectId] = useState('')
-  const projects = useQuery({ queryKey: ['projects'], queryFn: fetchProjects })
-  const templates = useQuery({ queryKey: ['coordination-templates'], queryFn: fetchCoordinationTemplates })
-  const seed = useMutation({ mutationFn: () => seedStarterCoordinationTemplates(session!.user.id), onSuccess: () => { void client.invalidateQueries({ queryKey: ['coordination-templates'] }) } })
-  const apply = useMutation({
-    mutationFn: (template: CoordinationTemplate) => instantiateCoordinationTemplate({ ownerId: session!.user.id, template, anchorDate, linkedProjectId: projectId || null }),
-    onSuccess: (id) => {
-      void client.invalidateQueries({ queryKey: ['coordination-objects'] })
-      void navigate({ to: '/app/coordination/$coordinationId', params: { coordinationId: id } })
+  const [selected, setSelected] = useState<CoordinationTemplate | null>(null)
+  const templates = useQuery({
+    queryKey: ['coordination-templates'],
+    queryFn: fetchCoordinationTemplates,
+  })
+  const seed = useMutation({
+    mutationFn: () => seedStarterCoordinationTemplates(session!.user.id),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: ['coordination-templates'] })
     },
   })
-  const matches = (templates.data ?? []).filter(template => `${template.title} ${template.summary ?? ''}`.toLowerCase().includes(search.trim().toLowerCase()))
-  return <div className="space-y-4">
-    <AppCard className="space-y-4">
-      <SectionHeading eyebrow="Planning helper" title="Choose a template" action={<AppButton variant="ghost" disabled={!session || seed.isPending} onClick={() => seed.mutate()}>Add starter plans</AppButton>} />
-      <p className="text-sm text-ink/70">Choose a template, set the event date and review the scheduled steps.</p>
-      <FieldLabel>Search templates<AppInput value={search} onChange={e => setSearch(e.target.value)} placeholder="Birthday, appointment, move…" /></FieldLabel>
-      <div className="grid gap-3 sm:grid-cols-2">
-        <FieldLabel>Event date<AppInput type="date" value={anchorDate} onChange={e => setAnchorDate(e.target.value)} /></FieldLabel>
-        <FieldLabel>Project (optional)<AppSelect value={projectId} onChange={e => setProjectId(e.target.value)}><option value="">Keep as a standalone plan</option>{(projects.data ?? []).map(project => <option key={project.id} value={project.id}>{project.title}</option>)}</AppSelect></FieldLabel>
+  const matches = (templates.data ?? []).filter((t) =>
+    `${t.title} ${t.summary ?? ''}`.toLowerCase().includes(search.toLowerCase()),
+  )
+  return (
+    <div className="space-y-4">
+      <AppCard className="space-y-4">
+        <SectionHeading
+          title="Templates"
+          action={
+            <Link to="/app/template-editor" className="inline-flex min-h-11 items-center text-sm underline">
+              Create template
+            </Link>
+          }
+        />
+        <div className="flex flex-wrap gap-3">
+          <AppInput
+            aria-label="Search templates"
+            className="min-w-0 flex-1"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search templates"
+          />
+          <AppButton variant="secondary" disabled={seed.isPending} onClick={() => seed.mutate()}>
+            Add starter templates
+          </AppButton>
+        </div>
+        <QueryFeedback query={templates} />
+        <MutationFeedback mutation={seed} />
+        <Link to="/app/marketplace/templates" className="inline-flex min-h-11 items-center text-sm underline">
+          Community templates
+        </Link>
+      </AppCard>
+      <div className="grid gap-4 lg:grid-cols-2">
+        {matches.map((template) => (
+          <AppCard key={template.id} className="space-y-3">
+            <h2 className="text-lg font-semibold">{template.title}</h2>
+            <p className="text-sm text-ink/65">{template.summary}</p>
+            <ol className="space-y-2 text-sm">
+              {template.blocks.slice(0, 4).map((step, i) => (
+                <li key={i} className="flex justify-between gap-3 border-b border-border pb-2">
+                  <span>{step.title}</span>
+                  <span className="shrink-0 text-ink/60">
+                    {(step.offsetDays ?? 0) < 0
+                      ? `${Math.abs(step.offsetDays ?? 0)} days before`
+                      : (step.offsetDays ?? 0) > 0
+                        ? `${step.offsetDays} days after`
+                        : 'On the day'}
+                  </span>
+                </li>
+              ))}
+            </ol>
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-ink/60">{template.blocks.length} steps</span>
+              <AppButton onClick={() => setSelected(template)}>Use template</AppButton>
+            </div>
+          </AppCard>
+        ))}
       </div>
-      <p className="text-sm text-ink/70">Check the preview before adding the plan. Each template schedules its steps around the event date.</p>
-      <Link to="/app/coordination" className="inline-block text-sm underline">Create a template</Link>
-      {(apply.error || seed.error || templates.error || projects.error) ? <p role="alert">{(apply.error || seed.error || templates.error || projects.error)?.message}</p> : null}
-    </AppCard>
-    {templates.isPending ? <p role="status">Loading plans…</p> : null}
-    {!templates.isPending && !templates.isError && !templates.data?.length ? <AppCard><p className="mb-3 text-sm">Start with birthday, wedding, business launch, appointment and moving plans. You can create your own sequence too.</p><AppButton disabled={!session || seed.isPending} onClick={() => seed.mutate()}>{seed.isPending ? 'Adding…' : 'Add starter plans'}</AppButton></AppCard> : null}
-    {templates.data?.length && !matches.length ? <p>No matching plans. Try another term or create your own.</p> : null}
-    <div className="grid gap-4 lg:grid-cols-2">{matches.map(template => <AppCard key={template.id} className="space-y-4">
-      <SectionHeading eyebrow={`${template.blocks.length} steps`} title={template.title} />
-      <p className="text-sm text-ink/70">{template.summary}</p>
-      <AppPanel><TemplatePreview blocks={template.blocks} anchorDate={anchorDate} /></AppPanel>
-      <AppButton disabled={!session || !anchorDate || apply.isPending || projects.isError} onClick={() => apply.mutate(template)}>{apply.isPending ? 'Adding plan…' : 'Add these steps to my plan'}</AppButton>
-    </AppCard>)}</div>
-  </div>
+      {!templates.isPending && !templates.isError && !matches.length && (
+        <AppCard>
+          {search
+            ? 'No matching templates.'
+            : 'Add starter templates for birthdays, weddings, moving and business projects.'}
+        </AppCard>
+      )}
+      {selected && <ApplyTemplateDialog template={selected} onClose={() => setSelected(null)} />}
+    </div>
+  )
 }
-
+export const templateEditorRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: 'template-editor',
+  component: TemplateEditorPage,
+})
 // Preserve existing bookmarks while replacing the prototype AI surface.
-export const aiRoute = createRoute({ getParentRoute: () => appRoute, path: 'ai', component: PlanningHelperPage })
+export const aiRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: 'ai',
+  component: PlanningHelperPage,
+})

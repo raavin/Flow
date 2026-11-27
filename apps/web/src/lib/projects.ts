@@ -11,12 +11,12 @@ import {
 
 type ProjectRow = {
   id: string
+  owner_id?: string
   title: string
   category: string
   status: Project['status']
   project_kind: NonNullable<Project['projectKind']>
   target_date: string | null
-  budget_cents: number | null
 }
 
 type MilestoneRow = {
@@ -47,24 +47,38 @@ type ProjectNoteRow = {
   updated_at: string
 }
 
+async function fetchProjectBudgetLimits(projectId?: string) {
+  if (!supabase) return []
+  let query = supabase.from('project_budget_limits').select('project_id,budget_cents')
+  if (projectId) query = query.eq('project_id', projectId)
+  const { data, error } = await query
+  if (error) throw error
+  return data ?? []
+}
+
 export async function fetchProjects() {
   if (!supabase) return []
 
   const { data, error } = await supabase
     .from('projects')
-    .select('id, title, category, status, project_kind, target_date, budget_cents')
+    .select('id, owner_id, title, category, status, project_kind, target_date')
     .order('created_at', { ascending: false })
 
   if (error) throw error
 
+  const {
+    data: { session },
+  } = await supabase.auth.getSession()
+  const limits = new Map((await fetchProjectBudgetLimits()).map((row) => [row.project_id, row.budget_cents]))
   return (data as ProjectRow[]).map((project) => ({
     id: project.id,
+    isOwner: project.owner_id === session?.user.id,
     title: project.title,
     category: project.category,
     status: project.status,
     projectKind: project.project_kind,
     targetDate: project.target_date,
-    budgetCents: project.budget_cents,
+    budgetCents: limits.get(project.id) ?? null,
   }))
 }
 
@@ -88,12 +102,12 @@ export async function createProject(input: {
       category: normalizedCategory,
       project_kind: input.projectKind ?? 'general',
       target_date: normalizedTargetDate,
-      budget_cents: input.budgetCents ?? null,
     })
-    .select('id, title, category, status, project_kind, target_date, budget_cents')
+    .select('id, owner_id, title, category, status, project_kind, target_date')
     .single<ProjectRow>()
 
   if (error) throw error
+  if (input.budgetCents !== undefined) await updateProject(project.id, { budgetCents: input.budgetCents })
 
   // A blank project stays lightweight; templates create intentional dated steps.
 
@@ -121,12 +135,8 @@ export async function createProject(input: {
     status: project.status,
     projectKind: project.project_kind,
     targetDate: project.target_date,
-    budgetCents: project.budget_cents,
+    budgetCents: input.budgetCents ?? null,
   } satisfies Project
-}
-
-function todayDate() {
-  return new Date().toISOString().slice(0, 10)
 }
 
 export async function createProjectFromTemplate(input: {
@@ -135,7 +145,12 @@ export async function createProjectFromTemplate(input: {
   category: string
   startDate: string
   templatePayload: {
-    milestones?: Array<{ title: string; offsetDays: number; durationDays: number; lane: string }>
+    milestones?: Array<{
+      title: string
+      offsetDays: number
+      durationDays: number
+      lane: string
+    }>
     tasks?: Array<{ title: string; offsetDays: number }>
   }
 }) {
@@ -161,7 +176,7 @@ export async function createProjectFromTemplate(input: {
       project_kind: 'general',
       target_date: targetDate,
     })
-    .select('id, title, category, status, project_kind, target_date, budget_cents')
+    .select('id, owner_id, title, category, status, project_kind, target_date')
     .single<ProjectRow>()
 
   if (error) throw error
@@ -211,7 +226,7 @@ export async function createProjectFromTemplate(input: {
     status: project.status,
     projectKind: project.project_kind,
     targetDate: project.target_date,
-    budgetCents: project.budget_cents,
+    budgetCents: null,
   } satisfies Project
 }
 
@@ -224,14 +239,32 @@ export async function fetchProjectDetail(projectId: string) {
     { data: events, error: eventsError },
     { data: links, error: linksError },
     { data: tasks, error: tasksError },
-  ] =
-    await Promise.all([
-      supabase.from('projects').select('id, title, category, status, project_kind, target_date, budget_cents').eq('id', projectId).single<ProjectRow>(),
-      supabase.from('milestones').select('id, project_id, title, starts_on, ends_on, lane, progress').eq('project_id', projectId).order('starts_on', { ascending: true }),
-      supabase.from('calendar_events').select('id, project_id, title, starts_at, ends_at, notes').eq('project_id', projectId).order('starts_at', { ascending: true }),
-      supabase.from('project_listing_links').select('id, listing_id, marketplace_listings(title, kind, price_label)').eq('project_id', projectId),
-      supabase.from('tasks').select('id, title, status, due_on, assignee_name').eq('project_id', projectId).order('created_at', { ascending: true }),
-    ])
+  ] = await Promise.all([
+    supabase
+      .from('projects')
+      .select('id, owner_id, title, category, status, project_kind, target_date')
+      .eq('id', projectId)
+      .single<ProjectRow>(),
+    supabase
+      .from('milestones')
+      .select('id, project_id, title, starts_on, ends_on, lane, progress')
+      .eq('project_id', projectId)
+      .order('starts_on', { ascending: true }),
+    supabase
+      .from('calendar_events')
+      .select('id, project_id, title, starts_at, ends_at, notes')
+      .eq('project_id', projectId)
+      .order('starts_at', { ascending: true }),
+    supabase
+      .from('project_listing_links')
+      .select('id, listing_id, marketplace_listings(title, kind, price_label)')
+      .eq('project_id', projectId),
+    supabase
+      .from('tasks')
+      .select('id, title, status, due_on, assignee_name')
+      .eq('project_id', projectId)
+      .order('created_at', { ascending: true }),
+  ])
 
   if (projectError) throw projectError
   if (milestonesError) throw milestonesError
@@ -239,7 +272,9 @@ export async function fetchProjectDetail(projectId: string) {
   if (linksError) throw linksError
   if (tasksError) throw tasksError
 
+  const limits = await fetchProjectBudgetLimits(projectId)
   return {
+    ownerId: project.owner_id,
     project: {
       id: project.id,
       title: project.title,
@@ -247,7 +282,7 @@ export async function fetchProjectDetail(projectId: string) {
       status: project.status,
       projectKind: project.project_kind,
       targetDate: project.target_date,
-      budgetCents: project.budget_cents,
+      budgetCents: limits[0]?.budget_cents ?? null,
     } satisfies Project,
     milestones: (milestones as MilestoneRow[]).map(mapMilestone),
     events: (events as EventRow[]).map(mapEvent),
@@ -274,8 +309,12 @@ export async function updateProject(
   if (input.status !== undefined) updates.status = input.status
   if (input.budgetCents !== undefined) {
     if (input.budgetCents !== null) assertBudgetAmount(input.budgetCents)
-    updates.budget_cents = input.budgetCents
+    const { error } = await supabase
+      .from('project_budget_limits')
+      .upsert({ project_id: projectId, budget_cents: input.budgetCents }, { onConflict: 'project_id' })
+    if (error) throw error
   }
+  if (!Object.keys(updates).length) return
   const { error } = await supabase.from('projects').update(updates).eq('id', projectId)
   if (error) throw error
 }
@@ -324,11 +363,7 @@ export async function shiftMilestone(milestoneId: string, days: number) {
   }
 }
 
-export async function resizeMilestoneBoundary(
-  milestoneId: string,
-  boundary: 'start' | 'end',
-  days: number,
-) {
+export async function resizeMilestoneBoundary(milestoneId: string, boundary: 'start' | 'end', days: number) {
   if (!supabase) throw new Error('Supabase is not configured.')
   const { data, error } = await supabase
     .from('milestones')
@@ -627,11 +662,7 @@ export async function createProjectNote(input: {
   return data
 }
 
-export async function updateProjectNote(input: {
-  noteId: string
-  title: string
-  body: string
-}) {
+export async function updateProjectNote(input: { noteId: string; title: string; body: string }) {
   if (!supabase) throw new Error('Supabase is not configured.')
   const { data, error } = await supabase
     .from('project_notes')
@@ -683,7 +714,11 @@ export async function deleteTask(taskId: string) {
 
 export async function moveTaskDueDate(taskId: string, days: number) {
   if (!supabase) throw new Error('Supabase is not configured.')
-  const { data, error } = await supabase.from('tasks').select('project_id, title, due_on').eq('id', taskId).single()
+  const { data, error } = await supabase
+    .from('tasks')
+    .select('project_id, title, due_on')
+    .eq('id', taskId)
+    .single()
   if (error) throw error
   if (!data.due_on) throw new Error('This task does not have a scheduled date yet.')
 
@@ -712,12 +747,25 @@ async function currentUserId() {
 async function suggestTaskDueDate(projectId: string) {
   if (!supabase) return null
 
-  const [{ data: milestones, error: milestonesError }, { data: project, error: projectError }, { data: tasks, error: tasksError }] =
-    await Promise.all([
-      supabase.from('milestones').select('ends_on').eq('project_id', projectId).order('ends_on', { ascending: true }),
-      supabase.from('projects').select('target_date').eq('id', projectId).maybeSingle(),
-      supabase.from('tasks').select('due_on').eq('project_id', projectId).not('due_on', 'is', null).order('due_on', { ascending: false }).limit(1),
-    ])
+  const [
+    { data: milestones, error: milestonesError },
+    { data: project, error: projectError },
+    { data: tasks, error: tasksError },
+  ] = await Promise.all([
+    supabase
+      .from('milestones')
+      .select('ends_on')
+      .eq('project_id', projectId)
+      .order('ends_on', { ascending: true }),
+    supabase.from('projects').select('target_date').eq('id', projectId).maybeSingle(),
+    supabase
+      .from('tasks')
+      .select('due_on')
+      .eq('project_id', projectId)
+      .not('due_on', 'is', null)
+      .order('due_on', { ascending: false })
+      .limit(1),
+  ])
 
   if (milestonesError) throw milestonesError
   if (projectError) throw projectError

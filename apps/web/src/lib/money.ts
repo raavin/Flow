@@ -14,6 +14,9 @@ export type MoneyRecord = {
   direction: 'in' | 'out'
   status: string
   editable: boolean
+  expenseId?: string | null
+  hasPayments?: boolean
+  paid?: number
   estimate?: number
   actual?: number
   category?: string
@@ -38,16 +41,19 @@ export function moneyRecords(
       projectId: c.project_id,
       title: c.title,
       counterparty: c.counterparty_label ?? '',
-      date:
-        c.incurred_on ?? (c.created_at ? localDay(new Date(c.created_at)) : ''),
-      amount:
-        c.payment_status === 'paid' || c.actual_cents > 0
-          ? c.actual_cents
-          : c.estimate_cents,
+      date: c.incurred_on ?? (c.created_at ? localDay(new Date(c.created_at)) : ''),
+      amount: c.payment_status === 'paid' || c.actual_cents > 0 ? c.actual_cents : c.estimate_cents,
+      hasPayments: !!c.linked_payment_count,
       currency: 'AUD',
       direction: 'out' as const,
-      status:
-        c.payment_status === 'unpaid'
+      paid: c.paid_cents ?? (c.payment_status === 'paid' ? c.actual_cents : 0),
+      status: c.linked_payment_count
+        ? (c.paid_cents ?? 0) >= (c.actual_cents || c.estimate_cents)
+          ? 'paid'
+          : (c.paid_cents ?? 0) > 0
+            ? 'part paid'
+            : 'committed'
+        : c.payment_status === 'unpaid'
           ? 'planned'
           : c.payment_status === 'pending'
             ? 'committed'
@@ -62,6 +68,7 @@ export function moneyRecords(
       id: `transaction:${p.id}`,
       target: { kind: 'transaction' as const, id: p.id },
       projectId: p.linkedProjectId,
+      expenseId: p.expenseId,
       title: p.description,
       counterparty: p.counterpartyLabel,
       date: localDay(new Date(p.occurredAt)),
@@ -69,9 +76,7 @@ export function moneyRecords(
       currency: p.currencyCode,
       direction: p.direction,
       status: p.status === 'settled' ? 'paid' : p.status,
-      editable:
-        p.transactionRole === 'manual' &&
-        ['pending', 'settled'].includes(p.status),
+      editable: p.transactionRole === 'manual' && ['pending', 'settled'].includes(p.status),
       details: {
         reference: p.referenceNumber,
         subtotal: p.subtotalCents,
@@ -83,22 +88,16 @@ export function moneyRecords(
     })),
   ].sort((a, b) => b.date.localeCompare(a.date) || a.id.localeCompare(b.id))
 }
-export function filterMoneyRecords(
-  rows: MoneyRecord[],
-  projects: string[],
-  status: string,
-  search: string,
-) {
+export function filterMoneyRecords(rows: MoneyRecord[], projects: string[], status: string, search: string) {
   const needle = search.trim().toLocaleLowerCase()
   return rows.filter(
     (r) =>
       (!projects.length || (!!r.projectId && projects.includes(r.projectId))) &&
       (status === 'all' ||
         (status === 'unpaid'
-          ? ['planned', 'committed', 'pending'].includes(r.status)
+          ? ['planned', 'committed', 'pending', 'part paid'].includes(r.status)
           : r.status === status)) &&
-      (!needle ||
-        `${r.title} ${r.counterparty}`.toLocaleLowerCase().includes(needle)),
+      (!needle || `${r.title} ${r.counterparty}`.toLocaleLowerCase().includes(needle)),
   )
 }
 export function localDay(d = new Date()) {

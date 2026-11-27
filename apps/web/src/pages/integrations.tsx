@@ -20,7 +20,7 @@ import {
 import type { IntegrationProvider, WebhookEndpoint } from '@superapp/types'
 
 const ALL_SCOPES = ['orders:read', 'schedules:read', 'shifts:write'] as const
-type Scope = typeof ALL_SCOPES[number]
+type Scope = (typeof ALL_SCOPES)[number]
 
 const SHIFTLY_SCOPES: Scope[] = ['orders:read', 'schedules:read', 'shifts:write']
 const SHIFTLY_EVENTS = ['order.placed', 'order.paid', 'order.fulfilled', 'booking.created']
@@ -30,25 +30,44 @@ const SHIFTLY_EVENTS = ['order.placed', 'order.paid', 'order.fulfilled', 'bookin
 // ---------------------------------------------------------------------------
 
 function PaymentProvidersSection() {
-  const queryClient     = useQueryClient()
+  const queryClient = useQueryClient()
   const integrationsQuery = useQuery({
     queryKey: ['connected-integrations'],
-    queryFn:  fetchConnectedIntegrations,
+    queryFn: fetchConnectedIntegrations,
   })
   const disconnectMutation = useMutation({
     mutationFn: (provider: IntegrationProvider) => disconnectIntegration(provider),
-    onSuccess:  () => queryClient.invalidateQueries({ queryKey: ['connected-integrations'] }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['connected-integrations'] }),
   })
 
-  const integrations   = integrationsQuery.data ?? []
-  const statusOf = (p: IntegrationProvider) =>
-    integrations.find((i) => i.provider === p)?.status ?? null
+  const integrations = integrationsQuery.data ?? []
+  const statusOf = (p: IntegrationProvider) => integrations.find((i) => i.provider === p)?.status ?? null
 
-  const paymentProviders: Array<{ provider: IntegrationProvider; label: string; description: string }> = [
-    { provider: 'stripe',         label: 'Stripe',         description: 'Accept card payments via Stripe Connect' },
-    { provider: 'paypal',         label: 'PayPal',         description: 'Accept PayPal and card payments' },
-    { provider: 'openwallex',     label: 'OpenWallex',     description: 'Accept multi-currency B2B payments' },
-    { provider: 'direct_banking', label: 'Direct Banking', description: 'Australian bank transfers (BSB/account)' },
+  const paymentProviders: Array<{
+    provider: IntegrationProvider
+    label: string
+    description: string
+  }> = [
+    {
+      provider: 'stripe',
+      label: 'Stripe',
+      description: 'Accept card payments via Stripe Connect',
+    },
+    {
+      provider: 'paypal',
+      label: 'PayPal',
+      description: 'Accept PayPal and card payments',
+    },
+    {
+      provider: 'openwallex',
+      label: 'OpenWallex',
+      description: 'Accept multi-currency B2B payments',
+    },
+    {
+      provider: 'direct_banking',
+      label: 'Direct Banking',
+      description: 'Australian bank transfers (BSB/account)',
+    },
   ]
 
   return (
@@ -84,16 +103,15 @@ function AccountingSection() {
   const queryClient = useQueryClient()
   const integrationsQuery = useQuery({
     queryKey: ['connected-integrations'],
-    queryFn:  fetchConnectedIntegrations,
+    queryFn: fetchConnectedIntegrations,
   })
   const disconnectMutation = useMutation({
     mutationFn: (provider: IntegrationProvider) => disconnectIntegration(provider),
-    onSuccess:  () => queryClient.invalidateQueries({ queryKey: ['connected-integrations'] }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['connected-integrations'] }),
   })
 
   const integrations = integrationsQuery.data ?? []
-  const statusOf = (p: IntegrationProvider) =>
-    integrations.find((i) => i.provider === p)?.status ?? null
+  const statusOf = (p: IntegrationProvider) => integrations.find((i) => i.provider === p)?.status ?? null
 
   const providers: Array<{ provider: IntegrationProvider; label: string }> = [
     { provider: 'xero', label: 'Xero' },
@@ -105,23 +123,23 @@ function AccountingSection() {
       <SectionHeading eyebrow="Finance" title="Accounting" />
       <div className="grid gap-3">
         {providers.map(({ provider, label }) => {
-          const status   = statusOf(provider)
-          const row      = integrations.find((i) => i.provider === provider)
+          const status = statusOf(provider)
+          const row = integrations.find((i) => i.provider === provider)
           const syncFnId = provider === 'xero' ? 'xero-sync' : 'myob-sync'
           return (
             <AppPanel key={provider} className="flex flex-wrap items-center justify-between gap-3">
               <div className="min-w-0">
                 <p className="font-bold text-ink">{label}</p>
                 {row?.updatedAt ? (
-                  <p className="text-xs text-ink/55">Last sync: {new Date(row.updatedAt).toLocaleDateString()}</p>
+                  <p className="text-xs text-ink/55">
+                    Last sync: {new Date(row.updatedAt).toLocaleDateString()}
+                  </p>
                 ) : (
                   <p className="text-xs text-ink/55">Not yet synced</p>
                 )}
               </div>
               <div className="flex items-center gap-2">
-                {status === 'active' ? (
-                  <SyncNowButton functionId={syncFnId} />
-                ) : null}
+                {status === 'active' ? <SyncNowButton functionId={syncFnId} /> : null}
                 <IntegrationConnectButton
                   provider={provider}
                   isConnected={status === 'active'}
@@ -138,15 +156,17 @@ function AccountingSection() {
 
 function SyncNowButton({ functionId }: { functionId: string }) {
   const [loading, setLoading] = useState(false)
-  const [result, setResult]   = useState<string | null>(null)
+  const [result, setResult] = useState<string | null>(null)
 
   async function sync() {
     setLoading(true)
     setResult(null)
     try {
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string
-      const res = await fetch(`${supabaseUrl}/functions/v1/${functionId}`, { method: 'POST' })
-      const json = await res.json() as { synced: number }
+      const res = await fetch(`${supabaseUrl}/functions/v1/${functionId}`, {
+        method: 'POST',
+      })
+      const json = (await res.json()) as { synced: number }
       setResult(`${json.synced} synced`)
     } catch {
       setResult('Sync failed')
@@ -166,9 +186,12 @@ function SyncNowButton({ functionId }: { functionId: string }) {
 }
 
 function ShiftlySection() {
-  const queryClient     = useQueryClient()
-  const keysQuery       = useQuery({ queryKey: ['api-keys'], queryFn: fetchApiKeys })
-  const endpointsQuery  = useQuery({ queryKey: ['webhook-endpoints'], queryFn: fetchWebhookEndpoints })
+  const queryClient = useQueryClient()
+  const keysQuery = useQuery({ queryKey: ['api-keys'], queryFn: fetchApiKeys })
+  const endpointsQuery = useQuery({
+    queryKey: ['webhook-endpoints'],
+    queryFn: fetchWebhookEndpoints,
+  })
 
   const [newKeyName, setNewKeyName] = useState('')
   const [createdKey, setCreatedKey] = useState<string | null>(null)
@@ -209,9 +232,7 @@ function ShiftlySection() {
     },
   })
 
-  const shiftlyKeys = (keysQuery.data ?? []).filter((k) =>
-    k.scopes.includes('shifts:write'),
-  )
+  const shiftlyKeys = (keysQuery.data ?? []).filter((k) => k.scopes.includes('shifts:write'))
   const shiftlyEndpoints = (endpointsQuery.data ?? []).filter((e) =>
     e.eventTypes.some((t) => SHIFTLY_EVENTS.includes(t)),
   )
@@ -220,8 +241,8 @@ function ShiftlySection() {
     <AppCard className="space-y-4">
       <SectionHeading eyebrow="Integrations" title="Shiftly" />
       <p className="text-sm text-ink/65">
-        Shiftly uses an API key to read orders and schedules, and POST shift completions.
-        Scopes: <code className="text-xs">orders:read, schedules:read, shifts:write</code>
+        Shiftly uses an API key to read orders and schedules, and POST shift completions. Scopes:{' '}
+        <code className="text-xs">orders:read, schedules:read, shifts:write</code>
       </p>
 
       <div className="space-y-3">
@@ -230,16 +251,29 @@ function ShiftlySection() {
           <AppPanel key={key.id} className="flex items-center justify-between gap-3">
             <div>
               <p className="font-bold text-ink">{key.name}</p>
-              <p className="text-xs text-ink/55">{key.keyPrefix}… · last used {key.lastUsedAt ? new Date(key.lastUsedAt).toLocaleDateString() : 'never'}</p>
+              <p className="text-xs text-ink/55">
+                {key.keyPrefix}… · last used{' '}
+                {key.lastUsedAt ? new Date(key.lastUsedAt).toLocaleDateString() : 'never'}
+              </p>
             </div>
             {revokeConfirmId === key.id ? (
               <span className="flex items-center gap-1">
                 <span className="text-xs font-bold text-berry">Revoke?</span>
-                <AppButton variant="secondary" onClick={() => revokeKeyMutation.mutate(key.id)} disabled={revokeKeyMutation.isPending}>Yes</AppButton>
-                <AppButton variant="ghost" onClick={() => setRevokeConfirmId(null)}>Cancel</AppButton>
+                <AppButton
+                  variant="secondary"
+                  onClick={() => revokeKeyMutation.mutate(key.id)}
+                  disabled={revokeKeyMutation.isPending}
+                >
+                  Yes
+                </AppButton>
+                <AppButton variant="ghost" onClick={() => setRevokeConfirmId(null)}>
+                  Cancel
+                </AppButton>
               </span>
             ) : (
-              <AppButton variant="ghost" onClick={() => setRevokeConfirmId(key.id)}>Revoke</AppButton>
+              <AppButton variant="ghost" onClick={() => setRevokeConfirmId(key.id)}>
+                Revoke
+              </AppButton>
             )}
           </AppPanel>
         ))}
@@ -247,14 +281,18 @@ function ShiftlySection() {
 
         {createdKey ? (
           <AppPanel tone="butter" className="space-y-2">
-            <p className="text-sm font-bold text-ink">API key created — copy it now, it won't be shown again</p>
+            <p className="text-sm font-bold text-ink">
+              API key created — copy it now, it won't be shown again
+            </p>
             <div className="flex items-center gap-2">
               <code className="flex-1 break-all text-xs text-ink">{createdKey}</code>
               <AppButton variant="ghost" onClick={() => void navigator.clipboard.writeText(createdKey)}>
                 Copy
               </AppButton>
             </div>
-            <AppButton variant="ghost" onClick={() => setCreatedKey(null)}>Dismiss</AppButton>
+            <AppButton variant="ghost" onClick={() => setCreatedKey(null)}>
+              Dismiss
+            </AppButton>
           </AppPanel>
         ) : null}
 
@@ -265,10 +303,7 @@ function ShiftlySection() {
             placeholder="Key label (optional)"
             className="flex-1"
           />
-          <AppButton
-            onClick={() => createKeyMutation.mutate()}
-            disabled={createKeyMutation.isPending}
-          >
+          <AppButton onClick={() => createKeyMutation.mutate()} disabled={createKeyMutation.isPending}>
             Create key
           </AppButton>
         </div>
@@ -287,11 +322,21 @@ function ShiftlySection() {
             {removeEndpointConfirmId === ep.id ? (
               <span className="flex items-center gap-1">
                 <span className="text-xs font-bold text-berry">Remove?</span>
-                <AppButton variant="secondary" onClick={() => removeEndpointMutation.mutate(ep.id)} disabled={removeEndpointMutation.isPending}>Yes</AppButton>
-                <AppButton variant="ghost" onClick={() => setRemoveEndpointConfirmId(null)}>Cancel</AppButton>
+                <AppButton
+                  variant="secondary"
+                  onClick={() => removeEndpointMutation.mutate(ep.id)}
+                  disabled={removeEndpointMutation.isPending}
+                >
+                  Yes
+                </AppButton>
+                <AppButton variant="ghost" onClick={() => setRemoveEndpointConfirmId(null)}>
+                  Cancel
+                </AppButton>
               </span>
             ) : (
-              <AppButton variant="ghost" onClick={() => setRemoveEndpointConfirmId(ep.id)}>Remove</AppButton>
+              <AppButton variant="ghost" onClick={() => setRemoveEndpointConfirmId(ep.id)}>
+                Remove
+              </AppButton>
             )}
           </AppPanel>
         ))}
@@ -315,22 +360,25 @@ function ShiftlySection() {
 }
 
 function DeveloperApiSection() {
-  const queryClient    = useQueryClient()
-  const keysQuery      = useQuery({ queryKey: ['api-keys'], queryFn: fetchApiKeys })
-  const endpointsQuery = useQuery({ queryKey: ['webhook-endpoints'], queryFn: fetchWebhookEndpoints })
+  const queryClient = useQueryClient()
+  const keysQuery = useQuery({ queryKey: ['api-keys'], queryFn: fetchApiKeys })
+  const endpointsQuery = useQuery({
+    queryKey: ['webhook-endpoints'],
+    queryFn: fetchWebhookEndpoints,
+  })
 
-  const [showCreateKey, setShowCreateKey]   = useState(false)
-  const [keyName, setKeyName]               = useState('')
+  const [showCreateKey, setShowCreateKey] = useState(false)
+  const [keyName, setKeyName] = useState('')
   const [selectedScopes, setSelectedScopes] = useState<Scope[]>([])
-  const [createdKey, setCreatedKey]         = useState<string | null>(null)
+  const [createdKey, setCreatedKey] = useState<string | null>(null)
   const [deliveryEndpoint, setDeliveryEndpoint] = useState<WebhookEndpoint | null>(null)
 
-  const [newEndpointUrl, setNewEndpointUrl]         = useState('')
-  const [newEndpointDesc, setNewEndpointDesc]       = useState('')
-  const [newEndpointEvents, setNewEndpointEvents]   = useState('')
-  const [editingEndpointId, setEditingEndpointId]   = useState<string | null>(null)
-  const [editEndpointField, setEditEndpointField]   = useState<'url' | 'description' | null>(null)
-  const [editEndpointValue, setEditEndpointValue]   = useState('')
+  const [newEndpointUrl, setNewEndpointUrl] = useState('')
+  const [newEndpointDesc, setNewEndpointDesc] = useState('')
+  const [newEndpointEvents, setNewEndpointEvents] = useState('')
+  const [editingEndpointId, setEditingEndpointId] = useState<string | null>(null)
+  const [editEndpointField, setEditEndpointField] = useState<'url' | 'description' | null>(null)
+  const [editEndpointValue, setEditEndpointValue] = useState('')
   const [deleteConfirmEndpointId, setDeleteConfirmEndpointId] = useState<string | null>(null)
   const endpointEditRef = useRef<HTMLInputElement>(null)
 
@@ -350,7 +398,10 @@ function DeveloperApiSection() {
       createWebhookEndpoint(
         newEndpointUrl,
         newEndpointDesc,
-        newEndpointEvents.split(',').map((s) => s.trim()).filter(Boolean),
+        newEndpointEvents
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean),
       ),
     onSuccess: () => {
       setNewEndpointUrl('')
@@ -382,8 +433,14 @@ function DeveloperApiSection() {
   }
 
   function commitEndpointEdit(ep: WebhookEndpoint) {
-    if (!editEndpointValue.trim()) { cancelEndpointEdit(); return }
-    const patch = editEndpointField === 'url' ? { url: editEndpointValue.trim() } : { description: editEndpointValue.trim() }
+    if (!editEndpointValue.trim()) {
+      cancelEndpointEdit()
+      return
+    }
+    const patch =
+      editEndpointField === 'url'
+        ? { url: editEndpointValue.trim() }
+        : { description: editEndpointValue.trim() }
     updateEndpointMutation.mutate({ id: ep.id, patch })
     cancelEndpointEdit()
   }
@@ -395,9 +452,7 @@ function DeveloperApiSection() {
   }
 
   function toggleScope(scope: Scope) {
-    setSelectedScopes((prev) =>
-      prev.includes(scope) ? prev.filter((s) => s !== scope) : [...prev, scope],
-    )
+    setSelectedScopes((prev) => (prev.includes(scope) ? prev.filter((s) => s !== scope) : [...prev, scope]))
   }
 
   const genericEndpoints = (endpointsQuery.data ?? []).filter(
@@ -412,7 +467,9 @@ function DeveloperApiSection() {
       <div className="space-y-2">
         <div className="flex items-center justify-between">
           <p className="text-sm font-bold text-ink">API keys</p>
-          <AppButton variant="ghost" onClick={() => setShowCreateKey(true)}>Create key</AppButton>
+          <AppButton variant="ghost" onClick={() => setShowCreateKey(true)}>
+            Create key
+          </AppButton>
         </div>
 
         {createdKey ? (
@@ -420,9 +477,13 @@ function DeveloperApiSection() {
             <p className="text-sm font-bold text-ink">Save this key — it won't be shown again</p>
             <div className="flex items-center gap-2">
               <code className="flex-1 break-all text-xs">{createdKey}</code>
-              <AppButton variant="ghost" onClick={() => void navigator.clipboard.writeText(createdKey)}>Copy</AppButton>
+              <AppButton variant="ghost" onClick={() => void navigator.clipboard.writeText(createdKey)}>
+                Copy
+              </AppButton>
             </div>
-            <AppButton variant="ghost" onClick={() => setCreatedKey(null)}>Dismiss</AppButton>
+            <AppButton variant="ghost" onClick={() => setCreatedKey(null)}>
+              Dismiss
+            </AppButton>
           </AppPanel>
         ) : null}
 
@@ -434,17 +495,26 @@ function DeveloperApiSection() {
                 <button
                   key={scope}
                   onClick={() => toggleScope(scope)}
-                  className={selectedScopes.includes(scope) ? 'ui-chip-toggle ui-chip-toggle--active' : 'ui-chip-toggle ui-chip-toggle--inactive'}
+                  className={
+                    selectedScopes.includes(scope)
+                      ? 'ui-chip-toggle ui-chip-toggle--active'
+                      : 'ui-chip-toggle ui-chip-toggle--inactive'
+                  }
                 >
                   {scope}
                 </button>
               ))}
             </div>
             <div className="flex gap-2">
-              <AppButton onClick={() => createKeyMutation.mutate()} disabled={!keyName || createKeyMutation.isPending}>
+              <AppButton
+                onClick={() => createKeyMutation.mutate()}
+                disabled={!keyName || createKeyMutation.isPending}
+              >
                 Generate
               </AppButton>
-              <AppButton variant="ghost" onClick={() => setShowCreateKey(false)}>Cancel</AppButton>
+              <AppButton variant="ghost" onClick={() => setShowCreateKey(false)}>
+                Cancel
+              </AppButton>
             </div>
           </AppPanel>
         ) : null}
@@ -455,10 +525,18 @@ function DeveloperApiSection() {
               <div>
                 <p className="font-bold text-ink">{key.name}</p>
                 <p className="text-xs text-ink/55">
-                  {key.keyPrefix}… · {key.scopes.join(', ')} · last used {key.lastUsedAt ? new Date(key.lastUsedAt).toLocaleDateString() : 'never'}
+                  {key.keyPrefix}… · {key.scopes.join(', ')} · last used{' '}
+                  {key.lastUsedAt ? new Date(key.lastUsedAt).toLocaleDateString() : 'never'}
                 </p>
               </div>
-              <AppButton variant="ghost" onClick={() => void revokeApiKey(key.id).then(() => queryClient.invalidateQueries({ queryKey: ['api-keys'] }))}>
+              <AppButton
+                variant="ghost"
+                onClick={() =>
+                  void revokeApiKey(key.id).then(() =>
+                    queryClient.invalidateQueries({ queryKey: ['api-keys'] }),
+                  )
+                }
+              >
                 Revoke
               </AppButton>
             </AppPanel>
@@ -482,7 +560,10 @@ function DeveloperApiSection() {
                       value={editEndpointValue}
                       onChange={(e) => setEditEndpointValue(e.target.value)}
                       onBlur={() => commitEndpointEdit(ep)}
-                      onKeyDown={(e) => { if (e.key === 'Enter') commitEndpointEdit(ep); if (e.key === 'Escape') cancelEndpointEdit() }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') commitEndpointEdit(ep)
+                        if (e.key === 'Escape') cancelEndpointEdit()
+                      }}
                       className="w-full bg-transparent text-sm font-bold text-ink outline-none border-b border-ink/40 focus:border-ink"
                     />
                   ) : (
@@ -502,7 +583,10 @@ function DeveloperApiSection() {
                       value={editEndpointValue}
                       onChange={(e) => setEditEndpointValue(e.target.value)}
                       onBlur={() => commitEndpointEdit(ep)}
-                      onKeyDown={(e) => { if (e.key === 'Enter') commitEndpointEdit(ep); if (e.key === 'Escape') cancelEndpointEdit() }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') commitEndpointEdit(ep)
+                        if (e.key === 'Escape') cancelEndpointEdit()
+                      }}
                       className="bg-transparent text-xs text-ink outline-none border-b border-ink/30 focus:border-ink"
                     />
                   ) : (
@@ -516,29 +600,49 @@ function DeveloperApiSection() {
                     </p>
                   )}
                   <p className="mt-0.5 text-xs text-ink/40">
-                    {ep.eventTypes.join(', ') || 'all events'} · {ep.isActive ? 'active' : 'paused'} · {ep.failureCount} failures
+                    {ep.eventTypes.join(', ') || 'all events'} · {ep.isActive ? 'active' : 'paused'} ·{' '}
+                    {ep.failureCount} failures
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  <AppButton variant="ghost" onClick={() => setDeliveryEndpoint(deliveryEndpoint?.id === ep.id ? null : ep)}>
+                  <AppButton
+                    variant="ghost"
+                    onClick={() => setDeliveryEndpoint(deliveryEndpoint?.id === ep.id ? null : ep)}
+                  >
                     Logs
                   </AppButton>
                   <AppButton
                     variant="ghost"
-                    onClick={() => void updateWebhookEndpoint(ep.id, { isActive: !ep.isActive }).then(() => queryClient.invalidateQueries({ queryKey: ['webhook-endpoints'] }))}
+                    onClick={() =>
+                      void updateWebhookEndpoint(ep.id, {
+                        isActive: !ep.isActive,
+                      }).then(() =>
+                        queryClient.invalidateQueries({
+                          queryKey: ['webhook-endpoints'],
+                        }),
+                      )
+                    }
                   >
                     {ep.isActive ? 'Pause' : 'Enable'}
                   </AppButton>
                   {deleteConfirmEndpointId === ep.id ? (
                     <>
                       <span className="flex items-center text-xs font-bold text-berry">Delete?</span>
-                      <AppButton variant="secondary" onClick={() => deleteEndpointMutation.mutate(ep.id)} disabled={deleteEndpointMutation.isPending}>
+                      <AppButton
+                        variant="secondary"
+                        onClick={() => deleteEndpointMutation.mutate(ep.id)}
+                        disabled={deleteEndpointMutation.isPending}
+                      >
                         Yes, delete
                       </AppButton>
-                      <AppButton variant="ghost" onClick={() => setDeleteConfirmEndpointId(null)}>Cancel</AppButton>
+                      <AppButton variant="ghost" onClick={() => setDeleteConfirmEndpointId(null)}>
+                        Cancel
+                      </AppButton>
                     </>
                   ) : (
-                    <AppButton variant="ghost" onClick={() => setDeleteConfirmEndpointId(ep.id)}>Delete</AppButton>
+                    <AppButton variant="ghost" onClick={() => setDeleteConfirmEndpointId(ep.id)}>
+                      Delete
+                    </AppButton>
                   )}
                 </div>
               </div>
@@ -550,10 +654,25 @@ function DeveloperApiSection() {
 
         <AppPanel className="space-y-3">
           <p className="text-sm font-bold text-ink">Add endpoint</p>
-          <AppInput value={newEndpointUrl} onChange={(e) => setNewEndpointUrl(e.target.value)} placeholder="https://yourapp.com/webhooks" />
-          <AppInput value={newEndpointDesc} onChange={(e) => setNewEndpointDesc(e.target.value)} placeholder="Description" />
-          <AppInput value={newEndpointEvents} onChange={(e) => setNewEndpointEvents(e.target.value)} placeholder="order.placed, order.paid (or * for all)" />
-          <AppButton onClick={() => createEndpointMutation.mutate()} disabled={!newEndpointUrl || createEndpointMutation.isPending}>
+          <AppInput
+            value={newEndpointUrl}
+            onChange={(e) => setNewEndpointUrl(e.target.value)}
+            placeholder="https://yourapp.com/webhooks"
+          />
+          <AppInput
+            value={newEndpointDesc}
+            onChange={(e) => setNewEndpointDesc(e.target.value)}
+            placeholder="Description"
+          />
+          <AppInput
+            value={newEndpointEvents}
+            onChange={(e) => setNewEndpointEvents(e.target.value)}
+            placeholder="order.placed, order.paid (or * for all)"
+          />
+          <AppButton
+            onClick={() => createEndpointMutation.mutate()}
+            disabled={!newEndpointUrl || createEndpointMutation.isPending}
+          >
             Add endpoint
           </AppButton>
         </AppPanel>
@@ -565,7 +684,7 @@ function DeveloperApiSection() {
 function DeliveryLog({ endpointId }: { endpointId: string }) {
   const deliveriesQuery = useQuery({
     queryKey: ['webhook-deliveries', endpointId],
-    queryFn:  () => fetchWebhookDeliveries(endpointId),
+    queryFn: () => fetchWebhookDeliveries(endpointId),
   })
 
   return (
@@ -573,7 +692,15 @@ function DeliveryLog({ endpointId }: { endpointId: string }) {
       <p className="text-xs font-bold uppercase tracking-widest text-ink/40">Recent deliveries</p>
       {(deliveriesQuery.data ?? []).map((d) => (
         <div key={d.id} className="grid grid-cols-[auto_1fr_auto] gap-x-3 text-xs text-ink/70">
-          <span className={d.status === 'delivered' ? 'font-bold text-teal' : d.status === 'abandoned' ? 'font-bold text-berry' : 'text-ink/50'}>
+          <span
+            className={
+              d.status === 'delivered'
+                ? 'font-bold text-teal'
+                : d.status === 'abandoned'
+                  ? 'font-bold text-berry'
+                  : 'text-ink/50'
+            }
+          >
             {d.status}
           </span>
           <span className="truncate">{d.eventType}</span>
@@ -594,22 +721,35 @@ function IntegrationsPage() {
     <div className="space-y-4">
       <AppCard className="p-0">
         <div className="px-6 py-4">
-          <SectionHeading eyebrow="Settings" title="Integrations" />
-          <p className="mt-1 text-sm text-ink/65">
-            Connect payment providers, accounting software, and developer API access.
-          </p>
+          <SectionHeading title="Connections" />
+          <p className="mt-1 text-sm text-ink/65">Manage connected accounts and their access.</p>
         </div>
       </AppCard>
       <AccountingSection />
-      <details className="ui-card"><summary className="cursor-pointer font-bold">Payment providers</summary><div className="mt-4"><PaymentProvidersSection /></div></details>
-      <details className="ui-card"><summary className="cursor-pointer font-bold">Shiftly</summary><div className="mt-4"><ShiftlySection /></div></details>
-      <details className="ui-card"><summary className="cursor-pointer font-bold">API keys and webhooks</summary><div className="mt-4"><DeveloperApiSection /></div></details>
+      <details className="ui-card">
+        <summary className="cursor-pointer font-bold">Payment providers</summary>
+        <div className="mt-4">
+          <PaymentProvidersSection />
+        </div>
+      </details>
+      <details className="ui-card">
+        <summary className="cursor-pointer font-bold">Shiftly</summary>
+        <div className="mt-4">
+          <ShiftlySection />
+        </div>
+      </details>
+      <details className="ui-card">
+        <summary className="cursor-pointer font-bold">API keys and webhooks</summary>
+        <div className="mt-4">
+          <DeveloperApiSection />
+        </div>
+      </details>
     </div>
   )
 }
 
 export const integrationsRoute = createRoute({
   getParentRoute: () => appRoute,
-  path:           'integrations',
-  component:      IntegrationsPage,
+  path: 'integrations',
+  component: IntegrationsPage,
 })

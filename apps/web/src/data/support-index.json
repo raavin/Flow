@@ -2,47 +2,22 @@
   {
     "id": "messages-basics",
     "slug": "messages-basics",
-    "title": "Messages",
-    "summary": "Posts, replies and private messages.",
-    "body": "Use Following for posts from people you follow, or Discover to browse more widely. Reply under a post to keep the discussion together. Direct messages are private conversations.",
-    "tags": [
-      "messages",
-      "feed",
-      "reply",
-      "repost",
-      "dm"
-    ],
-    "keywords": [
-      "feed",
-      "following",
-      "discover",
-      "posts",
-      "replies",
-      "repost",
-      "retweet",
-      "direct message"
-    ],
+    "title": "Posts and messages",
+    "summary": "Read posts in Home. Private conversations are in Messages.",
+    "body": "Use Home to follow people, post, reply, repost and save posts. Open Messages to choose a recipient and start a private conversation.",
+    "tags": ["messages", "feed", "reply", "repost", "dm"],
+    "keywords": ["feed", "following", "discover", "posts", "replies", "repost", "retweet", "direct message"],
     "route": "/app/messages"
   },
   {
     "id": "convert-post-to-flow",
     "slug": "convert-post-to-flow",
-    "title": "Create a plan from a message",
-    "summary": "Add dates and tasks to an idea from a discussion.",
-    "body": "Choose \u201cTurn into a plan\u201d on a message. Review the title, dates and project before saving. Find it afterwards in Plans. The original message keeps its audience.",
-    "tags": [
-      "flows",
-      "coordination",
-      "messages"
-    ],
-    "keywords": [
-      "convert",
-      "flow",
-      "coordination object",
-      "turn message into plan",
-      "message to flow"
-    ],
-    "route": "/app/coordination"
+    "title": "Create from a conversation",
+    "summary": "Create a task, event or project from a post or message.",
+    "body": "Open the post actions menu and choose Create task, event or project. Replies and private messages have the same action. Choose a title, date and optional project. The source stays linked and keeps its original audience.",
+    "tags": ["flows", "coordination", "messages"],
+    "keywords": ["convert", "flow", "coordination object", "turn message into plan", "message to flow"],
+    "route": "/app/messages"
   },
   {
     "id": "calendar-timeline-link",
@@ -50,20 +25,8 @@
     "title": "Calendar and Timeline",
     "summary": "Choose a date view or a schedule view.",
     "body": "Calendar shows events by month, week, day or agenda. Timeline shows plans and project tasks across dates. Switch between them from Calendar.",
-    "tags": [
-      "calendar",
-      "timeline",
-      "gantt",
-      "planning"
-    ],
-    "keywords": [
-      "calendar",
-      "timeline",
-      "gantt",
-      "schedule",
-      "timed flow",
-      "planning"
-    ],
+    "tags": ["calendar", "timeline", "gantt", "planning"],
+    "keywords": ["calendar", "timeline", "gantt", "schedule", "timed flow", "planning"],
     "route": "/app/calendar"
   },
   {
@@ -73,21 +36,8 @@
     "summary": "Autocomplete and linking for people and topics while writing.",
     "body": "Type @ to search people and # to search topics while composing a post, reply, or DM. Choose from the live suggestion list with the keyboard or mouse. Mentions link to profiles and topics link to topic feeds once published.",
     "shortcut": "/@",
-    "tags": [
-      "messages",
-      "mentions",
-      "topics",
-      "search"
-    ],
-    "keywords": [
-      "@",
-      "#",
-      "mention",
-      "hashtag",
-      "autocomplete",
-      "topics",
-      "handles"
-    ],
+    "tags": ["messages", "mentions", "topics", "search"],
+    "keywords": ["@", "#", "mention", "hashtag", "autocomplete", "topics", "handles"],
     "route": "/app/messages"
   },
   {
@@ -97,63 +47,28 @@
     "summary": "Type / while writing to search support notes and product help.",
     "body": "Slash search is for support and help. Type / to search product notes while composing. For example, /@ shows help about mentions, /# shows help about topics, and /support shows general help. This is different from @people and #topics, which insert real handles and topics into the message.",
     "shortcut": "/support",
-    "tags": [
-      "support",
-      "slash",
-      "messages"
-    ],
-    "keywords": [
-      "/",
-      "/@",
-      "/#",
-      "slash",
-      "support",
-      "help",
-      "commands"
-    ],
+    "tags": ["support", "slash", "messages"],
+    "keywords": ["/", "/@", "/#", "slash", "support", "help", "commands"],
     "route": "/app/support"
   },
   {
     "id": "templates-and-reusable-blocks",
     "slug": "templates-and-reusable-blocks",
     "title": "Templates",
-    "summary": "Reuse a set of planning steps.",
-    "body": "Open Plans to create a template or choose an existing one. Select the event date, check the dates of each step, then create the plan.",
-    "tags": [
-      "templates",
-      "flows",
-      "timeline"
-    ],
-    "keywords": [
-      "template",
-      "reusable",
-      "block",
-      "sequence",
-      "json",
-      "timeline block"
-    ],
-    "route": "/app/coordination"
+    "summary": "Reuse a sequence of tasks.",
+    "body": "Browse your templates or community templates in Marketplace. Use a template to schedule its steps around a date. The preview shows preparation, the event itself and follow-up tasks.",
+    "tags": ["templates", "flows", "timeline"],
+    "keywords": ["template", "reusable", "block", "sequence", "json", "timeline block"],
+    "route": "/app/ai"
   },
   {
     "id": "feed-ranking-principles",
     "slug": "feed-ranking-principles",
     "title": "Post order",
-    "summary": "How posts are sorted.",
-    "body": "Following prioritises people you follow, recent posts, bookmarks and reposts from your connections. Discover includes a wider selection.",
-    "tags": [
-      "messages",
-      "ranking",
-      "safety"
-    ],
-    "keywords": [
-      "algorithm",
-      "ranking",
-      "following",
-      "discover",
-      "repost",
-      "promotion",
-      "safety"
-    ],
+    "summary": "Following is chronological. Discover shows a broader selection.",
+    "body": "Following shows your posts, followed accounts and their reposts in time order. Discover includes other visible posts. Saved contains your bookmarks. Use Load more posts to continue reading.",
+    "tags": ["messages", "ranking", "safety"],
+    "keywords": ["algorithm", "ranking", "following", "discover", "repost", "promotion", "safety"],
     "route": "/app/messages"
   },
   {
@@ -163,33 +78,17 @@
     "summary": "Search Help or type / in a message.",
     "body": "Search this page for a feature or task. While writing a message, type / to find related help.",
     "shortcut": "/support",
-    "tags": [
-      "support",
-      "search",
-      "ai"
-    ],
-    "keywords": [
-      "support",
-      "help",
-      "search",
-      "slash",
-      "/",
-      "knowledge base",
-      "AI ingestion"
-    ],
+    "tags": ["support", "search", "ai"],
+    "keywords": ["support", "help", "search", "slash", "/", "knowledge base", "AI ingestion"],
     "route": "/app/support"
   },
   {
     "id": "project-budgets",
     "slug": "project-budgets",
-    "title": "Budgets and receipts",
-    "summary": "Plan costs and record spending.",
-    "body": "Money has two views: Overview compares project budgets and shows income and recent activity; Activity lists costs, payments and income. Select one or several projects to filter both views. Use Add entry to record an expense or income. Project expenses update the budget automatically. Choose a receipt photo or PDF before saving, or use Receipts beside an existing entry. Take photo opens the camera on supported devices. Older payment records stay in Activity and are not added to budget totals.",
-    "tags": [
-      "budgets",
-      "projects",
-      "money"
-    ],
+    "title": "Budgets, payments and receipts",
+    "summary": "Allocate a budget, plan costs and record payments.",
+    "body": "Money Overview compares project budgets in a table. Save selected projects as a group. Open a project budget to add allocations and costs. Record payment against an unpaid cost to track partial spending. In Activity, Link to cost reconciles an older payment without duplicating the cost. Use Receipts to attach a photo or PDF.",
+    "tags": ["budgets", "projects", "money"],
     "keywords": [
       "cost",
       "expense",
@@ -207,20 +106,11 @@
   {
     "id": "planning-helper",
     "slug": "planning-helper",
-    "title": "Schedule a template",
-    "summary": "Set the date and preview the steps.",
-    "body": "Choose a saved template and its event date. Review the scheduled steps before adding the plan. Steps with negative day offsets happen before the event. You can also link the plan to an existing project.",
-    "tags": [
-      "templates",
-      "planning"
-    ],
-    "keywords": [
-      "birthday",
-      "wedding",
-      "plan",
-      "AI",
-      "helper"
-    ],
+    "title": "Use a template",
+    "summary": "Choose steps and preview their dates.",
+    "body": "Choose Use template, then a new project, an existing project or My tasks. Set the event date, select the steps to include and check the dated preview before adding them.",
+    "tags": ["templates", "planning"],
+    "keywords": ["birthday", "wedding", "plan", "AI", "helper"],
     "route": "/app/ai"
   },
   {
@@ -229,16 +119,8 @@
     "title": "Choose who sees a message",
     "summary": "Only me, followers, everyone, or project members.",
     "body": "Choose an audience before saving or sharing. Only me saves a private note. Followers shares with your followers; Everyone publishes to the public feed. Project members is available when a project is selected. Linking an existing message to a new plan keeps its original audience.",
-    "tags": [
-      "messages",
-      "privacy"
-    ],
-    "keywords": [
-      "private",
-      "public",
-      "audience",
-      "sharing"
-    ],
+    "tags": ["messages", "privacy"],
+    "keywords": ["private", "public", "audience", "sharing"],
     "route": "/app/messages"
   }
 ]

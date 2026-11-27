@@ -42,5 +42,5 @@ export function useTheme() {
     setTheme((current) => THEMES[(THEMES.indexOf(current) + 1) % THEMES.length])
   }
 
-  return { theme, cycleTheme }
+  return { theme, setTheme, cycleTheme }
 }

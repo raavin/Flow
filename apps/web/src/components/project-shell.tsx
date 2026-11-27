@@ -5,6 +5,7 @@ import { Pencil } from 'lucide-react'
 import { AppButton, AppCard, AppPill, AppSelect } from '@superapp/ui'
 import { deleteProject, fetchProjectDetail, updateProject } from '@/lib/projects'
 import { QueryFeedback, MutationFeedback } from '@/components/request-feedback'
+import { useAppStore } from '@/hooks/useAppStore'
 import type { Project } from '@superapp/types'
 
 type EditField = 'title' | 'category' | 'targetDate' | 'status' | null
@@ -15,9 +16,10 @@ export function ProjectShell({
   children,
 }: {
   projectId: string
-  activeTab: 'conversation' | 'calendar' | 'timeline' | 'store' | 'people' | 'budget' | 'notes'
+  activeTab: 'tasks' | 'conversation' | 'calendar' | 'timeline' | 'store' | 'people' | 'budget' | 'notes'
   children: ReactNode
 }) {
+  const { session } = useAppStore()
   const queryClient = useQueryClient()
   const navigate = useNavigate()
 
@@ -32,6 +34,7 @@ export function ProjectShell({
   }, [activeTab, projectId])
 
   const project = detailQuery.data?.project
+  const isOwner = detailQuery.data?.ownerId === session?.user.id && !!session
 
   // ── Inline edit state ──────────────────────────────────────────────
   const [editingField, setEditingField] = useState<EditField>(null)
@@ -44,7 +47,7 @@ export function ProjectShell({
   const categoryInputRef = useRef<HTMLInputElement>(null)
 
   function beginEdit(field: Exclude<EditField, null>) {
-    if (!project) return
+    if (!project || !isOwner) return
     if (field === 'title') setEditTitle(project.title)
     if (field === 'category') setEditCategory(project.category || '')
     if (field === 'targetDate') setEditTargetDate(project.targetDate || '')
@@ -61,7 +64,9 @@ export function ProjectShell({
   const updateMutation = useMutation({
     mutationFn: (input: Parameters<typeof updateProject>[1]) => updateProject(projectId, input),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['project-detail', projectId] })
+      void queryClient.invalidateQueries({
+        queryKey: ['project-detail', projectId],
+      })
       void queryClient.invalidateQueries({ queryKey: ['projects'] })
     },
   })
@@ -75,7 +80,7 @@ export function ProjectShell({
   })
 
   function saveField(field: Exclude<EditField, null>) {
-    if (!project) return
+    if (!project || !isOwner) return
     setEditingField(null)
     if (field === 'title' && editTitle.trim() && editTitle.trim() !== project.title) {
       updateMutation.mutate({ title: editTitle.trim() })
@@ -102,20 +107,29 @@ export function ProjectShell({
 
   // ── Tabs ───────────────────────────────────────────────────────────
   const tabs = [
-    { key: 'conversation', label: 'Conversation', to: '/app/projects/$projectId/conversation' as const },
-    { key: 'calendar', label: 'Calendar', to: '/app/projects/$projectId/calendar' as const },
-    { key: 'timeline', label: 'Timeline', to: '/app/projects/$projectId/timeline' as const },
-    { key: 'notes', label: 'Notes', to: '/app/projects/$projectId/notes' as const },
-    { key: 'budget', label: 'Budget', to: '/app/projects/$projectId/budget' as const },
-    { key: 'store', label: 'Store', to: '/app/projects/$projectId/store' as const },
-    { key: 'people', label: 'People', to: '/app/projects/$projectId/people' as const },
+    {
+      key: 'conversation',
+      label: 'Conversation',
+      to: '/app/projects/$projectId/conversation',
+    },
+    { key: 'tasks', label: 'Tasks', to: '/app/projects/$projectId/tasks' },
+    {
+      key: 'calendar',
+      label: 'Schedule',
+      to: '/app/projects/$projectId/calendar',
+    },
+    { key: 'budget', label: 'Budget', to: '/app/projects/$projectId/budget' },
+  ] as const
+  const moreTabs = [
+    { key: 'notes', label: 'Notes', to: '/app/projects/$projectId/notes' },
+    { key: 'store', label: 'Listings', to: '/app/projects/$projectId/store' },
+    { key: 'people', label: 'People', to: '/app/projects/$projectId/people' },
   ] as const
 
   return (
     <div className="space-y-4">
       <AppCard className="space-y-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
-
           {/* Left: editable title + subtitle */}
           <div className="min-w-0">
             <p className="ui-eyebrow">Project</p>
@@ -132,14 +146,23 @@ export function ProjectShell({
                 className="mt-0.5 w-full bg-transparent text-2xl font-extrabold text-ink outline-none border-b-2 border-ink/40 focus:border-ink"
               />
             ) : (
-              <h2
+              <h1
                 className="mt-0.5 text-2xl font-extrabold text-ink cursor-text group/title flex items-center gap-2"
                 onDoubleClick={() => beginEdit('title')}
                 title="Double-click to edit title"
               >
                 {project?.title ?? 'Project'}
-                <button type="button" aria-label="Edit project title" className="rounded p-2 text-ink/60 hover:text-ink" onClick={() => beginEdit('title')}><Pencil className="h-4 w-4" /></button>
-              </h2>
+                {isOwner && (
+                  <button
+                    type="button"
+                    aria-label="Edit project title"
+                    className="rounded p-2 text-ink/60 hover:text-ink"
+                    onClick={() => beginEdit('title')}
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </button>
+                )}
+              </h1>
             )}
 
             {/* Category · target date — click to edit */}
@@ -159,6 +182,7 @@ export function ProjectShell({
                   <button
                     type="button"
                     className="hover:text-ink hover:underline decoration-dotted"
+                    disabled={!isOwner}
                     onClick={() => beginEdit('category')}
                     title="Click to edit category"
                   >
@@ -181,6 +205,7 @@ export function ProjectShell({
                   <button
                     type="button"
                     className="hover:text-ink hover:underline decoration-dotted"
+                    disabled={!isOwner}
                     onClick={() => beginEdit('targetDate')}
                     title="Click to edit target date"
                   >
@@ -211,9 +236,13 @@ export function ProjectShell({
               </>
             ) : (
               <>
-                <AppButton variant="ghost" onClick={() => setDeleteConfirm(true)}>
-                  Delete
-                </AppButton>
+                <Link
+                  to="/app/projects/$projectId/people"
+                  params={{ projectId }}
+                  className="inline-flex min-h-11 items-center px-3 text-sm underline"
+                >
+                  People
+                </Link>
                 <Link to="/app/projects">
                   <AppButton variant="ghost">All projects</AppButton>
                 </Link>
@@ -232,7 +261,9 @@ export function ProjectShell({
                   setEditStatus(e.target.value as Project['status'])
                   setEditingField(null)
                   if ((e.target.value as Project['status']) !== project.status) {
-                    updateMutation.mutate({ status: e.target.value as Project['status'] })
+                    updateMutation.mutate({
+                      status: e.target.value as Project['status'],
+                    })
                   }
                 }}
                 onBlur={() => saveField('status')}
@@ -244,11 +275,17 @@ export function ProjectShell({
                 <option value="completed">Completed</option>
               </AppSelect>
             ) : (
-              <button type="button" onClick={() => beginEdit('status')} title="Click to change status">
-                <AppPill tone="butter" className="cursor-pointer hover:opacity-75">{project.status}</AppPill>
+              <button
+                type="button"
+                disabled={!isOwner}
+                onClick={() => beginEdit('status')}
+                title="Click to change status"
+              >
+                <AppPill tone="butter" className="cursor-pointer hover:opacity-75">
+                  {project.status}
+                </AppPill>
               </button>
             )}
-
           </div>
         ) : null}
 
@@ -257,12 +294,76 @@ export function ProjectShell({
         <MutationFeedback mutation={deleteMutation} />
         {/* Tabs */}
         <div className="flex flex-wrap gap-2">
-          {tabs.map((tab) => (
-            <Link key={tab.key} to={tab.to} params={{ projectId }}>
-              <AppButton variant={activeTab === tab.key ? 'primary' : 'ghost'}>{tab.label}</AppButton>
-            </Link>
-          ))}
+          {tabs
+            .filter((tab) => tab.key !== 'budget' || isOwner)
+            .map((tab) => (
+              <Link key={tab.key} to={tab.to} params={{ projectId }}>
+                <AppButton
+                  variant={
+                    activeTab === tab.key || (tab.key === 'calendar' && activeTab === 'timeline')
+                      ? 'primary'
+                      : 'ghost'
+                  }
+                >
+                  {tab.label}
+                </AppButton>
+              </Link>
+            ))}
         </div>
+        <details className="relative">
+          <summary className="cursor-pointer min-h-11 py-3 text-sm font-semibold">More</summary>
+          <nav className="flex flex-wrap gap-3 border-t border-border pt-3">
+            {moreTabs.map((tab) => (
+              <Link
+                key={tab.key}
+                to={tab.to}
+                params={{ projectId }}
+                className="inline-flex min-h-11 items-center px-3 text-sm underline"
+              >
+                {tab.label}
+              </Link>
+            ))}
+            <Link
+              to="/app/projects/$projectId/availability"
+              params={{ projectId }}
+              className="inline-flex min-h-11 items-center px-3 text-sm underline"
+            >
+              Availability
+            </Link>
+            <Link
+              to="/app/projects/$projectId/updates"
+              params={{ projectId }}
+              className="inline-flex min-h-11 items-center px-3 text-sm underline"
+            >
+              Updates
+            </Link>
+            {isOwner && (
+              <AppButton variant="ghost" onClick={() => setDeleteConfirm(true)}>
+                Delete project
+              </AppButton>
+            )}
+          </nav>
+        </details>
+        {(activeTab === 'calendar' || activeTab === 'timeline') && (
+          <nav aria-label="Project schedule views" className="flex gap-4 border-t border-border pt-3">
+            <Link
+              to="/app/projects/$projectId/calendar"
+              params={{ projectId }}
+              aria-current={activeTab === 'calendar' ? 'page' : undefined}
+              className="min-h-11 py-2 underline"
+            >
+              Calendar
+            </Link>
+            <Link
+              to="/app/projects/$projectId/timeline"
+              params={{ projectId }}
+              aria-current={activeTab === 'timeline' ? 'page' : undefined}
+              className="min-h-11 py-2 underline"
+            >
+              Timeline
+            </Link>
+          </nav>
+        )}
       </AppCard>
 
       {children}

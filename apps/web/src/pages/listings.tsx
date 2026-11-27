@@ -1,14 +1,25 @@
+import { ApplyTemplateDialog } from '@/components/apply-template-dialog'
+import { listingTemplateBlocks } from '@/lib/apply-template'
 import { useState } from 'react'
 import { ChevronLeft, ChevronRight, MapPin, RotateCcw, Truck } from 'lucide-react'
 import { Link, createRoute, useNavigate } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { AppButton, AppCard, AppInput, AppPanel, AppPill, AppSelect, AppTextarea, FieldLabel, SectionHeading } from '@superapp/ui'
+import {
+  AppButton,
+  AppCard,
+  AppInput,
+  AppPanel,
+  AppPill,
+  AppSelect,
+  AppTextarea,
+  FieldLabel,
+  SectionHeading,
+} from '@superapp/ui'
 import type { TemplatePayload } from '@superapp/types'
 import { appRoute } from '@/components/layout'
-import { createProjectFromTemplate, fetchProjects, attachListingToProject } from '@/lib/projects'
+import { fetchProjects, attachListingToProject } from '@/lib/projects'
 import {
   createMarketplaceListing,
-  deleteListingImage,
   duplicateListing,
   deleteMarketplaceListing,
   fetchBusinessListings,
@@ -19,7 +30,6 @@ import {
   getListingImageUrl,
   hasPurchasedListing,
   updateListing,
-  updateListingContent,
   uploadListingImage,
   type ListingDetail,
 } from '@/lib/marketplace'
@@ -43,7 +53,9 @@ function StarDisplay({ rating, size = 'sm' }: { rating: number; size?: 'sm' | 'l
   const cls = size === 'lg' ? 'text-base' : 'text-xs'
   return (
     <span className={`${cls} text-ink/70`} aria-label={`${rating.toFixed(1)} stars`}>
-      {'★'.repeat(full)}{hasHalf ? '½' : ''}{'☆'.repeat(empty)}
+      {'★'.repeat(full)}
+      {hasHalf ? '½' : ''}
+      {'☆'.repeat(empty)}
     </span>
   )
 }
@@ -67,7 +79,11 @@ function StarPicker({ value, onChange }: { value: number; onChange: (v: number) 
 }
 
 function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })
+  return new Date(iso).toLocaleDateString('en-AU', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  })
 }
 
 function timeAgo(iso: string) {
@@ -88,7 +104,13 @@ function AvatarBadge({ label }: { label: string }) {
 
 // ─── Photo gallery ────────────────────────────────────────────────────────────
 
-function PhotoGallery({ images, title }: { images: Array<{ id: string; storagePath: string; altText: string }>; title: string }) {
+function PhotoGallery({
+  images,
+  title,
+}: {
+  images: Array<{ id: string; storagePath: string; altText: string }>
+  title: string
+}) {
   const [activeIdx, setActiveIdx] = useState(0)
   const urls = images.map((img) => getListingImageUrl(img.storagePath))
   const active = urls[activeIdx]
@@ -128,7 +150,11 @@ function PhotoGallery({ images, title }: { images: Array<{ id: string; storagePa
       {/* Main image */}
       <div className="relative flex-1 aspect-square overflow-hidden bg-cloud border border-border">
         {active ? (
-          <img src={active} alt={images[activeIdx]?.altText || title} className="h-full w-full object-cover" />
+          <img
+            src={active}
+            alt={images[activeIdx]?.altText || title}
+            className="h-full w-full object-cover"
+          />
         ) : null}
         {images.length > 1 ? (
           <>
@@ -180,8 +206,12 @@ function ReviewsList({
     onSuccess: () => {
       setRespondingTo(null)
       setResponseText('')
-      void queryClient.invalidateQueries({ queryKey: ['listing-reviews', listingId] })
-      void queryClient.invalidateQueries({ queryKey: ['seller-reviews', sellerId] })
+      void queryClient.invalidateQueries({
+        queryKey: ['listing-reviews', listingId],
+      })
+      void queryClient.invalidateQueries({
+        queryKey: ['seller-reviews', sellerId],
+      })
     },
   })
 
@@ -189,7 +219,11 @@ function ReviewsList({
   const isSeller = session?.user.id === sellerId
 
   if (!reviews.length) {
-    return <AppPanel className="text-sm text-ink/60">No reviews yet. Reviews appear here after a purchase is completed.</AppPanel>
+    return (
+      <AppPanel className="text-sm text-ink/60">
+        No reviews yet. Reviews appear here after a purchase is completed.
+      </AppPanel>
+    )
   }
 
   return (
@@ -202,7 +236,8 @@ function ReviewsList({
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2 text-sm text-ink/55">
                 <span className="font-extrabold text-ink">
-                  {review.reviewerDisplayName || (review.reviewerHandle ? `@${review.reviewerHandle}` : 'Buyer')}
+                  {review.reviewerDisplayName ||
+                    (review.reviewerHandle ? `@${review.reviewerHandle}` : 'Buyer')}
                 </span>
                 <span>·</span>
                 <StarDisplay rating={review.rating} />
@@ -245,11 +280,22 @@ function ReviewsList({
                   <div className="flex gap-2">
                     <AppButton
                       disabled={!responseText.trim() || respondMutation.isPending}
-                      onClick={() => respondMutation.mutate({ reviewId: review.id, body: responseText.trim() })}
+                      onClick={() =>
+                        respondMutation.mutate({
+                          reviewId: review.id,
+                          body: responseText.trim(),
+                        })
+                      }
                     >
                       {respondMutation.isPending ? 'Saving…' : 'Post response'}
                     </AppButton>
-                    <AppButton variant="ghost" onClick={() => { setRespondingTo(null); setResponseText('') }}>
+                    <AppButton
+                      variant="ghost"
+                      onClick={() => {
+                        setRespondingTo(null)
+                        setResponseText('')
+                      }}
+                    >
                       Cancel
                     </AppButton>
                   </div>
@@ -273,7 +319,15 @@ function ReviewsList({
 
 // ─── Write review ─────────────────────────────────────────────────────────────
 
-function WriteReviewSection({ listingId, sellerId, listingTitle }: { listingId: string; sellerId: string; listingTitle?: string }) {
+function WriteReviewSection({
+  listingId,
+  sellerId,
+  listingTitle,
+}: {
+  listingId: string
+  sellerId: string
+  listingTitle?: string
+}) {
   const { session } = useAppStore()
   const queryClient = useQueryClient()
   const [rating, setRating] = useState(5)
@@ -299,7 +353,9 @@ function WriteReviewSection({ listingId, sellerId, listingTitle }: { listingId: 
     onSuccess: () => {
       setBody('')
       setRating(5)
-      void queryClient.invalidateQueries({ queryKey: ['listing-reviews', listingId] })
+      void queryClient.invalidateQueries({
+        queryKey: ['listing-reviews', listingId],
+      })
       void queryClient.invalidateQueries({ queryKey: ['listing', listingId] })
     },
   })
@@ -307,7 +363,11 @@ function WriteReviewSection({ listingId, sellerId, listingTitle }: { listingId: 
   if (!session) return null
   if (canReviewQuery.isPending) return null
   if (canReviewQuery.data?.alreadyReviewed) {
-    return <AppPanel tone="teal" className="text-sm text-ink/70">You've already reviewed this listing.</AppPanel>
+    return (
+      <AppPanel tone="teal" className="text-sm text-ink/70">
+        You've already reviewed this listing.
+      </AppPanel>
+    )
   }
   if (!canReviewQuery.data?.canReview) return null
 
@@ -321,10 +381,7 @@ function WriteReviewSection({ listingId, sellerId, listingTitle }: { listingId: 
         className="min-h-28"
         placeholder="What was it like? Be honest and specific."
       />
-      <AppButton
-        disabled={!body.trim() || submitMutation.isPending}
-        onClick={() => submitMutation.mutate()}
-      >
+      <AppButton disabled={!body.trim() || submitMutation.isPending} onClick={() => submitMutation.mutate()}>
         {submitMutation.isPending ? 'Submitting…' : 'Submit review'}
       </AppButton>
     </AppCard>
@@ -333,7 +390,15 @@ function WriteReviewSection({ listingId, sellerId, listingTitle }: { listingId: 
 
 // ─── More from seller grid ────────────────────────────────────────────────────
 
-function MoreFromSeller({ sellerId, excludeId, sellerName }: { sellerId: string; excludeId: string; sellerName: string }) {
+function MoreFromSeller({
+  sellerId,
+  excludeId,
+  sellerName,
+}: {
+  sellerId: string
+  excludeId: string
+  sellerName: string
+}) {
   const moreQuery = useQuery({
     queryKey: ['more-from-seller', sellerId, excludeId],
     queryFn: () => fetchMoreFromSeller(sellerId, excludeId, 4),
@@ -348,17 +413,28 @@ function MoreFromSeller({ sellerId, excludeId, sellerName }: { sellerId: string;
         {items.map((item) => {
           const url = item.coverImagePath ? getListingImageUrl(item.coverImagePath) : null
           return (
-            <Link key={item.id} to="/app/marketplace/listings/$listingId" params={{ listingId: item.id }} className="group">
+            <Link
+              key={item.id}
+              to="/app/marketplace/listings/$listingId"
+              params={{ listingId: item.id }}
+              className="group"
+            >
               <div className="aspect-square bg-cloud border border-border overflow-hidden">
                 {url ? (
-                  <img src={url} alt={item.title} className="h-full w-full object-cover group-hover:scale-[1.03] transition" />
+                  <img
+                    src={url}
+                    alt={item.title}
+                    className="h-full w-full object-cover group-hover:scale-[1.03] transition"
+                  />
                 ) : (
                   <div className="h-full w-full flex items-center justify-center">
                     <span className="text-xs text-ink/30 uppercase tracking-widest">No image</span>
                   </div>
                 )}
               </div>
-              <p className="mt-1.5 text-xs font-medium text-ink line-clamp-2 group-hover:underline">{item.title}</p>
+              <p className="mt-1.5 text-xs font-medium text-ink line-clamp-2 group-hover:underline">
+                {item.title}
+              </p>
               <p className="text-xs text-ink/55">{item.priceLabel}</p>
             </Link>
           )
@@ -374,28 +450,48 @@ function ListingDetailPage() {
   const { listingId } = listingDetailRoute.useParams()
   const { session } = useAppStore()
   const queryClient = useQueryClient()
-  const navigate = useNavigate()
 
-  const listingQuery = useQuery<ListingDetail | null>({ queryKey: ['listing', listingId], queryFn: () => fetchListingDetail(listingId) })
-  const imagesQuery = useQuery({ queryKey: ['listing-images', listingId], queryFn: () => fetchListingImages(listingId) })
+  const listingQuery = useQuery<ListingDetail | null>({
+    queryKey: ['listing', listingId],
+    queryFn: () => fetchListingDetail(listingId),
+  })
+  const imagesQuery = useQuery({
+    queryKey: ['listing-images', listingId],
+    queryFn: () => fetchListingImages(listingId),
+  })
   const sellerQuery = useQuery({
     queryKey: ['seller-profile', listingQuery.data?.owner_id],
     queryFn: () => fetchSellerPublicProfile(listingQuery.data!.owner_id),
     enabled: Boolean(listingQuery.data?.owner_id),
   })
-  const projectsQuery = useQuery({ queryKey: ['projects'], queryFn: fetchProjects })
-  const cartCountQuery = useQuery({ queryKey: ['cart-count'], queryFn: fetchCartCount, enabled: Boolean(session) })
+  const projectsQuery = useQuery({
+    queryKey: ['projects'],
+    queryFn: fetchProjects,
+  })
+  const cartCountQuery = useQuery({
+    queryKey: ['cart-count'],
+    queryFn: fetchCartCount,
+    enabled: Boolean(session),
+  })
   const purchaseQuery = useQuery({
     queryKey: ['has-purchased', listingId],
     queryFn: () => hasPurchasedListing(listingId),
-    enabled: Boolean(session) && Boolean(listingQuery.data?.kind === 'template' && (listingQuery.data?.price_cents ?? 0) > 0),
+    enabled:
+      Boolean(session) &&
+      Boolean(listingQuery.data?.kind === 'template' && (listingQuery.data?.price_cents ?? 0) > 0),
   })
   const [projectId, setProjectId] = useState('')
+  const [useTemplate, setUseTemplate] = useState(false)
   const [detailsOpen, setDetailsOpen] = useState(true)
   const [deliveryOpen, setDeliveryOpen] = useState(false)
 
   const addToCartMutation = useMutation({
-    mutationFn: () => addToCart({ ownerId: session!.user.id, listingId, linkedProjectId: projectId || null }),
+    mutationFn: () =>
+      addToCart({
+        ownerId: session!.user.id,
+        listingId,
+        linkedProjectId: projectId || null,
+      }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['cart'] })
       void queryClient.invalidateQueries({ queryKey: ['cart-count'] })
@@ -404,32 +500,23 @@ function ListingDetailPage() {
 
   const attachMutation = useMutation({
     mutationFn: () => attachListingToProject(projectId, listingId),
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['project-detail', projectId] }),
-  })
-
-  const importMutation = useMutation({
-    mutationFn: async () => {
-      if (!session) throw new Error('You must be signed in.')
-      const payload = listingQuery.data?.template_payload
-      if (!payload || !Array.isArray(payload.milestones) || payload.milestones.length === 0) {
-        throw new Error('This template is missing its plan data. Contact the seller.')
-      }
-      return createProjectFromTemplate({
-        ownerId: session.user.id,
-        title: listingQuery.data!.title,
-        category: listingQuery.data!.category,
-        startDate: new Date().toISOString().slice(0, 10),
-        templatePayload: payload,
-      })
-    },
-    onSuccess: (project) => {
-      void queryClient.invalidateQueries({ queryKey: ['projects'] })
-      void navigate({ to: '/app/projects/$projectId', params: { projectId: project.id } })
-    },
+    onSuccess: () =>
+      void queryClient.invalidateQueries({
+        queryKey: ['project-detail', projectId],
+      }),
   })
 
   const listing = listingQuery.data
-  if (!listing) return <AppCard className="p-8 text-center text-sm text-ink/50">Loading listing…</AppCard>
+  if (!listing)
+    return (
+      <AppCard className="p-8 text-center text-sm text-ink/60">
+        {listingQuery.isPending
+          ? 'Loading listing…'
+          : listingQuery.isError
+            ? 'Could not load this listing. Try again.'
+            : 'This listing is unavailable.'}
+      </AppCard>
+    )
 
   const seller = sellerQuery.data
   const images = imagesQuery.data ?? []
@@ -442,14 +529,16 @@ function ListingDetailPage() {
   return (
     <div className="space-y-4">
       {/* Breadcrumb */}
-      <Link to="/app/marketplace" className="inline-flex items-center gap-1 text-sm text-ink/50 hover:text-ink">
+      <Link
+        to="/app/marketplace"
+        className="inline-flex items-center gap-1 text-sm text-ink/50 hover:text-ink"
+      >
         <ChevronLeft className="h-4 w-4" />
         Marketplace
       </Link>
 
       {/* Main two-column layout */}
       <div className="grid gap-6 lg:grid-cols-[1fr_420px]">
-
         {/* Left: gallery */}
         <AppCard>
           <PhotoGallery images={images} title={listing.title} />
@@ -460,8 +549,12 @@ function ListingDetailPage() {
           <AppCard className="space-y-4">
             {/* Category + title */}
             <div>
-              <p className="ui-eyebrow">{listing.kind} · {listing.category}</p>
-              <h1 className="mt-1 text-2xl font-light tracking-tight text-ink leading-snug">{listing.title}</h1>
+              <p className="ui-eyebrow">
+                {listing.kind} · {listing.category}
+              </p>
+              <h1 className="mt-1 text-2xl font-light tracking-tight text-ink leading-snug">
+                {listing.title}
+              </h1>
             </div>
 
             {/* Seller + rating */}
@@ -500,42 +593,65 @@ function ListingDetailPage() {
 
             {/* Project link (optional) */}
             {projectsQuery.data?.length ? (
-              <AppSelect value={projectId} onChange={(e) => setProjectId(e.target.value)}>
+              <AppSelect
+                aria-label="Project"
+                value={projectId}
+                onChange={(e) => setProjectId(e.target.value)}
+              >
                 <option value="">Link to a project (optional)</option>
                 {(projectsQuery.data ?? []).map((p) => (
-                  <option key={p.id} value={p.id}>{p.title}</option>
+                  <option key={p.id} value={p.id}>
+                    {p.title}
+                  </option>
                 ))}
               </AppSelect>
             ) : null}
 
             {/* CTA */}
+            {listing.kind === 'service' && (
+              <Link
+                to="/app/marketplace/requests"
+                search={{ projectId: projectId || undefined }}
+                className="ui-button ui-button--primary w-full justify-center"
+              >
+                Request a quote
+              </Link>
+            )}
             <AppButton
+              variant={listing.kind === 'template' || listing.kind === 'service' ? 'secondary' : 'primary'}
               disabled={!session || addToCartMutation.isPending}
               onClick={() => addToCartMutation.mutate()}
               className="w-full justify-center"
             >
-              {addToCartMutation.isPending ? 'Adding…' : 'Add to cart'}
+              {addToCartMutation.isPending ? 'Adding…' : 'Save item'}
             </AppButton>
 
             {listing.kind === 'template' ? (
               <div className="space-y-1">
                 <AppButton
-                  variant="secondary"
-                  disabled={!canImport || importMutation.isPending}
-                  onClick={() => importMutation.mutate()}
+                  variant="primary"
+                  disabled={!canImport}
+                  onClick={() => setUseTemplate(true)}
                   className="w-full justify-center"
                 >
-                  {importMutation.isPending ? 'Importing…' : 'Import template'}
+                  Use template
                 </AppButton>
                 {!canImport && session && !isFreeTemplate ? (
-                  <p className="text-center text-xs text-ink/50">Purchase to import</p>
-                ) : null}
-                {importMutation.isError ? (
-                  <p className="text-center text-xs text-berry">{(importMutation.error as Error).message}</p>
+                  <p className="text-center text-xs text-ink/50">Contact the creator for access</p>
                 ) : null}
               </div>
             ) : null}
 
+            {useTemplate && listing.template_payload && (
+              <ApplyTemplateDialog
+                template={{
+                  id: listing.id,
+                  title: listing.title,
+                  blocks: listingTemplateBlocks(listing.template_payload),
+                }}
+                onClose={() => setUseTemplate(false)}
+              />
+            )}
             {projectId ? (
               <AppButton
                 variant="ghost"
@@ -549,7 +665,8 @@ function ListingDetailPage() {
 
             <Link to="/app/marketplace/cart">
               <AppButton variant="ghost" className="w-full justify-center">
-                Cart{cartCountQuery.data ? ` (${cartCountQuery.data})` : ''}
+                Saved items
+                {cartCountQuery.data ? ` (${cartCountQuery.data})` : ''}
               </AppButton>
             </Link>
           </AppCard>
@@ -573,9 +690,14 @@ function ListingDetailPage() {
                 ) : null}
                 {listing.whimsical_note ? (
                   <ul className="space-y-1 pl-4">
-                    {listing.whimsical_note.split('\n').filter(Boolean).map((bullet: string, i: number) => (
-                      <li key={i} className="list-disc list-outside">{bullet.replace(/^[-•*]\s*/, '')}</li>
-                    ))}
+                    {listing.whimsical_note
+                      .split('\n')
+                      .filter(Boolean)
+                      .map((bullet: string, i: number) => (
+                        <li key={i} className="list-disc list-outside">
+                          {bullet.replace(/^[-•*]\s*/, '')}
+                        </li>
+                      ))}
                   </ul>
                 ) : null}
                 {listing.kind === 'template' && (milestoneCount > 0 || taskCount > 0) ? (
@@ -583,7 +705,8 @@ function ListingDetailPage() {
                     {milestoneCount > 0 ? (
                       <div>
                         <p className="text-xs font-semibold uppercase tracking-wider text-ink/40 mb-1.5">
-                          {milestoneCount} timeline block{milestoneCount !== 1 ? 's' : ''}
+                          {milestoneCount} timeline block
+                          {milestoneCount !== 1 ? 's' : ''}
                         </p>
                         <ul className="space-y-1">
                           {listing.template_payload!.milestones!.map((m, i) => (
@@ -633,9 +756,11 @@ function ListingDetailPage() {
                   <p className="flex items-center gap-2">
                     <Truck className="h-3.5 w-3.5 shrink-0 text-ink/40" />
                     Delivery in {listing.fulfillment_days_min}
-                    {listing.fulfillment_days_max && listing.fulfillment_days_max !== listing.fulfillment_days_min
+                    {listing.fulfillment_days_max &&
+                    listing.fulfillment_days_max !== listing.fulfillment_days_min
                       ? `–${listing.fulfillment_days_max}`
-                      : ''} day{listing.fulfillment_days_min !== 1 ? 's' : ''}
+                      : ''}{' '}
+                    day{listing.fulfillment_days_min !== 1 ? 's' : ''}
                   </p>
                 ) : null}
                 {listing.fulfillment_notes ? <p>{listing.fulfillment_notes}</p> : null}
@@ -704,9 +829,10 @@ function SellerProfilePage() {
   const profile = profileQuery.data
   const listings = listingsQuery.data ?? []
   const reviews = reviewsQuery.data ?? []
-  const avgRating = profile && profile.totalReviewCount > 0
-    ? (profile.totalRatingSum / profile.totalReviewCount).toFixed(1)
-    : null
+  const avgRating =
+    profile && profile.totalReviewCount > 0
+      ? (profile.totalRatingSum / profile.totalReviewCount).toFixed(1)
+      : null
 
   const yearsActive = profile?.memberSince
     ? Math.max(1, new Date().getFullYear() - new Date(profile.memberSince).getFullYear())
@@ -714,7 +840,10 @@ function SellerProfilePage() {
 
   return (
     <div className="space-y-4">
-      <Link to="/app/marketplace" className="inline-flex items-center gap-1 text-sm text-ink/50 hover:text-ink">
+      <Link
+        to="/app/marketplace"
+        className="inline-flex items-center gap-1 text-sm text-ink/50 hover:text-ink"
+      >
         <ChevronLeft className="h-4 w-4" />
         Marketplace
       </Link>
@@ -748,7 +877,8 @@ function SellerProfilePage() {
               ) : null}
               {yearsActive ? (
                 <span className="text-ink/65">
-                  <span className="font-semibold text-ink">{yearsActive}</span> year{yearsActive !== 1 ? 's' : ''} on Flow
+                  <span className="font-semibold text-ink">{yearsActive}</span> year
+                  {yearsActive !== 1 ? 's' : ''} on Flow
                 </span>
               ) : null}
             </div>
@@ -778,7 +908,9 @@ function SellerProfilePage() {
                 <StarDisplay rating={review.rating} />
                 <p className="text-sm text-ink/80 line-clamp-4">{review.body}</p>
                 <p className="text-xs text-ink/45">
-                  {review.reviewerDisplayName || (review.reviewerHandle ? `@${review.reviewerHandle}` : 'Buyer')} · {formatDate(review.createdAt)}
+                  {review.reviewerDisplayName ||
+                    (review.reviewerHandle ? `@${review.reviewerHandle}` : 'Buyer')}{' '}
+                  · {formatDate(review.createdAt)}
                 </p>
               </div>
             ))}
@@ -796,9 +928,15 @@ function SellerProfilePage() {
             {listings
               .filter((l) => l.is_published)
               .map((listing) => (
-                <Link key={listing.id} to="/app/marketplace/listings/$listingId" params={{ listingId: listing.id }}>
+                <Link
+                  key={listing.id}
+                  to="/app/marketplace/listings/$listingId"
+                  params={{ listingId: listing.id }}
+                >
                   <AppCard className="h-full hover:-translate-y-0.5 transition space-y-1.5 bg-cloud">
-                    <p className="text-xs font-semibold uppercase tracking-wider text-ink/40">{listing.kind}</p>
+                    <p className="text-xs font-semibold uppercase tracking-wider text-ink/40">
+                      {listing.kind}
+                    </p>
                     <h3 className="text-base font-medium text-ink">{listing.title}</h3>
                     <p className="text-sm text-ink/60 line-clamp-2">{listing.summary}</p>
                     <p className="text-sm font-semibold text-ink">{listing.price_label}</p>
@@ -816,7 +954,11 @@ function SellerProfilePage() {
 function BusinessProfilePage() {
   const { ownerId } = businessProfileRoute.useParams()
   const navigate = useNavigate()
-  void navigate({ to: '/app/marketplace/seller/$sellerId', params: { sellerId: ownerId }, replace: true })
+  void navigate({
+    to: '/app/marketplace/seller/$sellerId',
+    params: { sellerId: ownerId },
+    replace: true,
+  })
   return null
 }
 
@@ -831,7 +973,11 @@ function ListingsManagementPage() {
     queryFn: () => fetchBusinessListings(ownerId),
     enabled: Boolean(ownerId),
   })
-  const projectsQuery = useQuery({ queryKey: ['projects'], queryFn: fetchProjects, enabled: Boolean(ownerId) })
+  const projectsQuery = useQuery({
+    queryKey: ['projects'],
+    queryFn: fetchProjects,
+    enabled: Boolean(ownerId),
+  })
   const [editingId, setEditingId] = useState<string | null>(null)
   const [deleteConfirmListingId, setDeleteConfirmListingId] = useState<string | null>(null)
   const [kind, setKind] = useState<'template' | 'service' | 'product'>('service')
@@ -840,13 +986,17 @@ function ListingsManagementPage() {
   const [newSummary, setNewSummary] = useState('')
   const [newPriceLabel, setNewPriceLabel] = useState('')
   const [newWorkspaceProjectId, setNewWorkspaceProjectId] = useState('')
-  const [newTemplatePayload, setNewTemplatePayload] = useState(JSON.stringify(defaultTemplatePayload, null, 2))
+  const [newTemplatePayload, setNewTemplatePayload] = useState(
+    JSON.stringify(defaultTemplatePayload, null, 2),
+  )
   const [title, setTitle] = useState('')
   const [summary, setSummary] = useState('')
   const [priceLabel, setPriceLabel] = useState('')
   const [workspaceProjectId, setWorkspaceProjectId] = useState('')
   const [editingKind, setEditingKind] = useState<'template' | 'service' | 'product'>('service')
-  const [templatePayloadText, setTemplatePayloadText] = useState(JSON.stringify(defaultTemplatePayload, null, 2))
+  const [templatePayloadText, setTemplatePayloadText] = useState(
+    JSON.stringify(defaultTemplatePayload, null, 2),
+  )
   const [imageFiles, setImageFiles] = useState<FileList | null>(null)
   const [uploadingFor, setUploadingFor] = useState<string | null>(null)
 
@@ -863,7 +1013,10 @@ function ListingsManagementPage() {
         whimsicalNote: '',
         templatePayload: kind === 'template' ? parseTemplatePayload(newTemplatePayload) : undefined,
       }),
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['business-listings', ownerId] }),
+    onSuccess: () =>
+      void queryClient.invalidateQueries({
+        queryKey: ['business-listings', ownerId],
+      }),
   })
 
   const updateMutation = useMutation({
@@ -878,7 +1031,9 @@ function ListingsManagementPage() {
         templatePayload: editingKind === 'template' ? parseTemplatePayload(templatePayloadText) : undefined,
       }),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['business-listings', ownerId] })
+      void queryClient.invalidateQueries({
+        queryKey: ['business-listings', ownerId],
+      })
       setEditingId(null)
     },
   })
@@ -886,19 +1041,27 @@ function ListingsManagementPage() {
   const toggleMutation = useMutation({
     mutationFn: ({ listingId, isPublished }: { listingId: string; isPublished: boolean }) =>
       updateListing({ listingId, isPublished }),
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['business-listings', ownerId] }),
+    onSuccess: () =>
+      void queryClient.invalidateQueries({
+        queryKey: ['business-listings', ownerId],
+      }),
   })
 
   const duplicateMutation = useMutation({
     mutationFn: (listingId: string) => duplicateListing(listingId),
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['business-listings', ownerId] }),
+    onSuccess: () =>
+      void queryClient.invalidateQueries({
+        queryKey: ['business-listings', ownerId],
+      }),
   })
 
   const deleteListingMutation = useMutation({
     mutationFn: (listingId: string) => deleteMarketplaceListing(listingId),
     onSuccess: () => {
       setDeleteConfirmListingId(null)
-      void queryClient.invalidateQueries({ queryKey: ['business-listings', ownerId] })
+      void queryClient.invalidateQueries({
+        queryKey: ['business-listings', ownerId],
+      })
     },
   })
 
@@ -909,8 +1072,12 @@ function ListingsManagementPage() {
       for (let i = 0; i < imageFiles.length; i++) {
         await uploadListingImage(listingId, imageFiles[i], i)
       }
-      void queryClient.invalidateQueries({ queryKey: ['business-listings', ownerId] })
-      void queryClient.invalidateQueries({ queryKey: ['listing-images', listingId] })
+      void queryClient.invalidateQueries({
+        queryKey: ['business-listings', ownerId],
+      })
+      void queryClient.invalidateQueries({
+        queryKey: ['listing-images', listingId],
+      })
       setImageFiles(null)
     } finally {
       setUploadingFor(null)
@@ -921,23 +1088,61 @@ function ListingsManagementPage() {
     <div className="space-y-4">
       <AppCard className="space-y-4">
         <SectionHeading eyebrow="Business" title="Your listings" />
-        <p className="text-sm text-ink/65">Create and manage your listings. Add images to make them stand out in the marketplace.</p>
+        <p className="text-sm text-ink/65">
+          Create and manage your listings. Add images to make them stand out in the marketplace.
+        </p>
         <div className="grid gap-3 md:grid-cols-2">
-          <FieldLabel>Listing type<AppSelect value={kind} onChange={(e) => setKind(e.target.value as typeof kind)}>
-            <option value="service">Service</option>
-            <option value="product">Product</option>
-            <option value="template">Template</option>
-          </AppSelect></FieldLabel>
-          <FieldLabel>Category<AppInput value={newCategory} onChange={(e) => setNewCategory(e.target.value)} placeholder="Category" /></FieldLabel>
-          <FieldLabel>Title<AppInput value={newTitle} onChange={(e) => setNewTitle(e.target.value)} placeholder="Title" /></FieldLabel>
-          <FieldLabel>Price<AppInput value={newPriceLabel} onChange={(e) => setNewPriceLabel(e.target.value)} placeholder="Price (e.g. $120)" /></FieldLabel>
-          <FieldLabel>Project (optional)<AppSelect value={newWorkspaceProjectId} onChange={(e) => setNewWorkspaceProjectId(e.target.value)}>
-            <option value="">No workspace project</option>
-            {(projectsQuery.data ?? []).map((p) => (
-              <option key={p.id} value={p.id}>{p.title}</option>
-            ))}
-          </AppSelect></FieldLabel>
-          <FieldLabel className="md:col-span-2">Description<AppTextarea value={newSummary} onChange={(e) => setNewSummary(e.target.value)} className="min-h-24 md:col-span-2" placeholder="Summary" /></FieldLabel>
+          <FieldLabel>
+            Listing type
+            <AppSelect value={kind} onChange={(e) => setKind(e.target.value as typeof kind)}>
+              <option value="service">Service</option>
+              <option value="product">Product</option>
+              <option value="template">Template</option>
+            </AppSelect>
+          </FieldLabel>
+          <FieldLabel>
+            Category
+            <AppInput
+              value={newCategory}
+              onChange={(e) => setNewCategory(e.target.value)}
+              placeholder="Category"
+            />
+          </FieldLabel>
+          <FieldLabel>
+            Title
+            <AppInput value={newTitle} onChange={(e) => setNewTitle(e.target.value)} placeholder="Title" />
+          </FieldLabel>
+          <FieldLabel>
+            Price
+            <AppInput
+              value={newPriceLabel}
+              onChange={(e) => setNewPriceLabel(e.target.value)}
+              placeholder="Price (e.g. $120)"
+            />
+          </FieldLabel>
+          <FieldLabel>
+            Project (optional)
+            <AppSelect
+              value={newWorkspaceProjectId}
+              onChange={(e) => setNewWorkspaceProjectId(e.target.value)}
+            >
+              <option value="">No workspace project</option>
+              {(projectsQuery.data ?? []).map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.title}
+                </option>
+              ))}
+            </AppSelect>
+          </FieldLabel>
+          <FieldLabel className="md:col-span-2">
+            Description
+            <AppTextarea
+              value={newSummary}
+              onChange={(e) => setNewSummary(e.target.value)}
+              className="min-h-24 md:col-span-2"
+              placeholder="Summary"
+            />
+          </FieldLabel>
           {kind === 'template' ? (
             <AppTextarea
               value={newTemplatePayload}
@@ -947,7 +1152,10 @@ function ListingsManagementPage() {
             />
           ) : null}
           <div className="md:col-span-2">
-            <AppButton onClick={() => createMutation.mutate()} disabled={!ownerId || createMutation.isPending || !newTitle.trim()}>
+            <AppButton
+              onClick={() => createMutation.mutate()}
+              disabled={!ownerId || createMutation.isPending || !newTitle.trim()}
+            >
               Create listing
             </AppButton>
           </div>
@@ -957,15 +1165,38 @@ function ListingsManagementPage() {
       {editingId ? (
         <AppCard className="space-y-4">
           <SectionHeading eyebrow="Edit" title="Update listing" />
-          <FieldLabel>Title<AppInput value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Title" /></FieldLabel>
-          <FieldLabel>Price<AppInput value={priceLabel} onChange={(e) => setPriceLabel(e.target.value)} placeholder="Price label" /></FieldLabel>
-          <FieldLabel>Project (optional)<AppSelect value={workspaceProjectId} onChange={(e) => setWorkspaceProjectId(e.target.value)}>
-            <option value="">No workspace project</option>
-            {(projectsQuery.data ?? []).map((p) => (
-              <option key={p.id} value={p.id}>{p.title}</option>
-            ))}
-          </AppSelect></FieldLabel>
-          <FieldLabel>Description<AppTextarea value={summary} onChange={(e) => setSummary(e.target.value)} className="min-h-28" placeholder="Summary" /></FieldLabel>
+          <FieldLabel>
+            Title
+            <AppInput value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Title" />
+          </FieldLabel>
+          <FieldLabel>
+            Price
+            <AppInput
+              value={priceLabel}
+              onChange={(e) => setPriceLabel(e.target.value)}
+              placeholder="Price label"
+            />
+          </FieldLabel>
+          <FieldLabel>
+            Project (optional)
+            <AppSelect value={workspaceProjectId} onChange={(e) => setWorkspaceProjectId(e.target.value)}>
+              <option value="">No workspace project</option>
+              {(projectsQuery.data ?? []).map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.title}
+                </option>
+              ))}
+            </AppSelect>
+          </FieldLabel>
+          <FieldLabel>
+            Description
+            <AppTextarea
+              value={summary}
+              onChange={(e) => setSummary(e.target.value)}
+              className="min-h-28"
+              placeholder="Summary"
+            />
+          </FieldLabel>
           {editingKind === 'template' ? (
             <AppTextarea
               value={templatePayloadText}
@@ -975,8 +1206,12 @@ function ListingsManagementPage() {
             />
           ) : null}
           <div className="flex gap-3">
-            <AppButton onClick={() => updateMutation.mutate()} disabled={updateMutation.isPending}>Save</AppButton>
-            <AppButton variant="ghost" onClick={() => setEditingId(null)}>Cancel</AppButton>
+            <AppButton onClick={() => updateMutation.mutate()} disabled={updateMutation.isPending}>
+              Save
+            </AppButton>
+            <AppButton variant="ghost" onClick={() => setEditingId(null)}>
+              Cancel
+            </AppButton>
           </div>
         </AppCard>
       ) : null}
@@ -987,7 +1222,9 @@ function ListingsManagementPage() {
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <p className="text-base font-semibold text-ink">{listing.title}</p>
-                <p className="text-sm text-ink/60">{listing.kind} · {listing.category} · {listing.price_label}</p>
+                <p className="text-sm text-ink/60">
+                  {listing.kind} · {listing.category} · {listing.price_label}
+                </p>
               </div>
               <AppPill tone={listing.is_published ? 'butter' : 'default'} className="py-1">
                 {listing.is_published ? 'Active' : 'Draft'}
@@ -1012,7 +1249,8 @@ function ListingsManagementPage() {
                   className="text-xs"
                   onClick={() => void handleUploadImages(listing.id)}
                 >
-                  Upload {imageFiles.length} image{imageFiles.length !== 1 ? 's' : ''}
+                  Upload {imageFiles.length} image
+                  {imageFiles.length !== 1 ? 's' : ''}
                 </AppButton>
               ) : null}
               {uploadingFor === listing.id ? <span className="text-xs text-ink/50">Uploading…</span> : null}
@@ -1028,28 +1266,48 @@ function ListingsManagementPage() {
                   setSummary(listing.summary)
                   setPriceLabel(listing.price_label)
                   setWorkspaceProjectId(listing.workspace_project_id ?? '')
-                  setTemplatePayloadText(JSON.stringify(listing.template_payload ?? defaultTemplatePayload, null, 2))
+                  setTemplatePayloadText(
+                    JSON.stringify(listing.template_payload ?? defaultTemplatePayload, null, 2),
+                  )
                 }}
               >
                 Edit
               </AppButton>
-              <AppButton variant="ghost" onClick={() => toggleMutation.mutate({ listingId: listing.id, isPublished: !listing.is_published })}>
+              <AppButton
+                variant="ghost"
+                onClick={() =>
+                  toggleMutation.mutate({
+                    listingId: listing.id,
+                    isPublished: !listing.is_published,
+                  })
+                }
+              >
                 {listing.is_published ? 'Pause' : 'Publish'}
               </AppButton>
-              <AppButton variant="secondary" onClick={() => duplicateMutation.mutate(listing.id)}>Duplicate</AppButton>
+              <AppButton variant="secondary" onClick={() => duplicateMutation.mutate(listing.id)}>
+                Duplicate
+              </AppButton>
               <Link to="/app/marketplace/listings/$listingId" params={{ listingId: listing.id }}>
                 <AppButton variant="ghost">View</AppButton>
               </Link>
               {deleteConfirmListingId === listing.id ? (
                 <>
                   <span className="self-center text-xs font-bold text-berry">Delete listing?</span>
-                  <AppButton variant="secondary" onClick={() => deleteListingMutation.mutate(listing.id)} disabled={deleteListingMutation.isPending}>
+                  <AppButton
+                    variant="secondary"
+                    onClick={() => deleteListingMutation.mutate(listing.id)}
+                    disabled={deleteListingMutation.isPending}
+                  >
                     Yes, delete
                   </AppButton>
-                  <AppButton variant="ghost" onClick={() => setDeleteConfirmListingId(null)}>Cancel</AppButton>
+                  <AppButton variant="ghost" onClick={() => setDeleteConfirmListingId(null)}>
+                    Cancel
+                  </AppButton>
                 </>
               ) : (
-                <AppButton variant="ghost" onClick={() => setDeleteConfirmListingId(listing.id)}>Delete</AppButton>
+                <AppButton variant="ghost" onClick={() => setDeleteConfirmListingId(listing.id)}>
+                  Delete
+                </AppButton>
               )}
             </div>
           </AppCard>
@@ -1097,7 +1355,12 @@ export const legacyListingsManagementRoute = createRoute({
 const defaultTemplatePayload: TemplatePayload = {
   milestones: [
     { title: 'Kickoff', offsetDays: 0, durationDays: 1, lane: 'Planning' },
-    { title: 'Execution window', offsetDays: 1, durationDays: 3, lane: 'Delivery' },
+    {
+      title: 'Execution window',
+      offsetDays: 1,
+      durationDays: 3,
+      lane: 'Delivery',
+    },
   ],
   tasks: [
     { title: 'Confirm scope', offsetDays: 0 },

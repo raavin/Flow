@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { expect, it, vi } from 'vitest'
 const db = vi.hoisted(() => ({ update: vi.fn(), eq: vi.fn(), from: vi.fn() }))
 vi.mock('./supabase', () => ({ supabase: { from: db.from } }))
 import { linkPostToProject } from './social'

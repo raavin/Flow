@@ -1,7 +1,11 @@
-import { useEffect, useRef, useState } from 'react'
-import { createRoute, useNavigate } from '@tanstack/react-router'
+import { AppDialog } from '@/components/app-dialog'
+import { TaskList } from '@/components/task-list'
+import { SourceLinks } from '@/components/source-action'
+import { QueryFeedback, MutationFeedback } from '@/components/request-feedback'
+import { supabase } from '@/lib/supabase'
+import { useEffect, useState } from 'react'
+import { Link, createRoute, useNavigate } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Pencil } from 'lucide-react'
 import { AppButton, AppCard, AppInput, AppPanel, AppSelect, AppTextarea, SectionHeading } from '@superapp/ui'
 import { appRoute } from '@/components/layout'
 import { ProjectShell } from '@/components/project-shell'
@@ -12,243 +16,226 @@ import { MessagesFeedPage } from '@/pages/messages'
 import {
   createProject,
   createProjectNote,
-  deleteProject,
   fetchProjectNotes,
   fetchProjects,
-  updateProject,
+  fetchProjectDetail,
   updateProjectNote,
   deleteProjectNote,
 } from '@/lib/projects'
 import { fetchPeopleDirectory } from '@/lib/social'
 import { fetchListingsByProject, updateListingPublished } from '@/lib/marketplace'
-import { fetchParticipants, inviteParticipant, removeParticipant, updateParticipant } from '@/lib/participants'
+import { fetchParticipants, inviteParticipant, removeParticipant } from '@/lib/participants'
 
 function ProjectsPage() {
   const { session } = useAppStore()
   const navigate = useNavigate()
-  const queryClient = useQueryClient()
-  const projectsQuery = useQuery({ queryKey: ['projects'], queryFn: fetchProjects })
+  const client = useQueryClient()
+  const [adding, setAdding] = useState(false)
   const [title, setTitle] = useState('')
-  const [lastProject, setLastProject] = useState<{ projectId: string; activeTab: string } | null>(null)
-  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
-  const [editingProjectId, setEditingProjectId] = useState<string | null>(null)
-  const [editingProjectField, setEditingProjectField] = useState<'title' | 'category' | null>(null)
-  const [editProjectValue, setEditProjectValue] = useState('')
-  const projectEditRef = useRef<HTMLInputElement>(null)
-
-  const updateProjectMutation = useMutation({
-    mutationFn: ({ projectId, input }: { projectId: string; input: Parameters<typeof updateProject>[1] }) =>
-      updateProject(projectId, input),
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['projects'] }),
-  })
-
-  const statusMutation = useMutation({
-    mutationFn: ({ projectId, status }: { projectId: string; status: NonNullable<Parameters<typeof updateProject>[1]['status']> }) =>
-      updateProject(projectId, { status }),
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['projects'] }),
-  })
-
-  function beginProjectEdit(projectId: string, field: 'title' | 'category', currentValue: string) {
-    setEditingProjectId(projectId)
-    setEditingProjectField(field)
-    setEditProjectValue(currentValue)
-    setTimeout(() => projectEditRef.current?.select(), 0)
-  }
-
-  function commitProjectEdit(projectId: string) {
-    if (!editProjectValue.trim()) { cancelProjectEdit(); return }
-    const input = editingProjectField === 'title'
-      ? { title: editProjectValue }
-      : { category: editProjectValue }
-    updateProjectMutation.mutate({ projectId, input })
-    cancelProjectEdit()
-  }
-
-  function cancelProjectEdit() {
-    setEditingProjectId(null)
-    setEditingProjectField(null)
-    setEditProjectValue('')
-  }
-
-  const deleteMutation = useMutation({
-    mutationFn: (projectId: string) => deleteProject(projectId),
-    onSuccess: () => {
-      setDeleteConfirmId(null)
-      void queryClient.invalidateQueries({ queryKey: ['projects'] })
+  const [search, setSearch] = useState('')
+  const [filter, setFilter] = useState('open')
+  const projects = useQuery({ queryKey: ['projects'], queryFn: fetchProjects })
+  const invites = useQuery({
+    queryKey: ['project-invitations'],
+    queryFn: async () => {
+      if (!supabase) return []
+      const { data, error } = await supabase.rpc('project_invitations')
+      if (error) throw error
+      return (data ?? []) as {
+        id: string
+        project_id: string
+        title: string
+        role: string
+      }[]
     },
   })
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return
-    const raw = window.localStorage.getItem('flow:last-project')
-    if (!raw) return
-    try {
-      const parsed = JSON.parse(raw) as { projectId?: string; activeTab?: string }
-      if (parsed.projectId && parsed.activeTab) {
-        setLastProject({ projectId: parsed.projectId, activeTab: parsed.activeTab })
-      }
-    } catch {
-      setLastProject(null)
-    }
-  }, [])
-  const createMutation = useMutation({
+  const respond = useMutation({
+    mutationFn: async ({ id, accept }: { id: string; accept: boolean }) => {
+      const { error } = await supabase!.rpc('respond_project_invitation', {
+        p_id: id,
+        p_accept: accept,
+      })
+      if (error) throw error
+    },
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: ['project-invitations'] })
+      void client.invalidateQueries({ queryKey: ['projects'] })
+    },
+  })
+  const create = useMutation({
     mutationFn: () =>
       createProject({
         ownerId: session!.user.id,
-        title,
+        title: title.trim(),
         category: '',
         targetDate: '',
       }),
     onSuccess: (project) => {
-      void queryClient.invalidateQueries({ queryKey: ['projects'] })
-      setTitle('')
-      void navigate({ to: '/app/projects/$projectId/conversation', params: { projectId: project.id } })
+      void client.invalidateQueries({ queryKey: ['projects'] })
+      void navigate({
+        to: '/app/projects/$projectId/conversation',
+        params: { projectId: project.id },
+      })
     },
   })
-
+  const rows = (projects.data ?? []).filter(
+    (p) =>
+      p.title.toLowerCase().includes(search.toLowerCase()) &&
+      (filter === 'all' || (filter === 'completed' ? p.status === 'completed' : p.status !== 'completed')),
+  )
   return (
-    <div className="grid gap-4 xl:grid-cols-[0.8fr_1.2fr]">
+    <div className="space-y-4">
       <AppCard className="space-y-4">
-        <SectionHeading eyebrow="Create" title="Start a project" />
-        <AppInput value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Move house, birthday prep, leave request..." />
-        <p className="text-sm text-ink/65">
-          Give your project a name. Add people, dates and costs when you need them.
-        </p>
-        <div className="flex flex-wrap gap-2">
-          <AppButton disabled={!session || createMutation.isPending || !title.trim()} onClick={() => createMutation.mutate()}>
-            {createMutation.isPending ? 'Creating...' : 'Create project'}
-          </AppButton>
-          {lastProject ? (
-            <AppButton
-              variant="ghost"
-              onClick={() => {
-                const tabRoute =
-                  lastProject.activeTab === 'calendar'
-                    ? '/app/projects/$projectId/calendar'
-                    : lastProject.activeTab === 'timeline'
-                      ? '/app/projects/$projectId/timeline'
-                      : lastProject.activeTab === 'store'
-                        ? '/app/projects/$projectId/store'
-                        : lastProject.activeTab === 'people'
-                          ? '/app/projects/$projectId/people'
-                          : '/app/projects/$projectId/conversation'
-                void navigate({
-                  to: tabRoute,
-                  params: { projectId: lastProject.projectId },
-                })
-              }}
-            >
-              Continue last project
-            </AppButton>
-          ) : null}
-        </div>
-      </AppCard>
-
-      <AppCard className="space-y-4">
-        <SectionHeading eyebrow="Projects" title="Your projects" />
-        <div className="grid gap-3">
-          {(projectsQuery.data ?? []).map((project) => (
-            <div key={project.id} className="ui-panel">
-              {deleteConfirmId === project.id ? (
-                <div className="flex flex-wrap items-center gap-3">
-                  <p className="min-w-0 flex-1 text-sm font-bold text-ink">Delete &ldquo;{project.title}&rdquo;?</p>
-                  <AppButton
-                    variant="secondary"
-                    disabled={deleteMutation.isPending}
-                    onClick={() => deleteMutation.mutate(project.id)}
-                  >
-                    {deleteMutation.isPending ? 'Deleting…' : 'Yes, delete'}
-                  </AppButton>
-                  <AppButton variant="ghost" onClick={() => setDeleteConfirmId(null)}>
-                    Cancel
-                  </AppButton>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0 flex-1">
-                      {/* Title */}
-                      {editingProjectId === project.id && editingProjectField === 'title' ? (
-                        <input
-                          ref={projectEditRef}
-                          value={editProjectValue}
-                          onChange={(e) => setEditProjectValue(e.target.value)}
-                          onBlur={() => commitProjectEdit(project.id)}
-                          onKeyDown={(e) => { if (e.key === 'Enter') commitProjectEdit(project.id); if (e.key === 'Escape') cancelProjectEdit() }}
-                          className="w-full bg-transparent text-lg font-extrabold text-ink outline-none border-b-2 border-ink/40 focus:border-ink"
-                        />
-                      ) : (
-                        <p
-                          className="text-lg font-extrabold text-ink cursor-text group/title flex items-center gap-1.5"
-                          onDoubleClick={() => beginProjectEdit(project.id, 'title', project.title)}
-                          title="Double-click to rename"
-                        >
-                          <button
-                            type="button"
-                            className="truncate text-left hover:text-teal transition-colors"
-                            onClick={() => void navigate({ to: '/app/projects/$projectId/conversation', params: { projectId: project.id } })}
-                          >
-                            {project.title}
-                          </button>
-                          <Pencil className="h-3 w-3 shrink-0 text-ink/30 opacity-0 group-hover/title:opacity-100 transition-opacity" />
-                        </p>
-                      )}
-                      {/* Category */}
-                      {editingProjectId === project.id && editingProjectField === 'category' ? (
-                        <input
-                          ref={editingProjectField === 'category' ? projectEditRef : undefined}
-                          value={editProjectValue}
-                          onChange={(e) => setEditProjectValue(e.target.value)}
-                          onBlur={() => commitProjectEdit(project.id)}
-                          onKeyDown={(e) => { if (e.key === 'Enter') commitProjectEdit(project.id); if (e.key === 'Escape') cancelProjectEdit() }}
-                          className="bg-transparent text-sm text-ink outline-none border-b border-ink/30 focus:border-ink"
-                        />
-                      ) : (
-                        <p
-                          className="mt-0.5 text-sm text-ink/65 cursor-text group/cat flex items-center gap-1"
-                          onDoubleClick={() => beginProjectEdit(project.id, 'category', project.category || 'General')}
-                          title="Double-click to edit category"
-                        >
-                          <span>{project.category || 'General'}</span>
-                          <Pencil className="h-2.5 w-2.5 shrink-0 text-ink/30 opacity-0 group-hover/cat:opacity-100 transition-opacity" />
-                        </p>
-                      )}
-                    </div>
-                    <div className="flex shrink-0 items-center gap-2">
-                      <span className="ui-pill ui-pill--butter py-1">{project.targetDate ?? 'Someday'}</span>
-                      <AppButton variant="ghost" className="text-xs" onClick={() => setDeleteConfirmId(project.id)}>
-                        Delete
-                      </AppButton>
-                    </div>
-                  </div>
-                  {/* Status pills */}
-                  <div className="flex flex-wrap gap-1.5">
-                    {(['active', 'upcoming', 'completed'] as const).map((s) => (
-                      <button
-                        key={s}
-                        type="button"
-                        onClick={() => statusMutation.mutate({ projectId: project.id, status: s })}
-                        className={`rounded-full px-2.5 py-1 text-[11px] font-bold transition-colors ${project.status === s ? 'bg-ink text-white' : 'bg-ink/8 text-ink/55 hover:bg-ink/15'}`}
-                      >
-                        {s}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
+        <SectionHeading
+          title="Projects"
+          action={
+            <div className="flex flex-wrap gap-2">
+              <Link
+                to="/app/coordination"
+                className="inline-flex min-h-11 items-center px-3 text-sm underline"
+              >
+                My tasks
+              </Link>
+              <Link to="/app/ai" className="inline-flex min-h-11 items-center px-3 text-sm underline">
+                Templates
+              </Link>
+              <AppButton onClick={() => setAdding(true)}>New project</AppButton>
             </div>
-          ))}
-          {!projectsQuery.data?.length ? <p className="text-sm text-ink/60">No projects yet. Create one to start a discussion.</p> : null}
+          }
+        />
+        {invites.data?.map((i) => (
+          <div key={i.id} className="ui-panel flex flex-wrap items-center justify-between gap-3">
+            <p>
+              Invitation to <strong>{i.title}</strong>
+            </p>
+            <div className="flex gap-2">
+              <AppButton
+                disabled={respond.isPending}
+                onClick={() => respond.mutate({ id: i.id, accept: true })}
+              >
+                Accept
+              </AppButton>
+              <AppButton
+                disabled={respond.isPending}
+                variant="ghost"
+                onClick={() => respond.mutate({ id: i.id, accept: false })}
+              >
+                Decline
+              </AppButton>
+            </div>
+          </div>
+        ))}
+        <MutationFeedback mutation={respond} />
+        <div className="flex flex-wrap gap-3">
+          <AppInput
+            aria-label="Search projects"
+            placeholder="Search projects"
+            className="min-w-0 flex-1"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+          <AppSelect
+            aria-label="Project status"
+            className="w-auto"
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+          >
+            <option value="open">Open</option>
+            <option value="completed">Completed</option>
+            <option value="all">All</option>
+          </AppSelect>
         </div>
+        <QueryFeedback query={projects} />
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-sm">
+            <thead className="border-b border-border text-ink/60">
+              <tr>
+                <th className="py-3 pr-3">Project</th>
+                <th className="py-3 pr-3">Target date</th>
+                <th className="py-3">Status</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {rows.map((p) => (
+                <tr key={p.id}>
+                  <td className="py-4 pr-3">
+                    <Link
+                      className="font-semibold hover:underline"
+                      to="/app/projects/$projectId"
+                      params={{ projectId: p.id }}
+                    >
+                      {p.title}
+                    </Link>
+                    <p className="mt-1 text-xs text-ink/60">{p.category}</p>
+                  </td>
+                  <td className="py-4 pr-3">
+                    {p.targetDate
+                      ? new Date(`${p.targetDate}T12:00:00`).toLocaleDateString(undefined, {
+                          day: 'numeric',
+                          month: 'short',
+                          year: 'numeric',
+                        })
+                      : 'Not set'}
+                  </td>
+                  <td className="py-4 capitalize">{p.status}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {!projects.isPending && !projects.isError && !rows.length && (
+          <p className="py-4 text-sm text-ink/65">
+            {search ? 'No matching projects.' : 'No projects here yet. Create one or use a template.'}
+          </p>
+        )}
       </AppCard>
+      {adding && (
+        <AppDialog title="New project" onClose={() => setAdding(false)}>
+          <form
+            className="space-y-4"
+            onSubmit={(e) => {
+              e.preventDefault()
+              create.mutate()
+            }}
+          >
+            <label className="grid gap-1">
+              Project name
+              <AppInput required autoFocus value={title} onChange={(e) => setTitle(e.target.value)} />
+            </label>
+            <MutationFeedback mutation={create} />
+            <div className="flex justify-end gap-2">
+              <AppButton variant="ghost" type="button" onClick={() => setAdding(false)}>
+                Cancel
+              </AppButton>
+              <AppButton type="submit" disabled={create.isPending || !title.trim()}>
+                Create project
+              </AppButton>
+            </div>
+          </form>
+        </AppDialog>
+      )}
     </div>
   )
 }
+function ProjectTasksPage() {
+  const { projectId } = projectTasksRoute.useParams()
+  return (
+    <ProjectShell projectId={projectId} activeTab="tasks">
+      <TaskList projectId={projectId} />
+    </ProjectShell>
+  )
+}
+export const projectTasksRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: 'projects/$projectId/tasks',
+  component: ProjectTasksPage,
+})
 
 function ProjectConversationPage() {
   const { projectId } = projectConversationRoute.useParams()
   return (
     <ProjectShell projectId={projectId} activeTab="conversation">
+      <SourceLinks projectId={projectId} />
       <MessagesFeedPage linkedProjectId={projectId} />
     </ProjectShell>
   )
@@ -276,12 +263,18 @@ function ProjectNotesPage() {
   const { projectId } = projectNotesRoute.useParams()
   const { session } = useAppStore()
   const queryClient = useQueryClient()
+  const project = useQuery({
+    queryKey: ['project-detail', projectId],
+    queryFn: () => fetchProjectDetail(projectId),
+  })
+  const isOwner = !!session && project.data?.ownerId === session.user.id
   const notesQuery = useQuery({
     queryKey: ['project-notes', projectId],
     queryFn: () => fetchProjectNotes(projectId),
   })
   const [title, setTitle] = useState('')
   const [body, setBody] = useState('')
+  const [editorOpen, setEditorOpen] = useState(false)
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null)
   const [deleteConfirmNoteId, setDeleteConfirmNoteId] = useState<string | null>(null)
 
@@ -296,11 +289,16 @@ function ProjectNotesPage() {
             body,
           }),
     onSuccess: () => {
+      setEditorOpen(false)
       setTitle('')
       setBody('')
       setEditingNoteId(null)
-      void queryClient.invalidateQueries({ queryKey: ['project-notes', projectId] })
-      void queryClient.invalidateQueries({ queryKey: ['project-activity', projectId] })
+      void queryClient.invalidateQueries({
+        queryKey: ['project-notes', projectId],
+      })
+      void queryClient.invalidateQueries({
+        queryKey: ['project-activity', projectId],
+      })
     },
   })
 
@@ -313,43 +311,86 @@ function ProjectNotesPage() {
         setTitle('')
         setBody('')
       }
-      void queryClient.invalidateQueries({ queryKey: ['project-notes', projectId] })
+      void queryClient.invalidateQueries({
+        queryKey: ['project-notes', projectId],
+      })
     },
   })
 
   return (
     <ProjectShell projectId={projectId} activeTab="notes">
-      <div className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
+      <div className="space-y-4">
+        {isOwner && (editorOpen || editingNoteId) && (
+          <AppDialog
+            title={editingNoteId ? 'Edit note' : 'New note'}
+            onClose={() => {
+              setEditorOpen(false)
+              setEditingNoteId(null)
+            }}
+          >
+            <AppCard className="space-y-4">
+              <AppInput
+                aria-label="Note title"
+                value={title}
+                onChange={(event) => setTitle(event.target.value)}
+                placeholder="Title"
+              />
+              <AppTextarea
+                aria-label="Note text"
+                value={body}
+                onChange={(event) => setBody(event.target.value)}
+                className="min-h-48"
+                placeholder="Note"
+              />
+              <div className="flex gap-2">
+                <AppButton
+                  disabled={!session || saveMutation.isPending || !body.trim()}
+                  onClick={() => saveMutation.mutate()}
+                >
+                  {editingNoteId ? 'Save changes' : 'Add note'}
+                </AppButton>
+                {editingNoteId || title || body ? (
+                  <AppButton
+                    variant="ghost"
+                    onClick={() => {
+                      setEditingNoteId(null)
+                      setTitle('')
+                      setBody('')
+                    }}
+                  >
+                    Reset
+                  </AppButton>
+                ) : null}
+              </div>
+            </AppCard>
+          </AppDialog>
+        )}
         <AppCard className="space-y-4">
-          <SectionHeading eyebrow={editingNoteId ? 'Edit note' : 'Add note'} title={editingNoteId ? 'Edit note' : 'New note'} />
-          <AppInput value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Title" />
-          <AppTextarea value={body} onChange={(event) => setBody(event.target.value)} className="min-h-48" placeholder="Write what matters for this project..." />
-          <div className="flex gap-2">
-            <AppButton disabled={!session || saveMutation.isPending || !body.trim()} onClick={() => saveMutation.mutate()}>
-              {editingNoteId ? 'Save changes' : 'Add note'}
-            </AppButton>
-            {(editingNoteId || title || body) ? (
-              <AppButton
-                variant="ghost"
-                onClick={() => {
-                  setEditingNoteId(null)
-                  setTitle('')
-                  setBody('')
-                }}
-              >
-                Reset
-              </AppButton>
-            ) : null}
-          </div>
-        </AppCard>
-
-        <AppCard className="space-y-4">
-          <SectionHeading eyebrow="Notes" title="Notes" />
+          <SectionHeading
+            title="Notes"
+            action={
+              isOwner && (
+                <AppButton
+                  onClick={() => {
+                    setTitle('')
+                    setBody('')
+                    setEditorOpen(true)
+                  }}
+                >
+                  Add note
+                </AppButton>
+              )
+            }
+          />
+          <QueryFeedback query={notesQuery} />
+          <MutationFeedback mutation={saveMutation} />
+          <MutationFeedback mutation={deleteNoteMutation} />
           <div className="grid gap-3">
             {(notesQuery.data ?? []).map((note) => (
               <div key={note.id} className="ui-panel">
                 <button
                   type="button"
+                  disabled={!isOwner}
                   className="w-full text-left transition hover:-translate-y-0.5"
                   onClick={() => {
                     setEditingNoteId(note.id)
@@ -358,25 +399,41 @@ function ProjectNotesPage() {
                   }}
                 >
                   <p className="font-extrabold text-ink">{note.title}</p>
-                  <p className="mt-2 line-clamp-4 whitespace-pre-wrap text-sm text-ink/70">{note.body}</p>
-                  <p className="mt-2 text-xs font-bold text-ink/45">Updated {note.updated_at.slice(0, 16).replace('T', ' ')}</p>
+                  <p className="mt-2 whitespace-pre-wrap text-sm text-ink/70">{note.body}</p>
+                  <p className="mt-2 text-xs font-bold text-ink/45">
+                    Updated {note.updated_at.slice(0, 16).replace('T', ' ')}
+                  </p>
                 </button>
-                <div className="mt-3 flex gap-2">
-                  {deleteConfirmNoteId === note.id ? (
-                    <>
-                      <span className="text-xs font-bold text-berry self-center">Delete this note?</span>
-                      <AppButton variant="secondary" onClick={() => deleteNoteMutation.mutate(note.id)} disabled={deleteNoteMutation.isPending}>
-                        Yes, delete
+                {isOwner && (
+                  <div className="mt-3 flex gap-2">
+                    {deleteConfirmNoteId === note.id ? (
+                      <>
+                        <span className="text-xs font-bold text-berry self-center">Delete this note?</span>
+                        <AppButton
+                          variant="secondary"
+                          onClick={() => deleteNoteMutation.mutate(note.id)}
+                          disabled={deleteNoteMutation.isPending}
+                        >
+                          Yes, delete
+                        </AppButton>
+                        <AppButton variant="ghost" onClick={() => setDeleteConfirmNoteId(null)}>
+                          Cancel
+                        </AppButton>
+                      </>
+                    ) : (
+                      <AppButton variant="ghost" onClick={() => setDeleteConfirmNoteId(note.id)}>
+                        Delete
                       </AppButton>
-                      <AppButton variant="ghost" onClick={() => setDeleteConfirmNoteId(null)}>Cancel</AppButton>
-                    </>
-                  ) : (
-                    <AppButton variant="ghost" onClick={() => setDeleteConfirmNoteId(note.id)}>Delete</AppButton>
-                  )}
-                </div>
+                    )}
+                  </div>
+                )}
               </div>
             ))}
-            {!notesQuery.data?.length ? <AppPanel className="text-sm text-ink/60">No notes yet. Capture decisions, reminders, or background here.</AppPanel> : null}
+            {!notesQuery.data?.length ? (
+              <AppPanel className="text-sm text-ink/60">
+                No notes yet. Capture decisions, reminders, or background here.
+              </AppPanel>
+            ) : null}
           </div>
         </AppCard>
       </div>
@@ -384,10 +441,15 @@ function ProjectNotesPage() {
   )
 }
 
-function ProjectPeoplePage() {
+export function ProjectPeoplePage() {
   const { projectId } = projectPeopleRoute.useParams()
   const { session } = useAppStore()
   const queryClient = useQueryClient()
+  const project = useQuery({
+    queryKey: ['project-detail', projectId],
+    queryFn: () => fetchProjectDetail(projectId),
+  })
+  const isOwner = !!session && project.data?.ownerId === session.user.id
   const [participantQuery, setParticipantQuery] = useState('@')
   const participantsQuery = useQuery({
     queryKey: ['participants', projectId],
@@ -402,7 +464,9 @@ function ProjectPeoplePage() {
   const filteredPeople = (peopleQuery.data ?? []).filter((person) => {
     const query = participantQuery.replace(/^@/, '').trim().toLowerCase()
     if (!query) return true
-    return person.handle.toLowerCase().includes(query) || (person.display_name || '').toLowerCase().includes(query)
+    return (
+      person.handle.toLowerCase().includes(query) || (person.display_name || '').toLowerCase().includes(query)
+    )
   })
 
   const addMutation = useMutation({
@@ -418,61 +482,72 @@ function ProjectPeoplePage() {
       }),
     onSuccess: () => {
       setParticipantQuery('@')
-      void queryClient.invalidateQueries({ queryKey: ['participants', projectId] })
-      void queryClient.invalidateQueries({ queryKey: ['project-activity', projectId] })
+      void queryClient.invalidateQueries({
+        queryKey: ['participants', projectId],
+      })
+      void queryClient.invalidateQueries({
+        queryKey: ['project-activity', projectId],
+      })
     },
   })
 
   const removeMutation = useMutation({
     mutationFn: (participantId: string) => removeParticipant(participantId),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['participants', projectId] })
-    },
-  })
-
-  const activateMutation = useMutation({
-    mutationFn: (participantId: string) => updateParticipant({ participantId, status: 'active' }),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['participants', projectId] })
+      void queryClient.invalidateQueries({
+        queryKey: ['participants', projectId],
+      })
     },
   })
 
   return (
     <ProjectShell projectId={projectId} activeTab="people">
       <div className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
-        <AppCard className="space-y-4">
-          <SectionHeading eyebrow="Add people" title="Add people" />
-          <AppInput
-            value={participantQuery}
-            onChange={(event) => setParticipantQuery(event.target.value.startsWith('@') ? event.target.value : `@${event.target.value}`)}
-            placeholder="@name"
-          />
-          <div className="grid gap-2">
-            {filteredPeople.slice(0, 6).map((person) => (
-              <button
-                key={person.id}
-                type="button"
-                className="ui-panel flex items-center justify-between gap-3 text-left transition hover:-translate-y-0.5"
-                onClick={() =>
-                  addMutation.mutate({
-                    name: person.display_name || person.handle,
-                    handle: person.handle,
-                  })
-                }
-              >
-                <div className="min-w-0">
-                  <p className="truncate font-bold text-ink">{person.display_name || person.handle}</p>
-                  <p className="truncate text-sm text-ink/55">@{person.handle}</p>
-                </div>
-                <span className="ui-pill ui-pill--butter">Add</span>
-              </button>
-            ))}
-            {!filteredPeople.length ? <AppPanel className="text-sm text-ink/60">No matching people yet.</AppPanel> : null}
-          </div>
-        </AppCard>
+        {isOwner && (
+          <AppCard className="space-y-4">
+            <SectionHeading title="Invite people" />
+            <MutationFeedback mutation={addMutation} />
+            <QueryFeedback query={peopleQuery} />
+            <AppInput
+              value={participantQuery}
+              onChange={(event) =>
+                setParticipantQuery(
+                  event.target.value.startsWith('@') ? event.target.value : `@${event.target.value}`,
+                )
+              }
+              placeholder="@name"
+            />
+            <div className="grid gap-2">
+              {filteredPeople.slice(0, 6).map((person) => (
+                <button
+                  key={person.id}
+                  type="button"
+                  className="ui-panel flex items-center justify-between gap-3 text-left transition hover:-translate-y-0.5"
+                  onClick={() =>
+                    addMutation.mutate({
+                      name: person.display_name || person.handle,
+                      handle: person.handle,
+                    })
+                  }
+                >
+                  <div className="min-w-0">
+                    <p className="truncate font-bold text-ink">{person.display_name || person.handle}</p>
+                    <p className="truncate text-sm text-ink/55">@{person.handle}</p>
+                  </div>
+                  <span className="ui-pill ui-pill--butter">Invite</span>
+                </button>
+              ))}
+              {!filteredPeople.length ? (
+                <AppPanel className="text-sm text-ink/60">No matching people yet.</AppPanel>
+              ) : null}
+            </div>
+          </AppCard>
+        )}
 
         <AppCard className="space-y-4">
-          <SectionHeading eyebrow="People" title="People" />
+          <SectionHeading title="People" />
+          <QueryFeedback query={participantsQuery} />
+          <MutationFeedback mutation={removeMutation} />
           <div className="grid gap-3">
             {(participantsQuery.data ?? []).map((participant) => (
               <AppPanel key={participant.id}>
@@ -482,22 +557,26 @@ function ProjectPeoplePage() {
                     <p className="text-sm text-ink/65">
                       {participant.role} · {participant.status}
                     </p>
-                    {participant.contact_hint ? <p className="text-xs font-bold text-berry">{participant.contact_hint}</p> : null}
+                    {participant.contact_hint ? (
+                      <p className="text-xs font-bold text-berry">{participant.contact_hint}</p>
+                    ) : null}
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    {participant.status !== 'active' ? (
-                      <AppButton variant="ghost" onClick={() => activateMutation.mutate(participant.id)}>
-                        Activate
-                      </AppButton>
+                    {participant.status === 'invited' ? (
+                      <span className="text-sm text-ink/60">Awaiting response</span>
                     ) : null}
-                    <AppButton variant="secondary" onClick={() => removeMutation.mutate(participant.id)}>
-                      Remove
-                    </AppButton>
+                    {isOwner && (
+                      <AppButton variant="secondary" onClick={() => removeMutation.mutate(participant.id)}>
+                        Remove
+                      </AppButton>
+                    )}
                   </div>
                 </div>
               </AppPanel>
             ))}
-            {!participantsQuery.data?.length ? <AppPanel className="text-sm text-ink/60">No one added yet.</AppPanel> : null}
+            {!participantsQuery.data?.length ? (
+              <AppPanel className="text-sm text-ink/60">No one added yet.</AppPanel>
+            ) : null}
           </div>
         </AppCard>
       </div>
@@ -510,7 +589,11 @@ function ProjectEntryPage() {
   const navigate = useNavigate()
 
   useEffect(() => {
-    void navigate({ to: '/app/projects/$projectId/conversation', params: { projectId }, replace: true })
+    void navigate({
+      to: '/app/projects/$projectId/conversation',
+      params: { projectId },
+      replace: true,
+    })
   }, [navigate, projectId])
 
   return <AppCard>Opening project...</AppCard>
@@ -563,7 +646,10 @@ function ProjectStorePage() {
   const togglePublishedMutation = useMutation({
     mutationFn: ({ listingId, isPublished }: { listingId: string; isPublished: boolean }) =>
       updateListingPublished(listingId, isPublished),
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['project-listings', projectId] }),
+    onSuccess: () =>
+      void queryClient.invalidateQueries({
+        queryKey: ['project-listings', projectId],
+      }),
   })
 
   const listings = listingsQuery.data ?? []
@@ -574,7 +660,8 @@ function ProjectStorePage() {
         <SectionHeading eyebrow="Store" title="Project listings" />
         {listings.length === 0 ? (
           <AppPanel className="text-sm text-ink/60">
-            No listings linked to this project yet. Create a listing and set this as the workspace project to see it here.
+            No listings linked to this project yet. Create a listing and set this as the workspace project to
+            see it here.
           </AppPanel>
         ) : (
           <div className="grid gap-3">
@@ -582,7 +669,9 @@ function ProjectStorePage() {
               <AppPanel key={listing.id} className="flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
                   <p className="font-extrabold text-ink">{listing.title}</p>
-                  <p className="text-sm text-ink/65">{listing.kind} · {listing.category} · {listing.price_label}</p>
+                  <p className="text-sm text-ink/65">
+                    {listing.kind} · {listing.category} · {listing.price_label}
+                  </p>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                   <span className={`text-xs font-bold ${listing.is_published ? 'text-teal' : 'text-ink/45'}`}>
@@ -590,7 +679,12 @@ function ProjectStorePage() {
                   </span>
                   <AppButton
                     variant={listing.is_published ? 'ghost' : 'secondary'}
-                    onClick={() => togglePublishedMutation.mutate({ listingId: listing.id, isPublished: !listing.is_published })}
+                    onClick={() =>
+                      togglePublishedMutation.mutate({
+                        listingId: listing.id,
+                        isPublished: !listing.is_published,
+                      })
+                    }
                     disabled={togglePublishedMutation.isPending}
                   >
                     {listing.is_published ? 'Unpublish' : 'Publish'}
