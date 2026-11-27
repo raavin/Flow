@@ -16,7 +16,17 @@ export function ProjectShell({
   children,
 }: {
   projectId: string
-  activeTab: 'tasks' | 'conversation' | 'calendar' | 'timeline' | 'store' | 'people' | 'budget' | 'notes'
+  activeTab:
+    | 'tasks'
+    | 'conversation'
+    | 'calendar'
+    | 'timeline'
+    | 'store'
+    | 'people'
+    | 'budget'
+    | 'notes'
+    | 'availability'
+    | 'updates'
   children: ReactNode
 }) {
   const { session } = useAppStore()
@@ -30,7 +40,11 @@ export function ProjectShell({
 
   useEffect(() => {
     if (typeof window === 'undefined') return
-    window.localStorage.setItem('flow:last-project', JSON.stringify({ projectId, activeTab }))
+    try {
+      window.localStorage.setItem('flow:last-project', JSON.stringify({ projectId, activeTab }))
+    } catch {
+      // Remembering the last view is optional; project pages must still open.
+    }
   }, [activeTab, projectId])
 
   const project = detailQuery.data?.project
@@ -115,13 +129,12 @@ export function ProjectShell({
     { key: 'tasks', label: 'Tasks', to: '/app/projects/$projectId/tasks' },
     {
       key: 'calendar',
-      label: 'Schedule',
+      label: 'Calendar',
       to: '/app/projects/$projectId/calendar',
     },
-    { key: 'budget', label: 'Budget', to: '/app/projects/$projectId/budget' },
-  ] as const
-  const moreTabs = [
+    { key: 'timeline', label: 'Timeline', to: '/app/projects/$projectId/timeline' },
     { key: 'notes', label: 'Notes', to: '/app/projects/$projectId/notes' },
+    { key: 'budget', label: 'Budget', to: '/app/projects/$projectId/budget' },
     { key: 'store', label: 'Listings', to: '/app/projects/$projectId/store' },
     { key: 'people', label: 'People', to: '/app/projects/$projectId/people' },
   ] as const
@@ -236,13 +249,11 @@ export function ProjectShell({
               </>
             ) : (
               <>
-                <Link
-                  to="/app/projects/$projectId/people"
-                  params={{ projectId }}
-                  className="inline-flex min-h-11 items-center px-3 text-sm underline"
-                >
-                  People
-                </Link>
+                {isOwner && (
+                  <AppButton variant="ghost" onClick={() => setDeleteConfirm(true)}>
+                    Delete
+                  </AppButton>
+                )}
                 <Link to="/app/projects">
                   <AppButton variant="ghost">All projects</AppButton>
                 </Link>
@@ -293,39 +304,35 @@ export function ProjectShell({
         <MutationFeedback mutation={updateMutation} />
         <MutationFeedback mutation={deleteMutation} />
         {/* Tabs */}
-        <div className="flex flex-wrap gap-2">
+        <nav aria-label="Project navigation" className="flex flex-wrap gap-2">
           {tabs
             .filter((tab) => tab.key !== 'budget' || isOwner)
             .map((tab) => (
-              <Link key={tab.key} to={tab.to} params={{ projectId }}>
-                <AppButton
-                  variant={
-                    activeTab === tab.key || (tab.key === 'calendar' && activeTab === 'timeline')
-                      ? 'primary'
-                      : 'ghost'
-                  }
-                >
-                  {tab.label}
-                </AppButton>
-              </Link>
-            ))}
-        </div>
-        <details className="relative">
-          <summary className="cursor-pointer min-h-11 py-3 text-sm font-semibold">More</summary>
-          <nav className="flex flex-wrap gap-3 border-t border-border pt-3">
-            {moreTabs.map((tab) => (
               <Link
                 key={tab.key}
                 to={tab.to}
                 params={{ projectId }}
-                className="inline-flex min-h-11 items-center px-3 text-sm underline"
+                aria-current={activeTab === tab.key ? 'page' : undefined}
+                className={`ui-button min-h-11 ${activeTab === tab.key ? 'ui-button--primary' : 'ui-button--ghost'}`}
               >
                 {tab.label}
               </Link>
             ))}
+        </nav>
+        {(activeTab === 'people' || activeTab === 'availability' || activeTab === 'updates') && (
+          <nav aria-label="Project coordination" className="flex flex-wrap gap-3 border-t border-border pt-3">
+            <Link
+              to="/app/projects/$projectId/people"
+              params={{ projectId }}
+              aria-current={activeTab === 'people' ? 'page' : undefined}
+              className="inline-flex min-h-11 items-center px-3 text-sm underline"
+            >
+              People
+            </Link>
             <Link
               to="/app/projects/$projectId/availability"
               params={{ projectId }}
+              aria-current={activeTab === 'availability' ? 'page' : undefined}
               className="inline-flex min-h-11 items-center px-3 text-sm underline"
             >
               Availability
@@ -333,34 +340,10 @@ export function ProjectShell({
             <Link
               to="/app/projects/$projectId/updates"
               params={{ projectId }}
+              aria-current={activeTab === 'updates' ? 'page' : undefined}
               className="inline-flex min-h-11 items-center px-3 text-sm underline"
             >
               Updates
-            </Link>
-            {isOwner && (
-              <AppButton variant="ghost" onClick={() => setDeleteConfirm(true)}>
-                Delete project
-              </AppButton>
-            )}
-          </nav>
-        </details>
-        {(activeTab === 'calendar' || activeTab === 'timeline') && (
-          <nav aria-label="Project schedule views" className="flex gap-4 border-t border-border pt-3">
-            <Link
-              to="/app/projects/$projectId/calendar"
-              params={{ projectId }}
-              aria-current={activeTab === 'calendar' ? 'page' : undefined}
-              className="min-h-11 py-2 underline"
-            >
-              Calendar
-            </Link>
-            <Link
-              to="/app/projects/$projectId/timeline"
-              params={{ projectId }}
-              aria-current={activeTab === 'timeline' ? 'page' : undefined}
-              className="min-h-11 py-2 underline"
-            >
-              Timeline
             </Link>
           </nav>
         )}

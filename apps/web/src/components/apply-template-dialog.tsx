@@ -75,7 +75,7 @@ export function ApplyTemplateDialog({
             Project
             <AppSelect value={project} onChange={(e) => setProject(e.target.value)}>
               <option value="new">New project</option>
-              <option value="personal">My tasks</option>
+              <option value="personal">My plans</option>
               {projects.data
                 ?.filter((p) => p.isOwner)
                 .map((p) => (

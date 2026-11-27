@@ -50,6 +50,7 @@ import { jobDetailRoute } from '@/pages/business'
 import { aiRoute, templateEditorRoute } from '@/pages/ai'
 import { supportRoute } from '@/pages/support'
 import { integrationsRoute } from '@/pages/integrations'
+import { PageError } from '@/components/page-error'
 
 const routeTree = rootRoute.addChildren([
   landingRoute,
@@ -106,7 +107,7 @@ const routeTree = rootRoute.addChildren([
   ]),
 ])
 
-export const router = createRouter({ routeTree })
+export const router = createRouter({ routeTree, defaultErrorComponent: PageError })
 
 declare module '@tanstack/react-router' {
   interface Register {

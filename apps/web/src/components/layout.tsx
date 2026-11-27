@@ -1,22 +1,15 @@
-import { useEffect, useState } from 'react'
-import {
-  Link,
-  Outlet,
-  createRootRoute,
-  createRoute,
-  useNavigate,
-  useRouterState,
-} from '@tanstack/react-router'
+import { navSection } from './section-views'
+import { useEffect } from 'react'
+import { Link, Outlet, createRootRoute, createRoute, useNavigate, useRouterState } from '@tanstack/react-router'
 import {
   Bell,
   BriefcaseBusiness,
   CalendarDays,
   CircleHelp,
   CircleUserRound,
-  House,
-  ListTodo,
+  LayoutGrid,
   MessageCircleMore,
-  MoreHorizontal,
+  Palette,
   Plug,
   Search,
   ShoppingBag,
@@ -24,9 +17,8 @@ import {
 } from 'lucide-react'
 import { AppButton, AppCard } from '@superapp/ui'
 import { AppStoreProvider, useAppStore } from '@/hooks/useAppStore'
-import { THEMES, THEME_LABELS, useTheme } from '@/hooks/useTheme'
-import { navSection } from './section-views'
-import { AppDialog } from './app-dialog'
+
+import { THEME_LABELS, useTheme } from '@/hooks/useTheme'
 
 function RootComponent() {
   return (
@@ -37,192 +29,217 @@ function RootComponent() {
     </AppStoreProvider>
   )
 }
-const coreNav = [
-  { to: '/app/messages', label: 'Home', icon: House },
-  { to: '/app/search', label: 'Explore', icon: Search },
-  { to: '/app/messages/dm', label: 'Messages', icon: MessageCircleMore },
-  { to: '/app/notifications', label: 'Notifications', icon: Bell },
-  { to: '/app/projects', label: 'Projects', icon: BriefcaseBusiness },
-  { to: '/app/calendar', label: 'Calendar', icon: CalendarDays },
-] as const
-const extraNav = [
-  { to: '/app/coordination', label: 'My tasks', icon: ListTodo },
-  { to: '/app/marketplace', label: 'Marketplace', icon: ShoppingBag },
-  { to: '/app/budgets', label: 'Money', icon: Wallet },
-  { to: '/app/settings', label: 'Settings', icon: CircleUserRound },
-  { to: '/app/integrations', label: 'Connections', icon: Plug },
-  { to: '/app/support', label: 'Help', icon: CircleHelp },
-] as const
+
 function AppLayout() {
-  const { session, profile, signOut, setActiveMode, loading } = useAppStore()
-  const pathname = useRouterState({
-    select: (state) => state.location.pathname,
-  })
-  const activeSection = navSection(pathname)
+  const { session, profile, businessProfile, signOut, setActiveMode, loading } = useAppStore()
+  const activeSection = useRouterState({ select: state => navSection(state.location.pathname) })
   const navigate = useNavigate()
-  const { theme, setTheme } = useTheme()
-  const [moreOpen, setMoreOpen] = useState(false)
+  const { theme, cycleTheme } = useTheme()
+
   useEffect(() => {
-    if (!loading && !session) void navigate({ to: '/' })
+    if (!loading && !session) {
+      void navigate({ to: '/' })
+    }
   }, [loading, navigate, session])
-  useEffect(() => {
-    setMoreOpen(false)
-  }, [pathname])
-  if (loading)
+
+  if (loading) {
+    return <div className="mx-auto max-w-5xl px-6 py-10 text-sm text-ink/70">Loading...</div>
+  }
+
+  if (!session) {
     return (
-      <p role="status" className="p-6">
-        Loading…
-      </p>
-    )
-  if (!session || !profile)
-    return (
-      <AppCard>
-        <p>{session ? 'Finish setting up your profile.' : 'Sign in to continue.'}</p>
-        <Link to={session ? '/onboarding' : '/'}>Continue</Link>
-      </AppCard>
-    )
-  const utilities = (
-    <>
-      {profile.account_mode === 'both' && (
-        <label className="grid gap-1 text-sm">
-          Account
-          <select
-            className="ui-input min-h-11"
-            value={profile.active_mode}
-            onChange={(e) => void setActiveMode(e.target.value as 'individual' | 'business')}
-          >
-            <option value="individual">Personal</option>
-            <option value="business">Business</option>
-          </select>
-        </label>
-      )}
-      <label className="grid gap-1 text-sm">
-        Appearance
-        <select
-          className="ui-input min-h-11"
-          value={theme}
-          onChange={(e) => setTheme(e.target.value as typeof theme)}
-        >
-          {THEMES.map((value) => (
-            <option key={value} value={value}>
-              {THEME_LABELS[value]}
-            </option>
-          ))}
-        </select>
-      </label>
-      <AppButton variant="ghost" onClick={() => void signOut().then(() => navigate({ to: '/' }))}>
-        Sign out
-      </AppButton>
-    </>
-  )
-  const links = (items: readonly { to: string; label: string; icon: typeof House }[]) =>
-    items.map(({ to, label, icon: Icon }) => (
-      <Link
-        key={to}
-        to={to}
-        aria-current={activeSection === to ? 'page' : undefined}
-        className={`ui-nav-link min-h-11 ${activeSection === to ? 'ui-nav-link--active' : ''}`}
-      >
-        <Icon className="h-5 w-5 shrink-0" />
-        <span>{label}</span>
-      </Link>
-    ))
-  return (
-    <div className="app-layout mx-auto flex min-h-screen max-w-7xl gap-4 px-3 py-3 sm:px-4">
-      <a
-        href="#main-content"
-        className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[100] focus:bg-white focus:p-3"
-      >
-        Skip to content
-      </a>
-      <aside className="ui-shell-surface sticky top-3 hidden h-[calc(100dvh-1.5rem)] w-56 shrink-0 flex-col overflow-y-auto lg:flex">
-        <Link
-          to="/app/messages"
-          aria-label="Flow home"
-          className="mb-5 inline-flex px-3 py-2 text-3xl font-bold"
-        >
-          flow
-        </Link>
-        <nav aria-label="Main navigation" className="grid gap-1">
-          {links(coreNav)}
-        </nav>
-        <div className="my-4 border-t border-border" />
-        <nav aria-label="More pages" className="grid gap-1">
-          {links(extraNav.slice(0, 3))}
-          {profile.active_mode === 'business' && (
-            <Link to="/app/jobs" className="ui-nav-link">
-              <BriefcaseBusiness size={20} />
-              Jobs
-            </Link>
-          )}
-        </nav>
-        <details className="mt-auto pt-4">
-          <summary className="min-h-11 cursor-pointer px-3 py-3 font-semibold">
-            {profile.first_name || 'Account'}
-          </summary>
-          <div className="grid gap-3 pb-3">
-            {links(extraNav.slice(3))}
-            {utilities}
-          </div>
-        </details>
-      </aside>
-      <div className="min-w-0 flex-1 pb-20 lg:pb-0">
-        <header className="mb-3 flex items-center justify-between lg:hidden">
-          <Link to="/app/messages" className="text-2xl font-bold">
-            flow
+      <div className="mx-auto max-w-3xl px-6 py-10">
+        <AppCard className="p-6">
+          <p className="text-sm text-ink/70">Sign in or create an account to open the full app.</p>
+          <Link to="/" className="mt-4 inline-flex rounded-full bg-ink px-4 py-3 text-sm font-bold text-white">
+            Back to welcome
           </Link>
-          <Link
-            to="/app/notifications"
-            aria-label="Notifications"
-            className="inline-flex min-h-11 min-w-11 items-center justify-center"
-          >
-            <Bell size={22} />
-          </Link>
-        </header>
-        <main id="main-content" tabIndex={-1} className="min-w-0">
-          <Outlet />
-        </main>
+        </AppCard>
       </div>
-      <nav
-        aria-label="Mobile navigation"
-        className="mobile-nav fixed inset-x-0 bottom-0 z-50 grid grid-cols-5 border-t border-border bg-white lg:hidden"
-      >
-        {coreNav
-          .filter((item) => ['Home', 'Explore', 'Messages', 'Projects'].includes(item.label))
-          .map(({ to, label, icon: Icon }) => (
-            <Link
-              key={to}
-              to={to}
-              aria-current={activeSection === to ? 'page' : undefined}
-              className={`flex min-h-16 flex-col items-center justify-center gap-1 text-xs ${activeSection === to ? 'font-bold text-ink' : 'text-ink/60'}`}
-            >
-              <Icon size={22} />
-              <span>{label}</span>
-            </Link>
-          ))}
-        <button
-          type="button"
-          aria-expanded={moreOpen}
-          onClick={() => setMoreOpen(true)}
-          className="flex min-h-16 flex-col items-center justify-center gap-1 text-xs"
-        >
-          <MoreHorizontal size={22} />
-          <span>More</span>
-        </button>
-      </nav>
-      {moreOpen && (
-        <AppDialog title="More" onClose={() => setMoreOpen(false)}>
-          <nav className="grid gap-1">
-            {links([coreNav[5], ...extraNav])}
-            {profile.active_mode === 'business' && (
-              <Link to="/app/jobs" className="ui-nav-link">
-                Jobs
-              </Link>
+    )
+  }
+
+  if (!profile) {
+    return (
+      <div className="mx-auto max-w-3xl px-6 py-10">
+        <AppCard className="p-6">
+          <p className="text-sm text-ink/70">Your account is signed in, but setup is not complete yet.</p>
+          <Link to="/onboarding" className="mt-4 inline-flex rounded-full bg-ink px-4 py-3 text-sm font-bold text-white">
+            Finish onboarding
+          </Link>
+        </AppCard>
+      </div>
+    )
+  }
+
+  const coreNavItems =
+    profile?.active_mode === 'business'
+      ? [
+          { to: '/app/messages', label: 'Messages', icon: MessageCircleMore },
+          { to: '/app/projects', label: 'Projects', icon: BriefcaseBusiness },
+          { to: '/app/coordination', label: 'Plans', icon: LayoutGrid },
+          { to: '/app/jobs', label: 'Jobs', icon: BriefcaseBusiness },
+          { to: '/app/calendar', label: 'Calendar', icon: CalendarDays },
+        ]
+      : [
+          { to: '/app/messages', label: 'Messages', icon: MessageCircleMore },
+          { to: '/app/calendar', label: 'Calendar', icon: CalendarDays },
+          { to: '/app/projects', label: 'Projects', icon: BriefcaseBusiness },
+          { to: '/app/coordination', label: 'Plans', icon: LayoutGrid },
+        ]
+  const commerceNavItems =
+    profile?.active_mode === 'business'
+      ? [
+          { to: '/app/marketplace', label: 'Marketplace', icon: ShoppingBag },
+          { to: '/app/budgets', label: 'Money', icon: Wallet },
+        ]
+      : [
+          { to: '/app/marketplace', label: 'Marketplace', icon: ShoppingBag },
+          { to: '/app/budgets', label: 'Money', icon: Wallet },
+        ]
+  const utilityNavItems = [
+    { to: '/app/search', label: 'Search', icon: Search },
+    { to: '/app/support', label: 'Support', icon: CircleHelp },
+    { to: '/app/notifications', label: 'Notifications', icon: Bell },
+    { to: '/app/settings', label: profile?.active_mode === 'business' ? 'Profile & Admin' : 'Profile', icon: CircleUserRound },
+    { to: '/app/integrations', label: 'Integrations', icon: Plug },
+  ] as const
+
+  return (
+    <div className="mx-auto flex min-h-screen max-w-7xl gap-3 px-3 py-3 sm:px-4">
+      <a href="#main-content" className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[100] focus:bg-white focus:p-3">Skip to content</a>
+      <aside className="ui-shell-surface sticky top-3 flex h-[calc(100vh-1.5rem)] w-[76px] shrink-0 flex-col overflow-hidden !px-0 sm:!px-4 sm:w-60">
+
+        {/* Frozen header — stays put while nav scrolls underneath */}
+        <div className="shrink-0 px-2.5 pt-1 pb-2 sm:px-3">
+          <button type="button" aria-label="Flow home" className={`text-left ${theme === 'mono' ? 'hidden w-full sm:block' : 'flex items-center gap-3'}`} onClick={() => void navigate({ to: '/app/messages' })}>
+            {theme === 'flow' ? (
+              <>
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center text-base font-bold" style={{ background: '#C45A3B', color: '#F5F2ED', fontFamily: "'Space Grotesk', system-ui, sans-serif" }}>F</span>
+                <span className="hidden text-base font-bold tracking-[0.18em] sm:block" style={{ color: '#F5F2ED', fontFamily: "'Space Grotesk', system-ui, sans-serif" }}>flow</span>
+              </>
+            ) : theme === 'mono' ? (
+              <img src="/logo-flow.png" alt="flow" className="w-28 px-2 py-2" />
+            ) : (
+              <span className="flex h-11 w-11 items-center justify-center bg-butter text-lg font-black text-ink shadow-sm" style={{ borderRadius: 'var(--radius-control)' }}>F</span>
             )}
+          </button>
+          {businessProfile?.business_name ? <p className={`mt-1 hidden pl-3 text-sm font-bold sm:block ${theme === 'flow' ? 'text-white/70' : 'text-ink/70'}`}>{businessProfile.business_name}</p> : null}
+
+          {profile?.account_mode === 'both' ? (
+            <div className="mt-2 hidden rounded-full bg-white/80 p-1 sm:flex">
+              <button
+                type="button"
+                className={`flex-1 rounded-full px-4 py-2 text-sm font-bold transition ${profile.active_mode === 'individual' ? 'bg-butter text-ink shadow-sm' : 'text-ink/60'}`}
+                onClick={() => void setActiveMode('individual')}
+              >
+                Personal
+              </button>
+              <button
+                type="button"
+                className={`flex-1 rounded-full px-4 py-2 text-sm font-bold transition ${profile.active_mode === 'business' ? 'bg-butter text-ink shadow-sm' : 'text-ink/60'}`}
+                onClick={() => void setActiveMode('business')}
+              >
+                Business
+              </button>
+            </div>
+          ) : null}
+        </div>
+
+        {profile.account_mode === 'both' && <label className="px-2 pb-2 text-[10px] sm:hidden">Mode
+          <select aria-label="Account mode" className="w-full bg-transparent py-2 text-[10px]" value={profile.active_mode} onChange={e => void setActiveMode(e.target.value as 'individual' | 'business')}>
+            <option value="individual">Personal</option><option value="business">Business</option>
+          </select>
+        </label>}
+        {/* Scrollable nav — slides under the frozen header */}
+        <div className="ui-scrollbar-hidden flex flex-1 flex-col overflow-y-auto px-1 pb-4 sm:px-3">
+          <nav aria-label="Main navigation" className="grid gap-4">
+            <div className="grid gap-2">
+              <p className={`hidden px-3 text-[10px] font-bold uppercase tracking-[0.18em] sm:block ${theme === 'flow' ? 'text-white/30' : 'text-ink/30'}`}>Flow</p>
+              {coreNavItems.map(({ to, label, icon: Icon }) => (
+                <Link
+                  key={to}
+                  to={to}
+                  aria-label={label}
+                  title={label}
+                  className={`ui-nav-link !px-1 sm:!px-3 !flex-col sm:!flex-row !justify-start !gap-1 sm:!gap-3 !text-sm ${activeSection === to ? 'ui-nav-link--active' : ''}`}
+                  activeProps={{
+                    className: 'ui-nav-link ui-nav-link--active !px-1 sm:!px-3 !flex-col sm:!flex-row !justify-start !gap-1 sm:!gap-3 !text-sm',
+                  }}
+                >
+                  <Icon className="h-5 w-5 shrink-0" />
+                  <span className="text-[9px] leading-tight sm:text-sm">{label}</span>
+                </Link>
+              ))}
+            </div>
+            <div className="grid gap-2">
+              <p className={`hidden px-3 text-[10px] font-bold uppercase tracking-[0.18em] sm:block ${theme === 'flow' ? 'text-white/30' : 'text-ink/30'}`}>Marketplace &amp; money</p>
+              {commerceNavItems.map(({ to, label, icon: Icon }) => (
+                <Link
+                  key={to}
+                  to={to}
+                  aria-label={label}
+                  title={label}
+                  className={`ui-nav-link !px-1 sm:!px-3 !flex-col sm:!flex-row !justify-start !gap-1 sm:!gap-3 !text-sm ${activeSection === to ? 'ui-nav-link--active' : ''}`}
+                  activeProps={{
+                    className: 'ui-nav-link ui-nav-link--active !px-1 sm:!px-3 !flex-col sm:!flex-row !justify-start !gap-1 sm:!gap-3 !text-sm',
+                  }}
+                >
+                  <Icon className="h-5 w-5 shrink-0" />
+                  <span className="text-[9px] leading-tight sm:text-sm">{label}</span>
+                </Link>
+              ))}
+            </div>
           </nav>
-          <div className="mt-4 grid gap-3 border-t border-border pt-4">{utilities}</div>
-        </AppDialog>
-      )}
+
+          <div className="mt-auto pt-4 grid gap-4">
+            <div className="grid gap-2">
+              <p className={`hidden px-3 text-[10px] font-bold uppercase tracking-[0.18em] sm:block ${theme === 'flow' ? 'text-white/30' : 'text-ink/30'}`}>Profile & Support</p>
+              {utilityNavItems.map(({ to, label, icon: Icon }) => (
+                <Link
+                  key={to}
+                  to={to}
+                  aria-label={label}
+                  title={label}
+                  className={`ui-nav-link !px-1 sm:!px-3 !flex-col sm:!flex-row !justify-start !gap-1 sm:!gap-3 !text-sm ${activeSection === to ? 'ui-nav-link--active' : ''}`}
+                  activeProps={{
+                    className: 'ui-nav-link ui-nav-link--active !px-1 sm:!px-3 !flex-col sm:!flex-row !justify-start !gap-1 sm:!gap-3 !text-sm',
+                  }}
+                >
+                  <Icon className="h-5 w-5 shrink-0" />
+                  <span className="text-[9px] leading-tight sm:text-sm">{label}</span>
+                </Link>
+              ))}
+            </div>
+
+            {/* Theme cycle */}
+            <button
+              type="button"
+              onClick={cycleTheme}
+              className="ui-nav-link !px-1 sm:!px-3 !flex-col sm:!flex-row !justify-start !gap-1 sm:!gap-3 !text-sm w-full text-left"
+              aria-label={`Change theme. Current: ${THEME_LABELS[theme]}`}
+              title={`Current: ${THEME_LABELS[theme]} — click to cycle`}
+            >
+              <Palette className="h-5 w-5 shrink-0" />
+              <span className="hidden sm:inline">{THEME_LABELS[theme]} theme</span>
+            </button>
+
+            <AppButton
+              variant="ghost"
+              className={`justify-start ${theme === 'flow' ? '!text-white/70' : ''}`}
+              onClick={() => {
+                void signOut().then(() => navigate({ to: '/' }))
+              }}
+            >
+              Sign out
+            </AppButton>
+          </div>
+        </div>
+      </aside>
+
+      <main id="main-content" tabIndex={-1} className="min-w-0 flex-1">
+        <Outlet />
+      </main>
     </div>
   )
 }

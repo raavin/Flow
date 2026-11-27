@@ -1029,22 +1029,8 @@ export function MessagesFeedPage({ linkedProjectId }: { linkedProjectId?: string
       </div>
 
       {composerOpen && (
-        <AppDialog title={editingPost ? 'Edit post' : 'New post'} onClose={resetComposer} wide>
-          <AppCard className="overflow-hidden p-0">
-            {/* Header */}
-            <div className="flex items-center gap-3 border-b border-border px-6 py-4">
-              <p className="text-xs font-semibold uppercase tracking-widest text-ink/40">
-                {editingPost ? 'Edit post' : 'New post'}
-              </p>
-              <p className="text-xl font-light text-ink">
-                {editingPost ? 'Refine your post' : 'Share a note'}
-              </p>
-              <div className="flex-1" />
-              <button type="button" className="ui-soft-icon-button" onClick={() => resetComposer()}>
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-
+        <AppDialog title={editingPost ? 'Edit post' : 'New post'} onClose={resetComposer} wide flush>
+          <div className="overflow-hidden">
             {/* Formatting toolbar */}
             <div className="flex items-center gap-1 border-b border-border bg-cloud/40 px-4 py-2">
               {(
@@ -1491,7 +1477,7 @@ export function MessagesFeedPage({ linkedProjectId }: { linkedProjectId?: string
                 </div>
               </div>
             </div>
-          </AppCard>
+          </div>
         </AppDialog>
       )}
 
@@ -1501,7 +1487,7 @@ export function MessagesFeedPage({ linkedProjectId }: { linkedProjectId?: string
 
       {dmDraft ? (
         <AppDialog title={`Message ${dmDraft.displayName}`} onClose={() => setDmDraft(null)}>
-          <AppCard className="w-full max-w-md space-y-4">
+          <div className="space-y-4">
             <AppPanel className="text-sm text-ink/70">Start a private conversation.</AppPanel>
             <div className="flex justify-end gap-2">
               <AppButton variant="ghost" onClick={() => setDmDraft(null)}>
@@ -1514,13 +1500,13 @@ export function MessagesFeedPage({ linkedProjectId }: { linkedProjectId?: string
                 Message
               </AppButton>
             </div>
-          </AppCard>
+          </div>
         </AppDialog>
       ) : null}
 
       {labelReviewDraft ? (
         <AppDialog title={'Report an incorrect label'} onClose={() => setLabelReviewDraft(null)}>
-          <AppCard className="w-full max-w-md space-y-4">
+          <div className="space-y-4">
             <AppPanel className="text-sm text-ink/75">
               Current label: <span className="font-bold">{labelForKind(labelReviewDraft.currentKind)}</span>.
               If it looks off, suggest a better fit below.
@@ -1592,7 +1578,7 @@ export function MessagesFeedPage({ linkedProjectId }: { linkedProjectId?: string
             <AppPanel tone="butter" className="text-xs text-ink/70">
               Repeated reports flag the label for review and notify the author.
             </AppPanel>
-          </AppCard>
+          </div>
         </AppDialog>
       ) : null}
     </>

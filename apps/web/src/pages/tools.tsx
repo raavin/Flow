@@ -352,7 +352,7 @@ function SearchPage() {
   return (
     <div className="space-y-4">
       <AppCard className="space-y-4">
-        <SectionHeading title="Explore" />
+        <SectionHeading title="Search" />
         <AppInput
           value={query}
           onChange={(event) => setQuery(event.target.value)}

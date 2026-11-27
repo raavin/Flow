@@ -81,7 +81,7 @@ const intentOptions: Array<{ value: CoordinationObjectIntent; label: string }> =
   { value: 'support', label: 'Support' },
 ]
 
-export function TemplateEditorPage() {
+export function TemplateEditorPage({ title: pageTitle = 'Template editor' }: { title?: string } = {}) {
   const { session } = useAppStore()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -292,7 +292,7 @@ export function TemplateEditorPage() {
     <div className="space-y-4">
       <AppCard className="space-y-4">
         <SectionHeading
-          title="Template editor"
+          title={pageTitle}
           action={
             <Link to="/app/ai" className="text-sm underline">
               Find a template
@@ -1286,7 +1286,7 @@ function toDueIso(day: string) {
 export const coordinationRoute = createRoute({
   getParentRoute: () => appRoute,
   path: 'coordination',
-  component: () => <TaskList />,
+  component: () => <TemplateEditorPage title="Plans" />,
 })
 
 export const coordinationDetailRoute = createRoute({
