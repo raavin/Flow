@@ -84,28 +84,35 @@ export function validateReceipt(file: Pick<File, 'size' | 'type'>) {
   if (file.size <= 0 || file.size > 10485760)
     throw new Error('Receipts must be between 1 byte and 10 MB.')
 }
+export type ReceiptTarget = { kind: 'expense' | 'transaction'; id: string }
 export async function uploadReceipt(
   file: File,
-  expenseId: string,
+  expenseId: string | ReceiptTarget,
   ownerId: string,
 ) {
   validateReceipt(file)
   const db = database()
-  const path = `${ownerId}/${expenseId}/${crypto.randomUUID()}.${file.type === 'application/pdf' ? 'pdf' : file.type.split('/')[1]}`
+  const target =
+    typeof expenseId === 'string'
+      ? { kind: 'expense', id: expenseId }
+      : expenseId
+  const folder =
+    target.kind === 'expense' ? target.id : `transactions/${target.id}`
+  const path = `${ownerId}/${folder}/${crypto.randomUUID()}.${file.type === 'application/pdf' ? 'pdf' : file.type.split('/')[1]}`
   const { error } = await db.storage
     .from('expense-receipts')
     .upload(path, file, { contentType: file.type })
   if (error) throw error
-  const { error: insertError } = await db
-    .from('expense_receipts')
-    .insert({
-      owner_id: ownerId,
-      expense_id: expenseId,
-      storage_path: path,
-      file_name: file.name.slice(0, 255),
-      mime_type: file.type,
-      size_bytes: file.size,
-    })
+  const { error: insertError } = await db.from('expense_receipts').insert({
+    owner_id: ownerId,
+    ...(target.kind === 'expense'
+      ? { expense_id: target.id }
+      : { transaction_id: target.id }),
+    storage_path: path,
+    file_name: file.name.slice(0, 255),
+    mime_type: file.type,
+    size_bytes: file.size,
+  })
   if (insertError) {
     await db.storage.from('expense-receipts').remove([path])
     throw insertError

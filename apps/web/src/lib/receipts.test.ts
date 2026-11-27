@@ -1,6 +1,8 @@
 import { it, expect, vi } from 'vitest'
 const mock = vi.hoisted(() => ({
-  upload: vi.fn<(...args: unknown[]) => Promise<{error: null}>>(async () => ({ error: null })),
+  upload: vi.fn<(...args: unknown[]) => Promise<{ error: null }>>(async () => ({
+    error: null,
+  })),
   remove: vi.fn(async () => ({ error: null })),
   insert: vi.fn(),
 }))
@@ -29,4 +31,23 @@ it('cleans up a file if its receipt record could not be saved', async () => {
   const path = mock.upload.mock.calls[0]?.[0]
   expect(path).toMatch(/^owner\/expense\/.+\.pdf$/)
   expect(mock.remove).toHaveBeenCalledWith([path])
+})
+
+it('uses the private transaction path and the correct receipt parent for payment records', async () => {
+  mock.insert.mockResolvedValue({ error: null })
+  await uploadReceipt(
+    new File(['photo'], 'receipt.png', { type: 'image/png' }),
+    { kind: 'transaction', id: 'payment' },
+    'owner',
+  )
+  const path = mock.upload.mock.calls.at(-1)?.[0]
+  expect(path).toMatch(/^owner\/transactions\/payment\/.+\.png$/)
+  expect(mock.insert).toHaveBeenLastCalledWith(
+    expect.objectContaining({
+      transaction_id: 'payment',
+      storage_path: path,
+      owner_id: 'owner',
+    }),
+  )
+  expect(mock.insert.mock.calls.at(-1)?.[0]).not.toHaveProperty('expense_id')
 })
