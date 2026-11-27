@@ -47,9 +47,9 @@ export function navSection(path: string) {
   if (path === '/app/wallet' || path === '/app/budgets') return '/app/budgets'
   if (path === '/app/gantt' || path === '/app/calendar') return '/app/calendar'
   if (path.startsWith('/app/projects/')) return '/app/projects'
-  if (path.startsWith('/app/messages/dm')) return '/app/messages/dm'
   if (path.startsWith('/app/messages/')) return '/app/messages'
   if (path.startsWith('/app/marketplace/')) return '/app/marketplace'
   if (path.startsWith('/app/coordination/')) return '/app/coordination'
+  if (path === '/app/ai' || path === '/app/template-editor') return '/app/coordination'
   return path
 }

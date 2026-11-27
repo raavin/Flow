@@ -3,8 +3,8 @@
     "id": "messages-basics",
     "slug": "messages-basics",
     "title": "Posts and messages",
-    "summary": "Read posts in Home. Private conversations are in Messages.",
-    "body": "Use Home to follow people, post, reply, repost and save posts. Open Messages to choose a recipient and start a private conversation.",
+    "summary": "Read posts and open private conversations from Messages.",
+    "body": "Choose Messages in the sidebar to follow people, post, reply, repost and save posts. Use the Messages button above the feed to open your private inbox and choose a recipient.",
     "tags": ["messages", "feed", "reply", "repost", "dm"],
     "keywords": ["feed", "following", "discover", "posts", "replies", "repost", "retweet", "direct message"],
     "route": "/app/messages"
@@ -108,7 +108,7 @@
     "slug": "planning-helper",
     "title": "Use a template",
     "summary": "Choose steps and preview their dates.",
-    "body": "Choose Use template, then a new project, an existing project or My tasks. Set the event date, select the steps to include and check the dated preview before adding them.",
+    "body": "Choose Use template, then a new project, an existing project or My plans. Set the event date, select the steps to include and check the dated preview before adding them.",
     "tags": ["templates", "planning"],
     "keywords": ["birthday", "wedding", "plan", "AI", "helper"],
     "route": "/app/ai"

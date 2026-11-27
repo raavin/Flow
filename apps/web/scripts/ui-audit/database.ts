@@ -10,6 +10,11 @@ const project = {
   budget_cents: 50000,
 }
 const rows: Record<string, Record<string, unknown>[]> = {
+  project_budget_limits: [
+    { project_id: 'sample-party', budget_cents: 50000 },
+    { project_id: 'sample-launch', budget_cents: 100000 },
+    { project_id: 'sample-completed', budget_cents: 0 },
+  ],
   projects: [
     project,
     {
@@ -76,6 +81,12 @@ const rows: Record<string, Record<string, unknown>[]> = {
       created_at: '2026-11-26T00:00:00Z',
       updated_at: '2026-11-26T00:00:00Z',
       metadata: {},
+      reply_to_post_id: null,
+      quote_post_id: null,
+      linked_project_id: null,
+      is_promoted: false,
+      mislabel_flag_count: 0,
+      review_state: 'clear',
     },
   ],
   jobs: [
@@ -275,13 +286,12 @@ function query(table: string) {
                 count: data.length,
               })
           : (...args: unknown[]) => {
-              if (
-                ['insert', 'update', 'delete', 'upsert'].includes(String(key))
-              )
+              if (['insert', 'update', 'delete', 'upsert'].includes(String(key)))
                 throw new Error('Visual preview: saving is disabled.')
               if (['single', 'maybeSingle'].includes(String(key))) single = true
-              if (key === 'eq')
-                data = data.filter((row) => row[String(args[0])] === args[1])
+              if (key === 'eq') data = data.filter((row) => row[String(args[0])] === args[1])
+              if (key === 'in')
+                data = data.filter((row) => (args[1] as unknown[]).includes(row[String(args[0])]))
               return result
             },
     },
@@ -291,15 +301,40 @@ function query(table: string) {
 const channel = { on: () => channel, subscribe: () => channel }
 export const supabase = {
   from: query,
-  rpc: async (name: string) => {
-    if (!/^(get|fetch|search|browse)_/.test(name))
-      throw new Error('Visual preview: saving is disabled.')
+  rpc: async (name: string, args?: Record<string, unknown>) => {
+    if (name === 'feed_post_ids') {
+      const posts = rows.posts.filter(
+        (post) =>
+          (!args?.p_post || post.id === args.p_post) &&
+          (!args?.p_project || post.linked_project_id === args.p_project) &&
+          (!args?.p_author || post.author_id === args.p_author),
+      )
+      return { data: posts.map((post) => ({ id: post.id, sort_at: post.created_at })), error: null }
+    }
+    if (name === 'dm_inbox')
+      return {
+        data: rows.dm_threads.map((thread) => ({
+          ...thread,
+          last_body: 'Let’s confirm the menu.',
+          last_at: thread.created_at,
+          unread: 0,
+        })),
+        error: null,
+      }
+    if (name === 'project_invitations') return { data: [], error: null }
+    if (name === 'mark_dm_read') return { data: null, error: null }
+    if (name === 'search_flow')
+      return {
+        data: { people: [], topics: [], projects: [], listings: [], jobs: [], messages: [] },
+        error: null,
+      }
+    if (!/^(get|fetch|search|browse)_/.test(name)) throw new Error('Visual preview: saving is disabled.')
     return { data: [], error: null }
   },
   channel: () => channel,
   removeChannel: async () => {},
   auth: {
-    getSession: async () => ({ data: { session: null } }),
+    getSession: async () => ({ data: { session: { user: { id: 'audit-owner' } } } }),
     getUser: async () => ({ data: { user: { id: 'audit-owner' } } }),
   },
   storage: {

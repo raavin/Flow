@@ -118,7 +118,7 @@ body {
 .ui-dialog {
   color: rgb(var(--color-ink));
   background: rgb(var(--color-surface));
-  border: 1px solid var(--color-border, #ddd);
+  border: 1px solid rgb(var(--color-border));
   border-radius: var(--radius-card, 16px);
   width: min(36rem, calc(100vw - 1.5rem));
   max-height: calc(100dvh - 2rem);
@@ -131,9 +131,6 @@ body {
 }
 .ui-dialog::backdrop {
   background: rgb(0 0 0 / 0.45);
-}
-.mobile-nav {
-  padding-bottom: env(safe-area-inset-bottom);
 }
 .rich-content {
   overflow-wrap: anywhere;
@@ -159,8 +156,5 @@ video {
   .ui-action-button {
     min-width: 2.75rem;
     min-height: 2.75rem;
-  }
-  .app-layout {
-    padding-inline: 0.5rem;
   }
 }

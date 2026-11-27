@@ -94,7 +94,7 @@ function ProjectsPage() {
                 to="/app/coordination"
                 className="inline-flex min-h-11 items-center px-3 text-sm underline"
               >
-                My tasks
+                Plans
               </Link>
               <Link to="/app/ai" className="inline-flex min-h-11 items-center px-3 text-sm underline">
                 Templates

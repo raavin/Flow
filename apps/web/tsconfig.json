@@ -11,6 +11,6 @@
       "@superapp/types": ["../../packages/types/src"]
     }
   },
-  "include": ["src", "../../packages/ui/src", "../../packages/types/src"],
+  "include": ["src", "scripts/ui-audit/database.ts", "scripts/ui-audit/store.tsx", "../../packages/ui/src", "../../packages/types/src"],
   "references": []
 }

@@ -7,17 +7,21 @@ export function AppDialog({
   onClose,
   children,
   wide = false,
+  flush = false,
 }: {
   title: string
   onClose: () => void
   children: ReactNode
   wide?: boolean
+  flush?: boolean
 }) {
   const ref = useRef<HTMLDialogElement>(null)
+  // Capture before child autoFocus runs; otherwise closing can focus a removed input.
+  const previousFocus = useRef(document.activeElement as HTMLElement | null)
   const headingId = useId()
   useEffect(() => {
     const dialog = ref.current!
-    const previous = document.activeElement as HTMLElement | null
+    const previous = previousFocus.current
     dialog.showModal()
     const overflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
@@ -47,7 +51,7 @@ export function AppDialog({
           <X size={20} />
         </button>
       </header>
-      <div className="p-4 sm:p-6">{children}</div>
+      <div className={flush ? undefined : 'p-4 sm:p-6'}>{children}</div>
     </dialog>
   )
 }
