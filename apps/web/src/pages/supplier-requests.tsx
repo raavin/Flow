@@ -1,3 +1,4 @@
+import { MarketplaceViews } from '@/components/section-views'
 import { useState } from 'react'
 import { createRoute, Link } from '@tanstack/react-router'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -117,19 +118,12 @@ export function RequestsPage() {
   return (
     <div className="space-y-4">
       <AppCard className="space-y-3">
-        <SectionHeading
-          eyebrow="Marketplace"
-          title="Requests & quotes"
-          action={
-            <Link to="/app/marketplace" className="underline">
-              Browse marketplace
-            </Link>
-          }
-        />
+        <SectionHeading eyebrow="Marketplace" title="Requests & quotes" />
         <p className="text-sm text-ink/70">Find suppliers and compare quotes for your project.</p>
       </AppCard>
+      <MarketplaceViews active="requests" />
       <div className="flex flex-wrap items-center justify-between gap-3" aria-label="Request list controls">
-        <div className="flex flex-wrap gap-2">
+        <div role="group" aria-label="Request view" className="grid w-full grid-cols-3 gap-1 sm:flex sm:w-auto">
           {[
             ['open', 'Open requests'],
             ['mine', 'My requests'],
@@ -138,6 +132,7 @@ export function RequestsPage() {
             <AppButton
               key={id}
               variant={tab === id ? 'primary' : 'ghost'}
+              className="min-h-11 min-w-0 !px-2"
               aria-pressed={tab === id}
               onClick={() => setTab(id)}
             >
@@ -145,7 +140,7 @@ export function RequestsPage() {
             </AppButton>
           ))}
         </div>
-        <AppButton aria-expanded={create} aria-controls="request-form" onClick={() => setCreate(!create)}>
+        <AppButton className="w-full sm:w-auto" aria-expanded={create} aria-controls="request-form" onClick={() => setCreate(!create)}>
           {create ? 'Close request form' : 'Request a quote'}
         </AppButton>
       </div>

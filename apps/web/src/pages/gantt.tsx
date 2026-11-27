@@ -500,14 +500,18 @@ export function GanttPage({ linkedProjectId }: { linkedProjectId?: string | null
 
         <div className="flex flex-wrap items-center justify-between gap-3">
           {!linkedProjectId ? (
-            <div className="flex flex-wrap gap-2">
+            <div role="group" aria-label="Timeline view" className="grid w-full grid-cols-2 gap-1 sm:flex sm:w-auto">
               <AppButton
+                className="min-h-11 min-w-0 !px-2"
+                aria-pressed={timelineMode === 'coordination'}
                 variant={timelineMode === 'coordination' ? 'primary' : 'ghost'}
                 onClick={() => setTimelineMode('coordination')}
               >
                 Tasks and events
               </AppButton>
               <AppButton
+                className="min-h-11 min-w-0 !px-2"
+                aria-pressed={timelineMode === 'project'}
                 variant={timelineMode === 'project' ? 'primary' : 'ghost'}
                 onClick={() => setTimelineMode('project')}
               >

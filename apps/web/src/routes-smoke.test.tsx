@@ -23,6 +23,7 @@ afterEach(() => {
   cleanup()
   clients.splice(0).forEach((client) => client.clear())
   vi.restoreAllMocks()
+  vi.unstubAllGlobals()
 })
 
 async function openPage(path: string) {
@@ -156,6 +157,144 @@ it('keeps the familiar sidebar and project sections visible while navigating bet
   await act(() => router.navigate({ to: '/app/coordination' }))
   expect(await screen.findByRole('heading', { name: 'Plans' })).toBeVisible()
   expect(screen.getByRole('heading', { name: 'New plan' })).toBeVisible()
+})
+
+it('opens the compact app menu, navigates and restores the page after closing', async () => {
+  const { router } = await openPage('/app/projects/sample-party/tasks')
+  const trigger = screen.getByRole('button', { name: 'Menu' })
+  trigger.focus()
+  fireEvent.click(trigger)
+  const dialog = await screen.findByRole('dialog', { name: 'Menu' })
+  expect(trigger).toHaveAttribute('aria-expanded', 'true')
+  expect(document.body.style.overflow).toBe('hidden')
+  const navigation = within(dialog).getByRole('navigation', { name: 'Main navigation' })
+  expect(within(navigation).getAllByRole('link').map((link) => link.textContent)).toEqual([
+    'Messages', 'Projects', 'Plans', 'Calendar', 'Money', 'Marketplace',
+  ])
+  expect(within(navigation).getByRole('link', { name: 'Projects' })).toHaveAttribute('aria-current', 'page')
+  for (const name of ['Profile', 'Integrations', 'Support'])
+    expect(within(dialog).getByRole('link', { name })).toBeVisible()
+  expect(within(dialog).getByRole('button', { name: 'Personal' })).toBeVisible()
+  expect(within(dialog).getByRole('button', { name: /Change theme/ })).toBeVisible()
+  fireEvent.click(within(navigation).getByRole('link', { name: 'Money' }))
+  await waitFor(() => expect(router.state.location.pathname).toBe('/app/budgets'))
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  expect(trigger).toHaveAttribute('aria-expanded', 'false')
+  expect(document.body.style.overflow).toBe('')
+  expect(trigger).toHaveFocus()
+})
+
+it('dismisses the app menu with Escape and on navigation outside the menu', async () => {
+  const { router } = await openPage('/app/projects')
+  const trigger = screen.getByRole('button', { name: 'Menu' })
+  trigger.focus()
+  fireEvent.click(trigger)
+  fireEvent(await screen.findByRole('dialog', { name: 'Menu' }), new Event('cancel', { cancelable: true }))
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  expect(trigger).toHaveFocus()
+  fireEvent.click(trigger)
+  await act(() => router.navigate({ to: '/app/messages' }))
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  expect(document.body.style.overflow).toBe('')
+})
+
+it('unlocks the page when an open app menu changes to the desktop layout', async () => {
+  const breakpoint = Object.assign(new EventTarget(), { matches: false })
+  vi.stubGlobal('matchMedia', vi.fn(() => breakpoint))
+  await openPage('/app/projects')
+  fireEvent.click(screen.getByRole('button', { name: 'Menu' }))
+  expect(await screen.findByRole('dialog', { name: 'Menu' })).toBeInTheDocument()
+  await act(() => {
+    breakpoint.matches = true
+    breakpoint.dispatchEvent(new Event('change'))
+  })
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  expect(document.body.style.overflow).toBe('')
+})
+
+it('lets the compact project chooser reach every section without leaving the project', async () => {
+  const { router } = await openPage('/app/projects/sample-party/tasks')
+  const summary = screen.getByLabelText('Project page: Tasks')
+  const chooser = summary.closest('details')!
+  expect(chooser).not.toHaveAttribute('open')
+  fireEvent.click(summary)
+  expect(chooser).toHaveAttribute('open')
+  const links = within(chooser).getAllByRole('link')
+  expect(links.map((link) => link.textContent)).toEqual([
+    'Conversation', 'People', 'Availability', 'Updates', 'Notes', 'Tasks',
+    'Calendar', 'Timeline', 'Budget', 'Listings',
+  ])
+  for (const link of links) expect(link.getAttribute('href')).toMatch(/^\/app\/projects\/sample-party\//)
+  fireEvent.click(within(chooser).getByRole('link', { name: 'Availability' }))
+  await waitFor(() => expect(router.state.location.pathname).toBe('/app/projects/sample-party/availability'))
+  const currentSummary = await screen.findByLabelText('Project page: Availability')
+  expect(currentSummary.closest('details')).not.toHaveAttribute('open')
+  const desktop = screen.getByRole('navigation', { name: 'Project navigation' })
+  expect(within(desktop).getByRole('link', { name: 'People' })).toHaveClass('flow-page-link--active')
+  fireEvent.click(currentSummary)
+  const currentChooser = currentSummary.closest('details')!
+  expect(within(currentChooser).getAllByRole('link').filter((link) => link.getAttribute('aria-current') === 'page'))
+    .toEqual([within(currentChooser).getByRole('link', { name: 'Availability' })])
+  fireEvent.click(within(currentChooser).getByRole('link', { name: 'Budget' }))
+  await waitFor(() => expect(router.state.location.pathname).toBe('/app/projects/sample-party/budget'))
+  expect(await screen.findByLabelText('Project page: Budget')).toBeInTheDocument()
+})
+
+it('closes the project chooser on Escape or an outside click', async () => {
+  const { main } = await openPage('/app/projects/sample-party/notes')
+  const summary = screen.getByLabelText('Project page: Notes')
+  const chooser = summary.closest('details')!
+  fireEvent.click(summary)
+  const taskLink = within(chooser).getByRole('link', { name: 'Tasks' })
+  taskLink.focus()
+  fireEvent.keyDown(taskLink, { key: 'Escape' })
+  expect(chooser).not.toHaveAttribute('open')
+  expect(summary).toHaveFocus()
+  fireEvent.click(summary)
+  fireEvent.pointerDown(within(main).getByRole('heading', { name: 'Birthday dinner' }))
+  expect(chooser).not.toHaveAttribute('open')
+})
+
+it('keeps owner-only budgets out of both project navigation layouts for collaborators', async () => {
+  const detail = await projectApi.fetchProjectDetail('sample-party')
+  if (!detail) throw new Error('Project fixture is missing')
+  vi.spyOn(projectApi, 'fetchProjectDetail').mockResolvedValue({ ...detail, ownerId: 'another-owner' })
+  await openPage('/app/projects/sample-party/notes')
+  const desktop = screen.getByRole('navigation', { name: 'Project navigation' })
+  expect(within(desktop).queryByRole('link', { name: 'Budget' })).not.toBeInTheDocument()
+  const summary = screen.getByLabelText('Project page: Notes')
+  fireEvent.click(summary)
+  expect(within(summary.closest('details')!).queryByRole('link', { name: 'Budget' })).not.toBeInTheDocument()
+})
+
+it('puts the project limit and allocations before costs and receipt management', async () => {
+  const { main } = await openPage('/app/projects/sample-party/budget')
+  const limit = within(main).getByLabelText('Budget limit (AUD)')
+  const allocations = within(main).getByRole('heading', { name: 'Allocations' })
+  const costs = within(main).getByRole('heading', { name: 'Costs' })
+  expect(limit.compareDocumentPosition(allocations) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0)
+  expect(allocations.compareDocumentPosition(costs) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0)
+  expect(within(main).getByRole('region', { name: 'Allocations table' })).toBeInTheDocument()
+  expect(within(main).getByRole('region', { name: 'Project costs table' })).toBeInTheDocument()
+})
+
+it('keeps marketplace sections connected with one current page in each navigation layout', async () => {
+  const { router } = await openPage('/app/marketplace')
+  for (const [current, next, path] of [
+    ['Browse', 'Requests & quotes', '/app/marketplace/requests'],
+    ['Requests & quotes', 'Saved items', '/app/marketplace/cart'],
+    ['Saved items', 'My listings', '/app/marketplace/manage'],
+    ['My listings', 'Browse', '/app/marketplace'],
+  ]) {
+    const desktop = screen.getByRole('navigation', { name: 'Marketplace navigation' })
+    expect(within(desktop).getAllByRole('link').filter((link) => link.getAttribute('aria-current') === 'page'))
+      .toEqual([within(desktop).getByRole('link', { name: current })])
+    const summary = screen.getByLabelText(`Marketplace page: ${current}`)
+    fireEvent.click(summary)
+    fireEvent.click(within(summary.closest('details')!).getByRole('link', { name: next }))
+    await waitFor(() => expect(router.state.location.pathname).toBe(path))
+    await screen.findByLabelText(`Marketplace page: ${next}`)
+  }
 })
 
 it('opens the project form and closes it without leaving the page locked', async () => {

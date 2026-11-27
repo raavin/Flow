@@ -1,3 +1,4 @@
+import { MarketplaceViews } from '@/components/section-views'
 import { ApplyTemplateDialog } from '@/components/apply-template-dialog'
 import { listingTemplateBlocks } from '@/lib/apply-template'
 import { useState } from 'react'
@@ -1086,6 +1087,7 @@ function ListingsManagementPage() {
 
   return (
     <div className="space-y-4">
+      <MarketplaceViews active="listings" />
       <AppCard className="space-y-4">
         <SectionHeading eyebrow="Business" title="Your listings" />
         <p className="text-sm text-ink/65">

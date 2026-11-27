@@ -389,7 +389,6 @@ test.describe('UX Audit', () => {
 
     // Check marketplace tabs visible
     const templateTab = page.getByRole('link', { name: /Template/i }).first()
-    const servicesTab = page.getByRole('link', { name: /Service/i }).first()
     if (!await templateTab.isVisible().catch(() => false)) {
       issue('Marketplace', 'Templates tab not visible')
     } else {

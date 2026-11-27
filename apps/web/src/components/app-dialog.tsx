@@ -38,7 +38,7 @@ export function AppDialog({
       onCancel={onClose}
       className={`ui-dialog ${wide ? 'ui-dialog--wide' : ''}`}
     >
-      <header className="flex items-center justify-between gap-3 border-b border-border p-4">
+      <header className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-border bg-surface p-4">
         <h2 id={headingId} className="text-xl font-bold">
           {title}
         </h2>

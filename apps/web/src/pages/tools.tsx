@@ -1,3 +1,4 @@
+import { MarketplaceViews } from '@/components/section-views'
 import { PrivacySettings } from '@/components/privacy-settings'
 import { BusinessSettings } from '@/components/business-settings'
 import { QueryFeedback, MutationFeedback } from '@/components/request-feedback'
@@ -161,6 +162,7 @@ function CartReviewPage() {
 
   return (
     <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+      <div className="xl:col-span-2"><MarketplaceViews active="saved" /></div>
       <AppCard className="space-y-4">
         <SectionHeading title="Saved items" />
         <div className="grid gap-3">

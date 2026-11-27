@@ -28,6 +28,108 @@ body {
   background-image: var(--shell-background);
 }
 
+/* Use the space in the panel, not the device width, to choose page navigation. */
+.flow-page-navigation {
+  min-width: 0;
+  container: page-navigation / inline-size;
+}
+
+.flow-project-header {
+  container: project-header / inline-size;
+}
+
+.flow-page-navigation__links,
+.flow-project-coordination {
+  display: none;
+}
+
+.flow-page-navigation__compact {
+  border: 1px solid rgb(var(--color-border));
+  border-radius: var(--radius-control);
+}
+
+.flow-page-navigation__compact summary {
+  display: flex;
+  min-height: 60px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  list-style: none;
+  cursor: pointer;
+}
+
+.flow-page-navigation__compact summary::-webkit-details-marker {
+  display: none;
+}
+
+.flow-page-navigation__compact[open] summary > svg {
+  transform: rotate(180deg);
+}
+
+.flow-page-navigation__compact nav {
+  display: grid;
+  padding: 4px;
+  border-top: 1px solid rgb(var(--color-border));
+}
+
+.flow-page-link {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  padding: 10px 12px;
+  border-bottom: 2px solid transparent;
+  color: rgb(var(--color-ink) / 0.65);
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  white-space: nowrap;
+}
+
+.flow-page-link:hover {
+  color: rgb(var(--color-ink));
+  background: rgb(var(--color-ink) / 0.04);
+}
+
+.flow-page-link--active {
+  border-bottom-color: rgb(var(--color-ink));
+  color: rgb(var(--color-ink));
+  font-weight: 600;
+}
+
+.flow-page-link:focus-visible,
+.flow-page-navigation__compact summary:focus-visible {
+  outline: 2px solid rgb(var(--color-ink));
+  outline-offset: 2px;
+}
+
+.flow-page-navigation__compact .flow-page-link {
+  border-bottom: 0;
+  border-left: 2px solid transparent;
+  white-space: normal;
+}
+
+.flow-page-navigation__compact .flow-page-link--active {
+  border-left-color: rgb(var(--color-ink));
+  background: rgb(var(--color-ink) / 0.06);
+}
+
+@container page-navigation (min-width: 44rem) {
+  .flow-page-navigation__compact { display: none; }
+  .flow-page-navigation__links {
+    display: flex;
+    border-bottom: 1px solid rgb(var(--color-border));
+  }
+}
+
+@container project-header (min-width: 44rem) {
+  .flow-project-coordination {
+    display: flex;
+    gap: 4px;
+    border-top: 1px solid rgb(var(--color-border));
+    padding-top: 8px;
+  }
+}
+
 /* Tiptap editor */
 .tiptap p.is-editor-empty:first-child::before {
   content: attr(data-placeholder);
