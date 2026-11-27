@@ -16,14 +16,19 @@ vi.mock('@tanstack/react-router', () => ({
 vi.mock('@/hooks/useAppStore', () => ({
   useAppStore: () => ({ session: { user: { id: 'owner' } } }),
 }))
-vi.mock('./budget-allocations', () => ({ BudgetAllocations: () => null }))
+vi.mock('@/lib/budget-ledger', async (original) => ({
+  ...(await original<typeof import('@/lib/budget-ledger')>()),
+  fetchBudgetPlan: async () => ({ budget: 50000, funds: [], memberships: [] }),
+  fetchBudgetAllocations: async () => [],
+}))
+vi.mock('@/lib/wallet', () => ({ fetchWalletEntries: async () => [] }))
 vi.mock('./expense-receipts', () => ({ ExpenseReceipts: () => null }))
 vi.mock('@/lib/supplier-requests', () => ({
   fetchAllocations: async () => [],
   featureError: (e: Error) => e.message,
 }))
 vi.mock('@/lib/projects', () => ({
-  fetchProjects: async () => [{ id: 'party', title: 'Party' }],
+  fetchProjects: async () => [{ id: 'party', title: 'Party', isOwner: true, budgetCents: 10000 }],
   fetchProjectDetail: vi.fn(async () => ({
     ownerId: 'owner',
     project: { budgetCents: 10000 },
@@ -61,7 +66,7 @@ beforeEach(() => {
 describe('project budget editing', () => {
   it('saves a planned cost as unpaid with exact cents', async () => {
     open()
-    fireEvent.click(screen.getByRole('button', { name: 'Add entry' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Add entry' }))
     await screen.findByRole('option', { name: 'Party' })
     fireEvent.change(screen.getByLabelText('Cost name'), {
       target: { value: 'Present' },
@@ -84,7 +89,7 @@ describe('project budget editing', () => {
   })
   it('requires an actual amount when marking a cost paid', async () => {
     open()
-    fireEvent.click(screen.getByRole('button', { name: 'Add entry' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Add entry' }))
     await screen.findByRole('option', { name: 'Party' })
     fireEvent.change(screen.getByLabelText('Cost name'), {
       target: { value: 'Present' },
@@ -98,22 +103,14 @@ describe('project budget editing', () => {
   })
   it('supports an explicit zero budget and clearing the limit', async () => {
     open()
-    await screen.findByLabelText('Budget limit (AUD)')
-    fireEvent.change(screen.getByLabelText('Budget limit (AUD)'), {
-      target: { value: '0' },
-    })
-    fireEvent.click(screen.getByRole('button', { name: 'Save limit' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit budget for Party' }))
+    fireEvent.change(screen.getByLabelText('Budget for Party (AUD)'), { target: { value: '0' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     await waitFor(() => expect(updateProject).toHaveBeenCalledWith('party', { budgetCents: 0 }))
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Save limit' })).toBeDisabled())
-    fireEvent.change(screen.getByLabelText('Budget limit (AUD)'), {
-      target: { value: '' },
-    })
-    fireEvent.click(screen.getByRole('button', { name: 'Save limit' }))
-    await waitFor(() =>
-      expect(updateProject).toHaveBeenCalledWith('party', {
-        budgetCents: null,
-      }),
-    )
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit budget for Party' }))
+    fireEvent.change(screen.getByLabelText('Budget for Party (AUD)'), { target: { value: '' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(updateProject).toHaveBeenCalledWith('party', { budgetCents: null }))
   })
   it('edits the estimate, actual cost and status of an existing item', async () => {
     vi.mocked(fetchExpenses).mockResolvedValue([
@@ -130,7 +127,8 @@ describe('project budget editing', () => {
       },
     ])
     open()
-    fireEvent.click(await screen.findByRole('button', { name: 'Edit' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Details for Drinks' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
     fireEvent.change(screen.getByLabelText('Actual cost (AUD)'), {
       target: { value: '47.50' },
     })

@@ -10,8 +10,10 @@ const project = {
   budget_cents: 50000,
 }
 const rows: Record<string, Record<string, unknown>[]> = {
+  money_budget_settings: [{ owner_id: 'audit-owner', budget_cents: 200000 }],
+  budget_funds: [{ id: 'sample-personal', name: 'Personal', budget_cents: 80000 }],
   project_budget_limits: [
-    { project_id: 'sample-party', budget_cents: 50000 },
+    { project_id: 'sample-party', budget_cents: 50000, fund_id: 'sample-personal' },
     { project_id: 'sample-launch', budget_cents: 100000 },
     { project_id: 'sample-completed', budget_cents: 0 },
   ],

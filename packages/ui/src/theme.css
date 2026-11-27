@@ -1354,3 +1354,18 @@
 [data-theme="mono"] .ui-media-frame {
   border-radius: 0;
 }
+
+/* Budget drill-down: one level at a time; the same financial columns at every level. */
+.budget-workspace { container-type: inline-size; }
+.ui-budget-table .budget-name-cell { position: sticky; left: 0; z-index: 1; min-width: 140px; max-width: 220px; background: rgb(var(--color-surface, var(--color-cloud))); white-space: normal; overflow-wrap: anywhere; }
+.ui-budget-table thead .budget-name-cell { background: rgb(var(--color-cloud)); }
+.ui-budget-table .budget-total { background: rgb(var(--color-ink) / 0.045); border-bottom: 2px solid rgb(var(--color-ink) / 0.2); font-weight: 600; }
+.budget-drill { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; min-height: 44px; text-align: left; font-weight: 600; text-decoration: underline; text-underline-offset: 4px; text-decoration-color: rgb(var(--color-ink) / .25); }
+.budget-drill svg { flex-shrink: 0; }
+.budget-edit { display: inline-flex; align-items: center; justify-content: flex-end; gap: 8px; min-height: 44px; padding: 4px; border-bottom: 1px dashed rgb(var(--color-ink) / .3); font-variant-numeric: tabular-nums; }
+.budget-edit:focus-visible, .budget-drill:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
+.budget-inline-panel { position: sticky; left: 0; width: min(100cqw, 64rem); max-width: 100%; white-space: normal; }
+@media (max-width: 640px) {
+  .budget-workspace .ui-budget-table .budget-name-cell { min-width: 120px; width: 120px; max-width: 160px; }
+  .budget-workspace .ui-budget-table th, .budget-workspace .ui-budget-table td { padding: 10px; }
+}
