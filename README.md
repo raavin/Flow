@@ -23,3 +23,7 @@ VITE_SUPABASE_ANON_KEY=your-local-anon-key
 ```
 
 Development and test commands require Node.js 22.12 or newer (Node 24 LTS recommended).
+
+## Plans
+
+- [OpenRouter AI implementation plan](docs/openrouter-ai-plan.md): optional AI setup in Integrations, user permissions, model choice, spending limits and phased delivery.
