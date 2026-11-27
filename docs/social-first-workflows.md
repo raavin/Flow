@@ -29,15 +29,17 @@ Applied migrations:
 
 - `20261127031320_social_workflow_integrity.sql`
 - `20261127031338_project_payment_reconciliation.sql`
+- `20261127032933_private_project_budgets.sql`
 
-Both were applied to the connected Supabase project. All eight new tables have row-level security enabled. Anonymous callers cannot execute the new workflow, search, delete or financial-link APIs. Demo checkout is no longer executable by signed-in users. The migrations preserve existing posts, project costs and transaction history; old payments are reconciled explicitly through **Link to cost**.
+All three were applied to the connected Supabase project. All nine new tables have row-level security enabled. Anonymous callers cannot execute the new workflow, search, delete or financial-link APIs. Demo checkout is no longer executable by signed-in users. The migrations preserve existing posts, project costs and transaction history; old payments are reconciled explicitly through **Link to cost**.
 
-Project financials and receipts remain private to the owner. Accepting a project invitation does not grant access to that owner's finances or private DMs. Shared task comments use project membership; legacy DM planning projections do not. Members can contribute their own work; this release does not grant arbitrary editing of other members' records.
+Project financials and receipts remain private to the owner. Budget limits have been backfilled into an owner-only table; the deprecated field on shared project metadata is constrained to remain empty. Accepting a project invitation does not grant access to that owner's finances or private DMs. Shared task comments use project membership; legacy DM planning projections do not. Members can contribute their own work; this release does not grant arbitrary editing of other members' records.
 
 ## Verification
 
-- 110 tests across 24 files, including database permission tests executed by PostgreSQL/PGlite.
+- 115 tests across 26 files, including database permission tests executed by PostgreSQL/PGlite.
 - Production build and TypeScript checks passed.
+- Review regressions cover owner-only budget retrieval, exact migration of limits, Melbourne/negative-offset dates, daylight-saving days, and legacy date-only records. Calendar, timeline and task grouping share the same date conversion.
 - ESLint over `apps/web/src`: zero errors and warnings.
 - Production dependency audit: zero reported vulnerabilities (`npm audit --omit=dev`).
 - Verified new production table RLS and anonymous/signed-in function grants after migration.

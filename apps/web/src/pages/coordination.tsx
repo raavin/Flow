@@ -1,3 +1,4 @@
+import { calendarDay, coordinationDays } from '@/lib/coordination-dates'
 import { QueryFeedback, MutationFeedback } from '@/components/request-feedback'
 import { TaskList } from '@/components/task-list'
 import { SourceLinks } from '@/components/source-action'
@@ -1245,13 +1246,12 @@ function FlowMessageCard({ message }: { message: CoordinationMessage }) {
 }
 
 function normalizeDay(value?: string | null) {
-  return value ? value.slice(0, 10) : null
+  return calendarDay(value) ?? null
 }
 
 function formatTimeWindow(item: CoordinationObject) {
-  const start = normalizeDay(item.time.startsAt)
-  const end = normalizeDay(item.time.endsAt)
-  const due = normalizeDay(item.time.dueAt)
+  const { start, end } = coordinationDays(item)
+  const due = calendarDay(item.time.dueAt)
 
   if (start && end && start !== end) return `${start} to ${end}`
   if (start) return `Starts ${start}`
@@ -1268,7 +1268,7 @@ function getParticipantNames(item: CoordinationObject | null) {
 }
 
 function todayDate() {
-  return new Date().toISOString().slice(0, 10)
+  return calendarDay(new Date().toISOString())!
 }
 
 function toStartIso(day: string) {

@@ -1,7 +1,8 @@
+import { calendarDay, coordinationDays } from './coordination-dates'
 import type { CoordinationObject } from '@superapp/types'
 export function groupCoordinationObjects(items: CoordinationObject[], now = new Date()) {
   // Compare local days, not UTC dates that change midday in Australia.
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
+  const today = calendarDay(now.toISOString())!
   const groups: Record<'now' | 'next' | 'backlog' | 'done', CoordinationObject[]> = {
     now: [],
     next: [],
@@ -14,11 +15,9 @@ export function groupCoordinationObjects(items: CoordinationObject[], now = new 
       groups.done.push(item)
       continue
     }
-    const date = item.time.startsAt || item.time.dueAt
-    const value = date ? new Date(date) : null
-    const day = value ? new Date(value.getFullYear(), value.getMonth(), value.getDate()).getTime() : null
-    if (item.state === 'active' || (day !== null && day <= today)) groups.now.push(item)
-    else if (day !== null) groups.next.push(item)
+    const day = coordinationDays(item).start
+    if (item.state === 'active' || (day !== undefined && day <= today)) groups.now.push(item)
+    else if (day !== undefined) groups.next.push(item)
     else groups.backlog.push(item)
   }
   return groups

@@ -1,3 +1,4 @@
+import { coordinationDays } from '@/lib/coordination-dates'
 import { ScheduleViews } from '@/components/section-views'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createRoute } from '@tanstack/react-router'
@@ -130,8 +131,8 @@ export function GanttPage({ linkedProjectId }: { linkedProjectId?: string | null
       const projectMap = new Map((projectsQuery.data ?? []).map((p) => [p.id, p.title]))
       return (coordinationQuery.data ?? [])
         .map((item) => {
-          const startDay = (item.time.startsAt ?? item.time.dueAt)?.slice(0, 10)
-          const endDay = (item.time.endsAt ?? item.time.startsAt ?? item.time.dueAt)?.slice(0, 10)
+          const startDay = coordinationDays(item).start
+          const endDay = coordinationDays(item).end
           if (!startDay || !endDay) return null
 
           const metadata = item.metadata as Record<string, unknown> | undefined
@@ -191,8 +192,8 @@ export function GanttPage({ linkedProjectId }: { linkedProjectId?: string | null
 
     const coordItems = (projectCoordinationQuery.data ?? [])
       .map((item) => {
-        const startDay = (item.time.startsAt ?? item.time.dueAt)?.slice(0, 10)
-        const endDay = (item.time.endsAt ?? item.time.startsAt ?? item.time.dueAt)?.slice(0, 10)
+        const startDay = coordinationDays(item).start
+        const endDay = coordinationDays(item).end
         if (!startDay || !endDay) return null
         const metadata = item.metadata as Record<string, unknown> | undefined
         const lane = String((metadata?.lane as string | undefined) ?? item.displayKind).replace(/^\w/, (v) =>

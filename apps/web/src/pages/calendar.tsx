@@ -1,3 +1,4 @@
+import { coordinationDays } from '@/lib/coordination-dates'
 import { ScheduleViews } from '@/components/section-views'
 import { createRoute, Link } from '@tanstack/react-router'
 import { useMemo, useRef, useState } from 'react'
@@ -152,8 +153,8 @@ export function CalendarPage({ linkedProjectId }: { linkedProjectId?: string | n
   const selectedDayFlows = useMemo(
     () =>
       timedFlows.filter((item) => {
-        const start = (item.time.startsAt ?? item.time.dueAt)?.slice(0, 10)
-        const end = (item.time.endsAt ?? item.time.startsAt ?? item.time.dueAt)?.slice(0, 10)
+        const start = coordinationDays(item).start
+        const end = coordinationDays(item).end
         return Boolean(start && end && selectedDay >= start && selectedDay <= end)
       }),
     [selectedDay, timedFlows],
@@ -1148,8 +1149,8 @@ function MonthView({
           const iso = toIsoDate(day)
           const dayOccs = occurrences.filter((o) => o.instanceDate === iso)
           const dayFlows = flows.filter((item) => {
-            const start = (item.time.startsAt ?? item.time.dueAt)?.slice(0, 10)
-            const end = (item.time.endsAt ?? item.time.startsAt ?? item.time.dueAt)?.slice(0, 10)
+            const start = coordinationDays(item).start
+            const end = coordinationDays(item).end
             return Boolean(start && end && iso >= start && iso <= end)
           })
           const isSelected = iso === selectedDay
@@ -1336,8 +1337,8 @@ function WeekView({
             const iso = toIsoDate(day)
             const timedOccs = occurrences.filter((o) => !o.isAllDay && o.instanceDate === iso)
             const dayFlows = flows.filter((item) => {
-              const start = (item.time.startsAt ?? item.time.dueAt)?.slice(0, 10)
-              const end = (item.time.endsAt ?? item.time.startsAt ?? item.time.dueAt)?.slice(0, 10)
+              const start = coordinationDays(item).start
+              const end = coordinationDays(item).end
               return Boolean(start && end && iso >= start && iso <= end)
             })
             return (
@@ -1410,8 +1411,8 @@ function DayView({
   const timedOccs = occurrences.filter((o) => !o.isAllDay && o.instanceDate === day)
   const allDayOccs = occurrences.filter((o) => o.isAllDay && o.instanceDate === day)
   const dayFlows = flows.filter((item) => {
-    const start = (item.time.startsAt ?? item.time.dueAt)?.slice(0, 10)
-    const end = (item.time.endsAt ?? item.time.startsAt ?? item.time.dueAt)?.slice(0, 10)
+    const start = coordinationDays(item).start
+    const end = coordinationDays(item).end
     return Boolean(start && end && day >= start && day <= end)
   })
 
@@ -1614,8 +1615,8 @@ function buildAgendaDays(
           })),
         ...flows
           .filter((item) => {
-            const startDay = (item.time.startsAt ?? item.time.dueAt)?.slice(0, 10)
-            const endDay = (item.time.endsAt ?? item.time.startsAt ?? item.time.dueAt)?.slice(0, 10)
+            const startDay = coordinationDays(item).start
+            const endDay = coordinationDays(item).end
             return Boolean(startDay && endDay && day >= startDay && day <= endDay)
           })
           .map((item) => ({

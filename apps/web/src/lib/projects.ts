@@ -17,7 +17,6 @@ type ProjectRow = {
   status: Project['status']
   project_kind: NonNullable<Project['projectKind']>
   target_date: string | null
-  budget_cents: number | null
 }
 
 type MilestoneRow = {
@@ -48,12 +47,21 @@ type ProjectNoteRow = {
   updated_at: string
 }
 
+async function fetchProjectBudgetLimits(projectId?: string) {
+  if (!supabase) return []
+  let query = supabase.from('project_budget_limits').select('project_id,budget_cents')
+  if (projectId) query = query.eq('project_id', projectId)
+  const { data, error } = await query
+  if (error) throw error
+  return data ?? []
+}
+
 export async function fetchProjects() {
   if (!supabase) return []
 
   const { data, error } = await supabase
     .from('projects')
-    .select('id, owner_id, title, category, status, project_kind, target_date, budget_cents')
+    .select('id, owner_id, title, category, status, project_kind, target_date')
     .order('created_at', { ascending: false })
 
   if (error) throw error
@@ -61,6 +69,7 @@ export async function fetchProjects() {
   const {
     data: { session },
   } = await supabase.auth.getSession()
+  const limits = new Map((await fetchProjectBudgetLimits()).map((row) => [row.project_id, row.budget_cents]))
   return (data as ProjectRow[]).map((project) => ({
     id: project.id,
     isOwner: project.owner_id === session?.user.id,
@@ -69,7 +78,7 @@ export async function fetchProjects() {
     status: project.status,
     projectKind: project.project_kind,
     targetDate: project.target_date,
-    budgetCents: project.budget_cents,
+    budgetCents: limits.get(project.id) ?? null,
   }))
 }
 
@@ -93,12 +102,12 @@ export async function createProject(input: {
       category: normalizedCategory,
       project_kind: input.projectKind ?? 'general',
       target_date: normalizedTargetDate,
-      budget_cents: input.budgetCents ?? null,
     })
-    .select('id, owner_id, title, category, status, project_kind, target_date, budget_cents')
+    .select('id, owner_id, title, category, status, project_kind, target_date')
     .single<ProjectRow>()
 
   if (error) throw error
+  if (input.budgetCents !== undefined) await updateProject(project.id, { budgetCents: input.budgetCents })
 
   // A blank project stays lightweight; templates create intentional dated steps.
 
@@ -126,7 +135,7 @@ export async function createProject(input: {
     status: project.status,
     projectKind: project.project_kind,
     targetDate: project.target_date,
-    budgetCents: project.budget_cents,
+    budgetCents: input.budgetCents ?? null,
   } satisfies Project
 }
 
@@ -167,7 +176,7 @@ export async function createProjectFromTemplate(input: {
       project_kind: 'general',
       target_date: targetDate,
     })
-    .select('id, owner_id, title, category, status, project_kind, target_date, budget_cents')
+    .select('id, owner_id, title, category, status, project_kind, target_date')
     .single<ProjectRow>()
 
   if (error) throw error
@@ -217,7 +226,7 @@ export async function createProjectFromTemplate(input: {
     status: project.status,
     projectKind: project.project_kind,
     targetDate: project.target_date,
-    budgetCents: project.budget_cents,
+    budgetCents: null,
   } satisfies Project
 }
 
@@ -233,7 +242,7 @@ export async function fetchProjectDetail(projectId: string) {
   ] = await Promise.all([
     supabase
       .from('projects')
-      .select('id, owner_id, title, category, status, project_kind, target_date, budget_cents')
+      .select('id, owner_id, title, category, status, project_kind, target_date')
       .eq('id', projectId)
       .single<ProjectRow>(),
     supabase
@@ -263,6 +272,7 @@ export async function fetchProjectDetail(projectId: string) {
   if (linksError) throw linksError
   if (tasksError) throw tasksError
 
+  const limits = await fetchProjectBudgetLimits(projectId)
   return {
     ownerId: project.owner_id,
     project: {
@@ -272,7 +282,7 @@ export async function fetchProjectDetail(projectId: string) {
       status: project.status,
       projectKind: project.project_kind,
       targetDate: project.target_date,
-      budgetCents: project.budget_cents,
+      budgetCents: limits[0]?.budget_cents ?? null,
     } satisfies Project,
     milestones: (milestones as MilestoneRow[]).map(mapMilestone),
     events: (events as EventRow[]).map(mapEvent),
@@ -299,8 +309,12 @@ export async function updateProject(
   if (input.status !== undefined) updates.status = input.status
   if (input.budgetCents !== undefined) {
     if (input.budgetCents !== null) assertBudgetAmount(input.budgetCents)
-    updates.budget_cents = input.budgetCents
+    const { error } = await supabase
+      .from('project_budget_limits')
+      .upsert({ project_id: projectId, budget_cents: input.budgetCents }, { onConflict: 'project_id' })
+    if (error) throw error
   }
+  if (!Object.keys(updates).length) return
   const { error } = await supabase.from('projects').update(updates).eq('id', projectId)
   if (error) throw error
 }
