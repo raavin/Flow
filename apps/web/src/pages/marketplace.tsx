@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { createRoute, Link, useNavigate } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ShoppingCart } from 'lucide-react'
-import { AppButton, AppCard, AppPanel } from '@superapp/ui'
+import { MarketplaceViews } from '@/components/section-views'
+import { AppCard, AppPanel } from '@superapp/ui'
 import { appRoute } from '@/components/layout'
 import { useAppStore } from '@/hooks/useAppStore'
 import { fetchMarketplaceListingsBrowse, getListingImageUrl } from '@/lib/marketplace'
@@ -142,7 +142,8 @@ function FilterChip({
   return (
     <button
       type="button"
-      className={`ui-chip-toggle ${active ? 'ui-chip-toggle--active' : 'ui-chip-toggle--inactive'}`}
+      className={`ui-chip-toggle min-h-11 min-w-0 !px-2 ${active ? 'ui-chip-toggle--active' : 'ui-chip-toggle--inactive'}`}
+      aria-pressed={active}
       onClick={onClick}
     >
       {children}
@@ -188,35 +189,19 @@ function MarketplaceBrowsePage({ initialKind = 'all' }: { initialKind?: KindFilt
   const listings = listingsQuery.data ?? []
 
   return (
-    <div className="space-y-0">
+    <div className="space-y-4">
       {/* Header bar */}
       <AppCard className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="ui-eyebrow">Flow</p>
           <h1 className="ui-section-title">Marketplace</h1>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {session ? (
-            <Link to="/app/marketplace/manage">
-              <AppButton variant="ghost">My listings</AppButton>
-            </Link>
-          ) : null}
-          <Link to="/app/marketplace/requests" search={{}}>
-            <AppButton variant="secondary">Requests &amp; quotes</AppButton>
-          </Link>
-          <Link to="/app/marketplace/cart">
-            <AppButton variant="secondary" className="flex items-center gap-2">
-              <ShoppingCart className="h-4 w-4" />
-              Saved items
-              {cartCountQuery.data ? ` (${cartCountQuery.data})` : ''}
-            </AppButton>
-          </Link>
-        </div>
       </AppCard>
+      <MarketplaceViews active="browse" savedCount={cartCountQuery.data ?? 0} />
 
       {/* Filters */}
       <AppCard className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap gap-2">
+        <div role="group" aria-label="Listing type" className="grid w-full grid-cols-4 gap-1 sm:flex sm:w-auto">
           {(Object.keys(KIND_LABELS) as KindFilter[]).map((k) => (
             <FilterChip key={k} active={kindFilter === k} onClick={() => setKindFilter(k)}>
               {KIND_LABELS[k]}
@@ -224,6 +209,7 @@ function MarketplaceBrowsePage({ initialKind = 'all' }: { initialKind?: KindFilt
           ))}
         </div>
         <select
+          aria-label="Sort listings"
           value={sort}
           onChange={(e) => setSort(e.target.value as typeof sort)}
           className="ui-input ui-select w-auto text-sm py-1.5"

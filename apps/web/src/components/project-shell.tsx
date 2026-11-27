@@ -5,6 +5,7 @@ import { Pencil } from 'lucide-react'
 import { AppButton, AppCard, AppPill, AppSelect } from '@superapp/ui'
 import { deleteProject, fetchProjectDetail, updateProject } from '@/lib/projects'
 import { QueryFeedback, MutationFeedback } from '@/components/request-feedback'
+import { PageNavigation } from '@/components/page-navigation'
 import { useAppStore } from '@/hooks/useAppStore'
 import type { Project } from '@superapp/types'
 
@@ -126,6 +127,10 @@ export function ProjectShell({
       label: 'Conversation',
       to: '/app/projects/$projectId/conversation',
     },
+    { key: 'people', label: 'People', to: '/app/projects/$projectId/people' },
+    { key: 'availability', label: 'Availability', to: '/app/projects/$projectId/availability' },
+    { key: 'updates', label: 'Updates', to: '/app/projects/$projectId/updates' },
+    { key: 'notes', label: 'Notes', to: '/app/projects/$projectId/notes' },
     { key: 'tasks', label: 'Tasks', to: '/app/projects/$projectId/tasks' },
     {
       key: 'calendar',
@@ -133,18 +138,29 @@ export function ProjectShell({
       to: '/app/projects/$projectId/calendar',
     },
     { key: 'timeline', label: 'Timeline', to: '/app/projects/$projectId/timeline' },
-    { key: 'notes', label: 'Notes', to: '/app/projects/$projectId/notes' },
     { key: 'budget', label: 'Budget', to: '/app/projects/$projectId/budget' },
     { key: 'store', label: 'Listings', to: '/app/projects/$projectId/store' },
-    { key: 'people', label: 'People', to: '/app/projects/$projectId/people' },
   ] as const
+  const visibleTabs = tabs.filter((tab) => tab.key !== 'budget' || isOwner)
+  const peoplePage = ['people', 'availability', 'updates'].includes(activeTab)
+  const pageLink = (tab: (typeof tabs)[number], highlightParent: boolean) => (
+    <Link
+      key={tab.key}
+      to={tab.to}
+      params={{ projectId }}
+      aria-current={activeTab === tab.key ? 'page' : undefined}
+      className={`flow-page-link ${activeTab === tab.key || (highlightParent && tab.key === 'people' && peoplePage) ? 'flow-page-link--active' : ''}`}
+    >
+      {tab.label}
+    </Link>
+  )
 
   return (
     <div className="space-y-4">
-      <AppCard className="space-y-4">
+      <AppCard className="flow-project-header space-y-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           {/* Left: editable title + subtitle */}
-          <div className="min-w-0">
+          <div className="min-w-0 basis-full sm:flex-1 sm:basis-0">
             <p className="ui-eyebrow">Project</p>
 
             {/* Title — double-click to edit */}
@@ -164,12 +180,12 @@ export function ProjectShell({
                 onDoubleClick={() => beginEdit('title')}
                 title="Double-click to edit title"
               >
-                {project?.title ?? 'Project'}
+                <span className="min-w-0 break-words">{project?.title ?? 'Project'}</span>
                 {isOwner && (
                   <button
                     type="button"
                     aria-label="Edit project title"
-                    className="rounded p-2 text-ink/60 hover:text-ink"
+                    className="shrink-0 rounded p-2 text-ink/60 hover:text-ink"
                     onClick={() => beginEdit('title')}
                   >
                     <Pencil className="h-4 w-4" />
@@ -254,8 +270,8 @@ export function ProjectShell({
                     Delete
                   </AppButton>
                 )}
-                <Link to="/app/projects">
-                  <AppButton variant="ghost">All projects</AppButton>
+                <Link to="/app/projects" className="ui-button ui-button--ghost min-h-11">
+                  All projects
                 </Link>
               </>
             )}
@@ -303,29 +319,21 @@ export function ProjectShell({
         <QueryFeedback query={detailQuery} />
         <MutationFeedback mutation={updateMutation} />
         <MutationFeedback mutation={deleteMutation} />
-        {/* Tabs */}
-        <nav aria-label="Project navigation" className="flex flex-wrap gap-2">
-          {tabs
-            .filter((tab) => tab.key !== 'budget' || isOwner)
-            .map((tab) => (
-              <Link
-                key={tab.key}
-                to={tab.to}
-                params={{ projectId }}
-                aria-current={activeTab === tab.key ? 'page' : undefined}
-                className={`ui-button min-h-11 ${activeTab === tab.key ? 'ui-button--primary' : 'ui-button--ghost'}`}
-              >
-                {tab.label}
-              </Link>
-            ))}
-        </nav>
-        {(activeTab === 'people' || activeTab === 'availability' || activeTab === 'updates') && (
-          <nav aria-label="Project coordination" className="flex flex-wrap gap-3 border-t border-border pt-3">
+        <PageNavigation
+          label="Project navigation"
+          compactLabel="Project page"
+          currentPage={tabs.find((tab) => tab.key === activeTab)?.label ?? 'Project'}
+          compactChildren={visibleTabs.map((tab) => pageLink(tab, false))}
+        >
+          {visibleTabs.filter((tab) => tab.key !== 'availability' && tab.key !== 'updates').map((tab) => pageLink(tab, true))}
+        </PageNavigation>
+        {peoplePage && (
+          <nav aria-label="Project coordination" className="flow-project-coordination">
             <Link
               to="/app/projects/$projectId/people"
               params={{ projectId }}
               aria-current={activeTab === 'people' ? 'page' : undefined}
-              className="inline-flex min-h-11 items-center px-3 text-sm underline"
+              className={`flow-page-link ${activeTab === 'people' ? 'flow-page-link--active' : ''}`}
             >
               People
             </Link>
@@ -333,7 +341,7 @@ export function ProjectShell({
               to="/app/projects/$projectId/availability"
               params={{ projectId }}
               aria-current={activeTab === 'availability' ? 'page' : undefined}
-              className="inline-flex min-h-11 items-center px-3 text-sm underline"
+              className={`flow-page-link ${activeTab === 'availability' ? 'flow-page-link--active' : ''}`}
             >
               Availability
             </Link>
@@ -341,7 +349,7 @@ export function ProjectShell({
               to="/app/projects/$projectId/updates"
               params={{ projectId }}
               aria-current={activeTab === 'updates' ? 'page' : undefined}
-              className="inline-flex min-h-11 items-center px-3 text-sm underline"
+              className={`flow-page-link ${activeTab === 'updates' ? 'flow-page-link--active' : ''}`}
             >
               Updates
             </Link>

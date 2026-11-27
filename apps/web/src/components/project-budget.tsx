@@ -98,6 +98,26 @@ export function ProjectBudget({ projectId }: { projectId: string }) {
               <p role="status">Loading budget…</p>
             ) : !costs.isError && !project.isError ? (
               <>
+                <div className="flex flex-wrap items-end gap-3">
+                  <FieldLabel>
+                    Budget limit (AUD)
+                    <AppInput
+                      aria-label="Budget limit (AUD)"
+                      inputMode="decimal"
+                      placeholder="No limit set"
+                      value={target ?? (budget === null ? '' : String(budget / 100))}
+                      onChange={(e) => setTarget(e.target.value)}
+                    />
+                  </FieldLabel>
+                  <AppButton
+                    variant="secondary"
+                    disabled={target === null || saveTarget.isPending}
+                    onClick={() => saveTarget.mutate()}
+                  >
+                    {saveTarget.isPending ? 'Saving…' : 'Save limit'}
+                  </AppButton>
+                  <span className="text-xs text-ink/70">Leave blank to remove the limit.</span>
+                </div>
                 <div
                   className="ui-ledger-shell relative"
                   role="region"
@@ -144,26 +164,6 @@ export function ProjectBudget({ projectId }: { projectId: string }) {
                   To pay: {formatCurrency(totals.remaining)}. Forecast uses actual costs where recorded,
                   otherwise estimates. Budget left is the limit minus the forecast.
                 </p>
-                <div className="flex flex-wrap items-end gap-3">
-                  <FieldLabel>
-                    Budget limit (AUD)
-                    <AppInput
-                      aria-label="Budget limit (AUD)"
-                      inputMode="decimal"
-                      placeholder="No limit set"
-                      value={target ?? (budget === null ? '' : String(budget / 100))}
-                      onChange={(e) => setTarget(e.target.value)}
-                    />
-                  </FieldLabel>
-                  <AppButton
-                    variant="secondary"
-                    disabled={target === null || saveTarget.isPending}
-                    onClick={() => saveTarget.mutate()}
-                  >
-                    {saveTarget.isPending ? 'Saving…' : 'Save limit'}
-                  </AppButton>
-                  <span className="text-xs text-ink/70">Leave blank to remove the limit.</span>
-                </div>
               </>
             ) : null}
           </AppCard>
@@ -171,6 +171,14 @@ export function ProjectBudget({ projectId }: { projectId: string }) {
             <div role="alert" className="ui-panel">
               {featureError(error)}
             </div>
+          ) : null}
+          {session ? (
+            <BudgetAllocations
+              projectId={projectId}
+              ownerId={session.user.id}
+              budget={budget}
+              costs={costs.data ?? []}
+            />
           ) : null}
           <AppCard className="min-w-0 space-y-4">
             <SectionHeading
@@ -334,14 +342,6 @@ export function ProjectBudget({ projectId }: { projectId: string }) {
             ) : null}
           </AppCard>
           {receipt ? <ReceiptPanel record={receipt} onClose={() => setReceiptsFor(null)} /> : null}
-          {session ? (
-            <BudgetAllocations
-              projectId={projectId}
-              ownerId={session.user.id}
-              budget={budget}
-              costs={costs.data ?? []}
-            />
-          ) : null}
         </div>
       </ProjectShell>
     </div>

@@ -116,7 +116,6 @@ test.describe('Moving House — UX Evaluation', () => {
 
     // Can a project be created from this post?
     // The Waves icon on a post creates a project linked to the post
-    const wavesBtn = page.getByRole('button', { name: 'Create project' }).first()
     const wavesByLabel = page.getByRole('button', { name: /Open project|Create project/i }).first()
     const hasWaves = await wavesByLabel.isVisible().catch(() => false)
     obs('Post-to-project button visible', String(hasWaves))
@@ -287,7 +286,7 @@ test.describe('Moving House — UX Evaluation', () => {
     projectId = page.url().match(/projects\/([^/]+)/)?.[1] ?? ''
 
     // View 1: Conversation
-    const convText = await getText(page)
+    await getText(page)
     const hasConvComposer = await page.getByPlaceholder("What's happening? Try @, #, or /").isVisible().catch(() => false)
     || await page.getByRole('button', { name: "What's up?" }).isVisible().catch(() => false)
     obs('Conversation view available', 'yes')
@@ -360,7 +359,6 @@ test.describe('Moving House — UX Evaluation', () => {
     await page.getByPlaceholder('Move house, birthday prep, leave request...').fill('House Move Cart Test')
     await page.getByRole('button', { name: 'Create project' }).click()
     await expect(page).toHaveURL(/app\/projects\/.+\/conversation/, { timeout: 12000 })
-    const pid = page.url().match(/projects\/([^/]+)/)?.[1] ?? ''
 
     // Check the Store tab for project-linked listings
     await page.getByRole('main').getByRole('link', { name: 'Store', exact: true }).click()
@@ -521,7 +519,7 @@ test.describe('Moving House — UX Evaluation', () => {
     if (hasJobs) {
       await jobsLink.click()
       await page.waitForLoadState('networkidle')
-      const jobsText = await getText(page)
+      await getText(page)
       finding('POWER', 'Business mode has a Jobs board — providers can create and manage jobs independently of whether the customer is an app user.')
 
       // Create a job for the move
@@ -558,13 +556,13 @@ test.describe('Moving House — UX Evaluation', () => {
   })
 
   // ── Step 13 + Final evaluation ────────────────────────────────────────────
-  test('Step 13 + Final: Synthesis and scoring', async ({ page }) => {
+  test('Step 13 + Final: Synthesis and scoring', async () => {
     section('---\n\n## B. RATINGS (1–10)\n')
 
     append(`
 | Dimension | Score | Rationale |
 |-----------|-------|-----------|
-| Conversation-first usability | 7/10 | Feed composer is immediate and low-friction. Landing on Messages after sign-up is correct. But two capture surfaces (Feed vs Coordination) create confusion about where "I\'m moving house" belongs. |
+| Conversation-first usability | 7/10 | Feed composer is immediate and low-friction. Landing on Messages after sign-up is correct. But two capture surfaces (Feed vs Coordination) create confusion about where "I'm moving house" belongs. |
 | Project emergence | 6/10 | A "Create project from post" affordance exists via the Waves icon, but it requires knowing to look for it. The manual Projects page path works but breaks the conversation flow. Seeded milestones help but are generically named. |
 | Participant coordination | 5/10 | Participants can be added with roles. But they are named strings — no in-app notifications, no availability polling, no connection to purchases or tasks. The link between participants and the rest of the project is mostly visual. |
 | Schedule / timeline clarity | 6/10 | Gantt and Calendar both exist, both are project-scoped. But they do not talk to each other (milestones ≠ calendar events). No "move day" can be set that appears in all views simultaneously. |
@@ -597,7 +595,7 @@ A Gantt milestone called "Move Day" does not appear on the calendar. The two sch
 Shifting key collection time does not offer to shift the van hire start, cleaner arrival, or any downstream item. Every change is manual. *Severity: High.*
 
 **7. ⚠️ Two capture surfaces with no clear guidance**
-Feed composer and Coordination quick-capture both accept freeform input but model it differently. A new user has no signal about which to use for "I\'m moving house." *Severity: Medium.*
+Feed composer and Coordination quick-capture both accept freeform input but model it differently. A new user has no signal about which to use for "I'm moving house." *Severity: Medium.*
 
 **8. ⚠️ Seed milestones are generic**
 Kickoff / Mid-point review / Delivery are not meaningful for a moving house context. The app does not tailor them by project category. *Severity: Medium.*
@@ -606,7 +604,7 @@ Kickoff / Mid-point review / Delivery are not meaningful for a moving house cont
 Paying back Jordan for fuel requires a manual wallet entry with no connection to the participant record. *Severity: Medium.*
 
 **10. → Provider and customer sides are not connected**
-A provider\'s job record and a customer\'s project are separate objects even for the same real-world event. *Severity: Medium.*
+A provider's job record and a customer's project are separate objects even for the same real-world event. *Severity: Medium.*
 `)
 
     section('## D. MOMENTS WHERE THE PRODUCT FELT UNIQUELY POWERFUL\n')
@@ -674,7 +672,7 @@ If the project category is "move" or "moving", seed milestones as "Pack", "Move 
 Add a "Post an update" button in the project conversation toolbar. The update types (Delay, Confirmed, etc.) should be accessible without navigating to a separate URL.
 
 **10. Clarify "Coordination" as a concept**
-The word "Coordination" is used for both the board (/app/coordination) and the timeline mode (Gantt coordination mode). New users will not know what "coordination objects" are. Consider renaming to "Flows" or "Plans" throughout, since "flow" already appears in the app\'s design system (AppCard uses "Flow · Market", etc.).
+The word "Coordination" is used for both the board (/app/coordination) and the timeline mode (Gantt coordination mode). New users will not know what "coordination objects" are. Consider renaming to "Flows" or "Plans" throughout, since "flow" already appears in the app's design system (AppCard uses "Flow · Market", etc.).
 
 ### Strengthening the moving-house use case as a flagship demo
 
@@ -684,10 +682,10 @@ The Whisker-Smooth Move Planner is a good start. It should include:
 - Pre-populated participant role slots (Helper ×2, Van hire, Cleaner, Agent)
 - A checklist: boxes, tape, disconnections, change of address
 - Linked marketplace listings for van hire and cleaning services (even as stubs)
-- A pre-written conversation opener post ("I\'m planning a move for [date] — here\'s the plan")
+- A pre-written conversation opener post ("I'm planning a move for [date] — here's the plan")
 
 **12. Add an outbound "invite a provider to quote" flow**
-Allow a project participant (with role=provider) to receive a structured brief via email (no app account required). The brief includes: job date, location, what\'s needed. Their reply creates a coordination object and can be turned into a marketplace transaction.
+Allow a project participant (with role=provider) to receive a structured brief via email (no app account required). The brief includes: job date, location, what's needed. Their reply creates a coordination object and can be turned into a marketplace transaction.
 
 **13. Add an availability poll to participant coordination**
 "Find a time" button on the participants page: select participants, select a date range → generates a shareable link (no app account needed for participants) → responses aggregate into a "best slot" recommendation visible in the calendar.

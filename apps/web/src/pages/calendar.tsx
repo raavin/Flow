@@ -396,9 +396,9 @@ export function CalendarPage({ linkedProjectId }: { linkedProjectId?: string | n
 
             {/* View switcher + shortcuts */}
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="flex flex-wrap gap-2">
+              <div role="group" aria-label="Calendar view" className="grid w-full grid-cols-4 gap-1 sm:flex sm:w-auto">
                 {(['month', 'week', 'day', 'agenda'] as CalendarView[]).map((v) => (
-                  <AppButton key={v} variant={view === v ? 'primary' : 'ghost'} onClick={() => setView(v)}>
+                  <AppButton key={v} className="min-h-11 min-w-0 !px-2" aria-pressed={view === v} variant={view === v ? 'primary' : 'ghost'} onClick={() => setView(v)}>
                     {v[0].toUpperCase() + v.slice(1)}
                   </AppButton>
                 ))}

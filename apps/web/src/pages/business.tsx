@@ -159,11 +159,13 @@ function JobDetailPage() {
             ? new Date(detail.job.booking_at).toLocaleString()
             : 'no booking time yet'}
         </p>
-        <div className="flex flex-wrap gap-2">
+        <div role="group" aria-label="Job view" className="grid grid-cols-4 gap-1 sm:flex">
           {(['overview', 'workflow', 'payment', 'updates'] as const).map(
             (tab) => (
               <AppButton
                 key={tab}
+                className="min-h-11 min-w-0 !px-2"
+                aria-pressed={activeTab === tab}
                 variant={activeTab === tab ? 'primary' : 'ghost'}
                 onClick={() => setActiveTab(tab)}
               >
