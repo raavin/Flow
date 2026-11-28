@@ -44,6 +44,20 @@ export async function markNotificationRead(notificationId: string) {
   )
 }
 
+export async function markNotificationsRead(ids: string[]) {
+  const uniqueIds = [...new Set(ids)]
+  if (!uniqueIds.length) return
+  return optimisticWrite(
+    'notifications:read',
+    uniqueIds.map((id) => editRows(['notifications'], id, { is_read: true })),
+    async () => {
+      if (!supabase) throw new Error('Supabase is not configured.')
+      const { error } = await supabase.from('notifications').update({ is_read: true }).in('id', uniqueIds)
+      if (error) throw error
+    },
+  )
+}
+
 export async function createActivity(input: {
   ownerId: string
   projectId: string

@@ -1,6 +1,6 @@
 import { Link } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
-import { AppCard, AppButton, AppPanel, SectionHeading } from '@superapp/ui'
+import { AppCard, AppPanel, SectionHeading } from '@superapp/ui'
 
 import { HeroPanel, TwoColumnGrid } from '@/components/page-primitives'
 import { useAppStore } from '@/hooks/useAppStore'
@@ -162,18 +162,14 @@ export function HomePage() {
           <AppCard className="space-y-4">
             <SectionHeading eyebrow="Quick start" title="Shortcuts" />
             <div className="grid gap-3">
-              <Link to={nextActionLink.to}>
-                <AppButton className="w-full">{nextActionLink.label}</AppButton>
+              <Link to={nextActionLink.to} className="ui-button ui-button--primary w-full">
+                {nextActionLink.label}
               </Link>
-              <Link to="/app/coordination">
-                <AppButton className="w-full" variant="secondary">
-                  {coordinationObjects.length ? 'View plans' : 'Create a plan'}
-                </AppButton>
+              <Link to="/app/coordination" className="ui-button ui-button--secondary w-full">
+                {coordinationObjects.length ? 'View plans' : 'Create a plan'}
               </Link>
-              <Link to="/app/gantt">
-                <AppButton className="w-full" variant="secondary">
-                  View timeline
-                </AppButton>
+              <Link to="/app/gantt" className="ui-button ui-button--secondary w-full">
+                View timeline
               </Link>
               <Link
                 to={
@@ -181,10 +177,9 @@ export function HomePage() {
                     ? '/app/marketplace/services'
                     : '/app/marketplace/templates'
                 }
+                className="ui-button ui-button--ghost w-full"
               >
-                <AppButton className="w-full" variant="ghost">
-                  {profile.active_mode === 'business' ? 'Browse services' : 'Browse templates'}
-                </AppButton>
+                {profile.active_mode === 'business' ? 'Browse services' : 'Browse templates'}
               </Link>
             </div>
           </AppCard>

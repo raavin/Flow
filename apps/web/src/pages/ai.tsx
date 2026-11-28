@@ -30,6 +30,7 @@ export function PlanningHelperPage() {
     <div className="space-y-4">
       <AppCard className="space-y-4">
         <SectionHeading
+          level={1}
           title="Templates"
           action={
             <Link to="/app/template-editor" className="inline-flex min-h-11 items-center text-sm underline">

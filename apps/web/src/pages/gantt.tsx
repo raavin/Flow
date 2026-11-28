@@ -480,7 +480,7 @@ export function GanttPage({ linkedProjectId }: { linkedProjectId?: string | null
       {!linkedProjectId ? <ScheduleViews active="timeline" /> : null}
       <AppCard className="space-y-4">
         <SectionHeading
-          eyebrow=""
+          level={linkedProjectId ? 2 : 1}
           title="Timeline"
           action={
             <div className="flex flex-wrap gap-2">
@@ -570,11 +570,13 @@ export function GanttPage({ linkedProjectId }: { linkedProjectId?: string | null
             <AppInput
               value={search}
               onChange={(e) => setSearch(e.target.value)}
+              aria-label="Search timeline"
               placeholder="Search items or projects…"
               className="min-w-[180px] flex-1"
             />
             {availableProjectsInView.length > 0 ? (
               <AppSelect
+                aria-label="Filter by project"
                 value={filterProjectId}
                 onChange={(e) => setFilterProjectId(e.target.value)}
                 className="min-w-[160px]"
@@ -589,6 +591,7 @@ export function GanttPage({ linkedProjectId }: { linkedProjectId?: string | null
             ) : null}
             {availableKinds.length > 1 ? (
               <AppSelect
+                aria-label="Filter by type"
                 value={filterKind}
                 onChange={(e) => setFilterKind(e.target.value)}
                 className="min-w-[140px]"

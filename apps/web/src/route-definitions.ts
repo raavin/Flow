@@ -1,4 +1,5 @@
 // Keep paths/search validation eager; view code is fetched only on navigation or intent preload.
+import { appDestination } from '@/lib/navigation'
 import { createRoute, lazyRouteComponent } from '@tanstack/react-router'
 import { appRoute, rootRoute } from '@/components/layout'
 
@@ -77,6 +78,9 @@ export const jobsRoute = createRoute({
 export const landingRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/',
+  validateSearch: (search: Record<string, unknown>): { returnTo?: string } => ({
+    returnTo: appDestination(search.returnTo),
+  }),
   component: lazyRouteComponent(() => import('@/pages/landing'), 'LandingPage'),
 })
 
@@ -179,6 +183,9 @@ export const notificationsRoute = createRoute({
 export const onboardingRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/onboarding',
+  validateSearch: (search: Record<string, unknown>): { returnTo?: string } => ({
+    returnTo: appDestination(search.returnTo),
+  }),
   component: lazyRouteComponent(() => import('@/pages/onboarding'), 'OnboardingPage'),
 })
 

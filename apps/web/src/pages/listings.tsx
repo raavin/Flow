@@ -404,6 +404,7 @@ function MoreFromSeller({
   const moreQuery = useQuery({
     queryKey: ['more-from-seller', sellerId, excludeId],
     queryFn: () => fetchMoreFromSeller(sellerId, excludeId, 4),
+    enabled: Boolean(sellerId),
   })
   const items = moreQuery.data ?? []
   if (!items.length) return null
@@ -561,11 +562,15 @@ export function ListingDetailPage() {
 
             {/* Seller + rating */}
             <div className="flex flex-wrap items-center gap-3">
-              <Link to="/app/marketplace/seller/$sellerId" params={{ sellerId: listing.owner_id }}>
-                <p className="text-sm font-medium text-ink hover:underline">
-                  {seller?.businessName ?? 'Loading seller…'}
-                </p>
-              </Link>
+              {listing.owner_id ? (
+                <Link to="/app/marketplace/seller/$sellerId" params={{ sellerId: listing.owner_id }}>
+                  <p className="text-sm font-medium text-ink hover:underline">
+                    {seller?.businessName ?? (sellerQuery.isPending ? 'Loading seller…' : 'View seller')}
+                  </p>
+                </Link>
+              ) : (
+                <p className="text-sm text-ink/60">Flow template</p>
+              )}
               {listing.review_count > 0 ? (
                 <span className="flex items-center gap-1 text-sm text-ink/65">
                   <StarDisplay rating={avgRating} />
@@ -665,11 +670,9 @@ export function ListingDetailPage() {
               </AppButton>
             ) : null}
 
-            <Link to="/app/marketplace/cart">
-              <AppButton variant="ghost" className="w-full justify-center">
-                Saved items
-                {cartCountQuery.data ? ` (${cartCountQuery.data})` : ''}
-              </AppButton>
+            <Link to="/app/marketplace/cart" className="ui-button ui-button--ghost w-full justify-center">
+              Saved items
+              {cartCountQuery.data ? ` (${cartCountQuery.data})` : ''}
             </Link>
           </AppCard>
 
@@ -797,7 +800,9 @@ export function ListingDetailPage() {
       </AppCard>
 
       {/* Write review (purchase-gated) */}
-      <WriteReviewSection listingId={listingId} sellerId={listing.owner_id} listingTitle={listing.title} />
+      {listing.owner_id && (
+        <WriteReviewSection listingId={listingId} sellerId={listing.owner_id} listingTitle={listing.title} />
+      )}
 
       {/* More from seller */}
       <AppCard>
@@ -887,8 +892,8 @@ export function SellerProfilePage() {
           </div>
           <div className="flex flex-wrap gap-2 shrink-0">
             {/* Message seller — opens DM */}
-            <Link to="/app/messages">
-              <AppButton variant="secondary">Message seller</AppButton>
+            <Link to="/app/messages" className="ui-button ui-button--secondary">
+              Message seller
             </Link>
           </div>
         </div>
@@ -1290,8 +1295,12 @@ export function ListingsManagementPage() {
               <AppButton variant="secondary" onClick={() => duplicateMutation.mutate(listing.id)}>
                 Duplicate
               </AppButton>
-              <Link to="/app/marketplace/listings/$listingId" params={{ listingId: listing.id }}>
-                <AppButton variant="ghost">View</AppButton>
+              <Link
+                to="/app/marketplace/listings/$listingId"
+                params={{ listingId: listing.id }}
+                className="ui-button ui-button--ghost"
+              >
+                View
               </Link>
               {deleteConfirmListingId === listing.id ? (
                 <>

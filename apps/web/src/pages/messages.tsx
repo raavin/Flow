@@ -1,3 +1,4 @@
+import { relativePostDate as timeAgo } from '@/lib/display-date'
 const RichPostEditor = lazy(() =>
   import('@/components/rich-post-editor').then((m) => ({ default: m.RichPostEditor })),
 )
@@ -515,8 +516,8 @@ export function MessagesFeedPage({ linkedProjectId }: { linkedProjectId?: string
                   </button>
                 </div>
               )}
-              <Link to="/app/messages/dm">
-                <AppButton variant="secondary">Messages</AppButton>
+              <Link to="/app/messages/dm" className="ui-button ui-button--secondary">
+                Messages
               </Link>
             </div>
             <button
@@ -590,7 +591,12 @@ export function MessagesFeedPage({ linkedProjectId }: { linkedProjectId?: string
                       </Link>
                       <span>@{post.author?.handle || 'user'}</span>
                       <span>·</span>
-                      <span>{timeAgo(post.feedSortAt ?? post.created_at)}</span>
+                      <time
+                        dateTime={post.feedSortAt ?? post.created_at}
+                        title={new Date(post.feedSortAt ?? post.created_at).toLocaleString()}
+                      >
+                        {timeAgo(post.feedSortAt ?? post.created_at)}
+                      </time>
                       {isEditedPost(post.metadata) ? (
                         <span className="group relative inline-flex items-center">
                           <span>·</span>
@@ -923,6 +929,7 @@ export function MessagesFeedPage({ linkedProjectId }: { linkedProjectId?: string
                   onChange={(event) => setRightSearch(event.target.value)}
                   className="pl-10"
                   style={{ paddingLeft: '2.5rem' }}
+                  aria-label="Search posts, people, or topics"
                   placeholder="Search posts, people, or topics"
                 />
               </div>
@@ -931,10 +938,13 @@ export function MessagesFeedPage({ linkedProjectId }: { linkedProjectId?: string
               <SectionHeading title="Topics" />
               <div className="grid gap-2">
                 {sidebarTopics.slice(0, 6).map((topic) => (
-                  <Link key={topic.id} to="/app/messages/topics/$slug" params={{ slug: topic.slug }}>
-                    <AppButton className="w-full justify-start" variant="ghost">
-                      #{topic.label}
-                    </AppButton>
+                  <Link
+                    key={topic.id}
+                    to="/app/messages/topics/$slug"
+                    params={{ slug: topic.slug }}
+                    className="ui-button ui-button--ghost w-full justify-start"
+                  >
+                    #{topic.label}
                   </Link>
                 ))}
                 {!sidebarTopics.length ? <p className="text-sm text-ink/60">No matching topics.</p> : null}
@@ -1619,6 +1629,7 @@ export function PostDetailPage() {
                 )
               }
               className="min-h-28"
+              aria-label="Reply"
               placeholder="Write a reply..."
             />
             {autocomplete?.kind === 'reply' ? (
@@ -1917,8 +1928,8 @@ export function DmInboxPage() {
         <SectionHeading
           title="Messages"
           action={
-            <Link to="/app/messages">
-              <AppButton variant="ghost">Back to feed</AppButton>
+            <Link to="/app/messages" className="ui-button ui-button--ghost">
+              Back to feed
             </Link>
           }
         />
@@ -2076,8 +2087,8 @@ export function DmThreadPage() {
         <SectionHeading
           title={threadsQuery.data?.find((thread) => thread.id === threadId)?.title || 'Messages'}
           action={
-            <Link to="/app/messages/dm">
-              <AppButton variant="ghost">Inbox</AppButton>
+            <Link to="/app/messages/dm" className="ui-button ui-button--ghost">
+              Inbox
             </Link>
           }
         />
@@ -2190,6 +2201,7 @@ export function DmThreadPage() {
               )
             }
             className="min-h-24 bg-white"
+            aria-label="Message"
             placeholder="Write a message..."
           />
           {autocomplete?.kind === 'dm' ? (
@@ -2622,12 +2634,6 @@ function applyAutocompleteOption({
   })
 }
 
-function timeAgo(value: string) {
-  const diffMs = Date.now() - new Date(value).getTime()
-  const diffHours = Math.max(1, Math.round(diffMs / 3600000))
-  return `${diffHours}h`
-}
-
 function parseSupportingLinks(value: string) {
   const candidates = value
     .split(/\n|,/)
@@ -2685,9 +2691,9 @@ function extractSupportingLinks(metadata: unknown) {
 function isEditedPost(metadata: unknown) {
   return Boolean(
     metadata &&
-      typeof metadata === 'object' &&
-      'editedAt' in metadata &&
-      typeof metadata.editedAt === 'string',
+    typeof metadata === 'object' &&
+    'editedAt' in metadata &&
+    typeof metadata.editedAt === 'string',
   )
 }
 

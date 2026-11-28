@@ -1,5 +1,5 @@
 import '../test-setup'
-import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { Session } from '@supabase/supabase-js'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
@@ -30,6 +30,7 @@ vi.mock('@/lib/supabase', () => ({
     },
   },
 }))
+import { signInWithEmail, signUpWithEmail } from '@/lib/auth'
 import { AppStoreProvider, useAppStore } from './useAppStore'
 
 const clients: QueryClient[] = []
@@ -42,6 +43,9 @@ function Consumer() {
   const state = useAppStore()
   return (
     <div>
+      {state.accountError && <p role="alert">{state.accountError}</p>}
+      <button onClick={state.retryAccount}>Retry</button>
+      <button onClick={() => void state.signUp('test@example.com', 'test-password')}>Register</button>
       {state.loading
         ? 'Loading account'
         : `${state.session?.user.id ?? 'signed out'}: ${state.profile?.first_name ?? 'no profile'}`}
@@ -125,4 +129,52 @@ it('does not replace a newer auth event with a late initial session read', async
   })
   expect(screen.getByText('b: Bob')).toBeInTheDocument()
   expect(mocks.profile).toHaveBeenCalledTimes(1)
+})
+
+it('recovers from a rejected initial session read', async () => {
+  mocks.session.mockRejectedValueOnce(new Error('Offline'))
+  setup()
+  expect(await screen.findByRole('alert')).toHaveTextContent('session could not be restored')
+  expect(screen.queryByText('Loading account')).not.toBeInTheDocument()
+  fireEvent.click(screen.getByText('Retry'))
+  await screen.findByText('a: Alice')
+  expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+})
+
+it('distinguishes failed profile loading from an account needing onboarding', async () => {
+  mocks.profile.mockRejectedValueOnce(new Error('Network failure'))
+  setup()
+  expect(await screen.findByRole('alert')).toHaveTextContent('account could not be loaded')
+  fireEvent.click(screen.getByText('Retry'))
+  await screen.findByText('a: Alice')
+  expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+})
+
+it('does not try signing in before signup email confirmation', async () => {
+  vi.mocked(signUpWithEmail).mockResolvedValue({ session: null, user: null })
+  setup()
+  await screen.findByText('a: Alice')
+  fireEvent.click(screen.getByText('Register'))
+  await waitFor(() => expect(signUpWithEmail).toHaveBeenCalledOnce())
+  expect(signInWithEmail).not.toHaveBeenCalled()
+})
+
+it('ignores a late bootstrap error after a newer successful sign-in', async () => {
+  let fail!: (error: Error) => void
+  mocks.session.mockImplementation(
+    () =>
+      new Promise((_, reject) => {
+        fail = reject
+      }),
+  )
+  setup()
+  await act(async () => {
+    mocks.listener?.('SIGNED_IN', session('a'))
+  })
+  await screen.findByText('a: Alice')
+  await act(async () => {
+    fail(new Error('Old request failed'))
+  })
+  expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  expect(screen.getByText('a: Alice')).toBeInTheDocument()
 })

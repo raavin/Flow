@@ -1,3 +1,5 @@
+import { AccountError } from './account-error'
+import { appDestination } from '@/lib/navigation'
 import { navSection } from './section-views'
 import { WriteStatus } from './write-status'
 import { useEffect, useState } from 'react'
@@ -42,7 +44,9 @@ function RootComponent() {
 }
 
 function AppLayout() {
-  const { session, profile, businessProfile, signOut, setActiveMode, loading } = useAppStore()
+  const { session, profile, businessProfile, signOut, setActiveMode, loading, accountError, retryAccount } =
+    useAppStore()
+  const destination = useRouterState({ select: (state) => appDestination(state.location.href) })
   const activeSection = useRouterState({ select: (state) => navSection(state.location.pathname) })
   const navigate = useNavigate()
   const router = useRouter()
@@ -50,10 +54,10 @@ function AppLayout() {
   const { theme, cycleTheme } = useTheme()
 
   useEffect(() => {
-    if (!loading && !session) {
-      void navigate({ to: '/' })
+    if (!loading && !session && !accountError) {
+      void navigate({ to: '/', search: { returnTo: destination }, replace: true })
     }
-  }, [loading, navigate, session])
+  }, [accountError, destination, loading, navigate, session])
 
   useEffect(() => router.subscribe('onBeforeNavigate', () => setMenuOpen(false)), [router])
 
@@ -71,6 +75,8 @@ function AppLayout() {
     return <div className="mx-auto max-w-5xl px-6 py-10 text-sm text-ink/70">Loading...</div>
   }
 
+  if (accountError) return <AccountError message={accountError} onRetry={retryAccount} />
+
   if (!session) {
     return (
       <div className="mx-auto max-w-3xl px-6 py-10">
@@ -78,9 +84,10 @@ function AppLayout() {
           <p className="text-sm text-ink/70">Sign in or create an account to open the full app.</p>
           <Link
             to="/"
+            search={{ returnTo: destination }}
             className="mt-4 inline-flex rounded-full bg-ink px-4 py-3 text-sm font-bold text-white"
           >
-            Back to welcome
+            Sign in
           </Link>
         </AppCard>
       </div>
@@ -94,6 +101,7 @@ function AppLayout() {
           <p className="text-sm text-ink/70">Your account is signed in, but setup is not complete yet.</p>
           <Link
             to="/onboarding"
+            search={{ returnTo: destination }}
             className="mt-4 inline-flex rounded-full bg-ink px-4 py-3 text-sm font-bold text-white"
           >
             Finish onboarding

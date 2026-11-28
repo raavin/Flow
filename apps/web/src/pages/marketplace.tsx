@@ -86,9 +86,13 @@ function ListingCard({
             {listing.title}
           </p>
         </Link>
-        <Link to="/app/marketplace/seller/$sellerId" params={{ sellerId: listing.sellerId }}>
-          <p className="text-xs text-ink/55 hover:text-ink hover:underline">{listing.sellerName}</p>
-        </Link>
+        {listing.sellerId ? (
+          <Link to="/app/marketplace/seller/$sellerId" params={{ sellerId: listing.sellerId }}>
+            <p className="text-xs text-ink/55 hover:text-ink hover:underline">{listing.sellerName}</p>
+          </Link>
+        ) : (
+          <p className="text-xs text-ink/60">Flow template</p>
+        )}
         <StarRating ratingSum={listing.ratingSum} reviewCount={listing.reviewCount} size="xs" />
         <p className="text-sm font-semibold text-ink">{listing.priceLabel}</p>
       </div>

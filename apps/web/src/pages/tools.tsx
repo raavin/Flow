@@ -80,11 +80,9 @@ export function CategoryBrowsePage() {
           eyebrow="Browse"
           title={`Category: ${category}`}
           action={
-            <Link to="/app/marketplace/cart">
-              <AppButton variant="secondary">
-                Saved items
-                {cartCountQuery.data ? ` (${cartCountQuery.data})` : ''}
-              </AppButton>
+            <Link to="/app/marketplace/cart" className="ui-button ui-button--secondary">
+              Saved items
+              {cartCountQuery.data ? ` (${cartCountQuery.data})` : ''}
             </Link>
           }
         />
@@ -112,8 +110,12 @@ export function CategoryBrowsePage() {
             <p className="mt-2 text-sm text-ink/70">{listing.summary}</p>
             <p className="mt-3 text-sm font-bold text-teal">{listing.priceLabel}</p>
             <div className="mt-4 flex flex-wrap gap-2">
-              <Link to="/app/marketplace/listings/$listingId" params={{ listingId: listing.id }}>
-                <AppButton variant="ghost">Details</AppButton>
+              <Link
+                to="/app/marketplace/listings/$listingId"
+                params={{ listingId: listing.id }}
+                className="ui-button ui-button--ghost"
+              >
+                Details
               </Link>
               <AppButton
                 onClick={() => addMutation.mutate(listing.id)}
@@ -167,7 +169,7 @@ export function CartReviewPage() {
         <MarketplaceViews active="saved" />
       </div>
       <AppCard className="space-y-4">
-        <SectionHeading title="Saved items" />
+        <SectionHeading level={1} title="Saved items" />
         <div className="grid gap-3">
           {(cartQuery.data ?? []).map((item) => {
             const listing = item.listing
@@ -191,6 +193,7 @@ export function CartReviewPage() {
                 </div>
                 <div className="mt-3 grid gap-3 md:grid-cols-2">
                   <AppSelect
+                    aria-label={`Project for ${listing?.title ?? 'saved item'}`}
                     value={item.linkedProjectId ?? ''}
                     onChange={(event) =>
                       updateMutation.mutate({
@@ -208,6 +211,7 @@ export function CartReviewPage() {
                   </AppSelect>
                   <AppInput
                     type="date"
+                    aria-label={`Date for ${listing?.title ?? 'saved item'}`}
                     value={item.bookingDate ? item.bookingDate.slice(0, 10) : ''}
                     onChange={(event) =>
                       updateMutation.mutate({
@@ -225,6 +229,7 @@ export function CartReviewPage() {
                         bookingNote: event.target.value,
                       })
                     }
+                    aria-label="Booking or delivery note"
                     placeholder="Booking or delivery note"
                   />
                 </div>
@@ -357,7 +362,7 @@ export function SearchPage() {
   return (
     <div className="space-y-4">
       <AppCard className="space-y-4">
-        <SectionHeading title="Search" />
+        <SectionHeading level={1} title="Search" />
         <AppInput
           value={query}
           onChange={(event) => setQuery(event.target.value)}
@@ -440,7 +445,7 @@ export function SettingsPage() {
   return (
     <div className="grid gap-4 xl:grid-cols-[0.85fr_1.15fr]">
       <AppCard className="space-y-4">
-        <SectionHeading title="Profile" />
+        <SectionHeading level={1} title="Profile" />
         <FieldLabel>
           First name
           <AppInput
