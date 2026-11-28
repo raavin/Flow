@@ -1,11 +1,10 @@
 import { coordinationDays } from '@/lib/coordination-dates'
 import { ScheduleViews } from '@/components/section-views'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { createRoute } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Pencil, Trash2, X } from 'lucide-react'
 import { AppButton, AppCard, AppInput, AppPanel, AppSelect, SectionHeading } from '@superapp/ui'
-import { appRoute } from '@/components/layout'
+
 import {
   deleteCoordinationObject,
   fetchCoordinationObjects,
@@ -500,7 +499,11 @@ export function GanttPage({ linkedProjectId }: { linkedProjectId?: string | null
 
         <div className="flex flex-wrap items-center justify-between gap-3">
           {!linkedProjectId ? (
-            <div role="group" aria-label="Timeline view" className="grid w-full grid-cols-2 gap-1 sm:flex sm:w-auto">
+            <div
+              role="group"
+              aria-label="Timeline view"
+              className="grid w-full grid-cols-2 gap-1 sm:flex sm:w-auto"
+            >
               <AppButton
                 className="min-h-11 min-w-0 !px-2"
                 aria-pressed={timelineMode === 'coordination'}
@@ -1150,9 +1153,3 @@ function defaultTimelineDay(offset = 0) {
   date.setDate(date.getDate() + offset)
   return toIsoDate(date)
 }
-
-export const ganttRoute = createRoute({
-  getParentRoute: () => appRoute,
-  path: 'gantt',
-  component: GanttPage,
-})

@@ -1,9 +1,9 @@
 import { useState } from 'react'
-import { createRoute, Link, useNavigate } from '@tanstack/react-router'
+import { Link, useNavigate } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { MarketplaceViews } from '@/components/section-views'
 import { AppCard, AppPanel } from '@superapp/ui'
-import { appRoute } from '@/components/layout'
+
 import { useAppStore } from '@/hooks/useAppStore'
 import { fetchMarketplaceListingsBrowse, getListingImageUrl } from '@/lib/marketplace'
 import { addToCart, fetchCartCount } from '@/lib/cart'
@@ -153,7 +153,7 @@ function FilterChip({
 
 // ─── Browse page ──────────────────────────────────────────────────────────────
 
-function MarketplaceBrowsePage({ initialKind = 'all' }: { initialKind?: KindFilter } = {}) {
+export function MarketplaceBrowsePage({ initialKind = 'all' }: { initialKind?: KindFilter } = {}) {
   const { session } = useAppStore()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -201,7 +201,11 @@ function MarketplaceBrowsePage({ initialKind = 'all' }: { initialKind?: KindFilt
 
       {/* Filters */}
       <AppCard className="flex flex-wrap items-center justify-between gap-3">
-        <div role="group" aria-label="Listing type" className="grid w-full grid-cols-4 gap-1 sm:flex sm:w-auto">
+        <div
+          role="group"
+          aria-label="Listing type"
+          className="grid w-full grid-cols-4 gap-1 sm:flex sm:w-auto"
+        >
           {(Object.keys(KIND_LABELS) as KindFilter[]).map((k) => (
             <FilterChip key={k} active={kindFilter === k} onClick={() => setKindFilter(k)}>
               {KIND_LABELS[k]}
@@ -262,28 +266,10 @@ function MarketplaceBrowsePage({ initialKind = 'all' }: { initialKind?: KindFilt
   )
 }
 
-export const marketplaceBrowseRoute = createRoute({
-  getParentRoute: () => appRoute,
-  path: 'marketplace',
-  component: MarketplaceBrowsePage,
-})
-
 // Keep legacy routes redirecting to the unified browse page
-function LegacyTemplatesPage() {
+export function LegacyTemplatesPage() {
   return <MarketplaceBrowsePage initialKind="template" />
 }
-function LegacyServicesPage() {
+export function LegacyServicesPage() {
   return <MarketplaceBrowsePage initialKind="service" />
 }
-
-export const templateMarketplaceRoute = createRoute({
-  getParentRoute: () => appRoute,
-  path: 'marketplace/templates',
-  component: LegacyTemplatesPage,
-})
-
-export const servicesMarketplaceRoute = createRoute({
-  getParentRoute: () => appRoute,
-  path: 'marketplace/services',
-  component: LegacyServicesPage,
-})

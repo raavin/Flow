@@ -1,12 +1,6 @@
 import '../test-setup'
 import { it, expect, vi, afterEach, beforeEach } from 'vitest'
-import {
-  render,
-  screen,
-  fireEvent,
-  waitFor,
-  cleanup,
-} from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { ReactNode } from 'react'
 const mocks = vi.hoisted(() => ({
@@ -29,6 +23,7 @@ const mocks = vi.hoisted(() => ({
 }))
 vi.mock('@/components/layout', () => ({ appRoute: {} }))
 vi.mock('@tanstack/react-router', () => ({
+  lazyRouteComponent: () => () => null,
   Link: ({ children }: { children: ReactNode }) => <a>{children}</a>,
   createRoute: () => ({
     useSearch: () => ({ projectId: 'project' }),
@@ -89,10 +84,9 @@ it('previews only the explicitly written brief before publishing', async () => {
   fireEvent.change(screen.getByLabelText('Requirements'), {
     target: { value: 'Dinner for 12' },
   })
-  fireEvent.change(
-    screen.getByLabelText('Project context to share (optional)'),
-    { target: { value: 'Vegan food' } },
-  )
+  fireEvent.change(screen.getByLabelText('Project context to share (optional)'), {
+    target: { value: 'Vegan food' },
+  })
   fireEvent.change(screen.getByLabelText('Budget (AUD, optional)'), {
     target: { value: '120.50' },
   })
@@ -130,9 +124,7 @@ it('requires explicit selection confirmation and warns about the budget impact',
     },
   ]
   open(<RequestDetail />)
-  fireEvent.click(
-    await screen.findByRole('button', { name: 'Choose this quote' }),
-  )
+  fireEvent.click(await screen.findByRole('button', { name: 'Choose this quote' }))
   expect(screen.getByText(/This adds a committed cost/)).toBeInTheDocument()
   expect(screen.getByText(/above the request budget/)).toBeInTheDocument()
   expect(mocks.rpc).not.toHaveBeenCalled()
@@ -162,13 +154,7 @@ it('does not offer owner selection controls to the supplier', async () => {
   ]
   open(<RequestDetail />)
   await screen.findByText('Food Co')
-  expect(
-    screen.queryByRole('button', { name: 'Choose this quote' }),
-  ).not.toBeInTheDocument()
-  expect(
-    screen.getByRole('button', { name: 'Withdraw quote' }),
-  ).toBeInTheDocument()
-  expect(
-    screen.getByRole('button', { name: 'Save revised quote' }),
-  ).toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: 'Choose this quote' })).not.toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Withdraw quote' })).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Save revised quote' })).toBeInTheDocument()
 })

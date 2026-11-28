@@ -43,7 +43,7 @@ export async function fetchDmMessages(threadId: string) {
   if (!supabase) return []
   const { data, error } = await supabase
     .from('dm_messages')
-    .select('id, author_id, body, metadata, created_at')
+    .select('id, client_id, author_id, body, metadata, created_at')
     .eq('thread_id', threadId)
     .order('created_at', { ascending: true })
   if (error) throw error

@@ -1,15 +1,14 @@
 import { useState } from 'react'
-import { createRoute, Link } from '@tanstack/react-router'
+import { Link } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { AppButton, AppCard, AppInput, SectionHeading } from '@superapp/ui'
-import { appRoute } from '@/components/layout'
+
 import { ApplyTemplateDialog } from '@/components/apply-template-dialog'
 import { QueryFeedback, MutationFeedback } from '@/components/request-feedback'
-import { TemplateEditorPage } from './coordination'
 import { useAppStore } from '@/hooks/useAppStore'
 import { fetchCoordinationTemplates, seedStarterCoordinationTemplates } from '@/lib/coordination-objects'
 import type { CoordinationTemplate } from '@superapp/types'
-function PlanningHelperPage() {
+export function PlanningHelperPage() {
   const { session } = useAppStore()
   const client = useQueryClient()
   const [search, setSearch] = useState('')
@@ -93,14 +92,5 @@ function PlanningHelperPage() {
     </div>
   )
 }
-export const templateEditorRoute = createRoute({
-  getParentRoute: () => appRoute,
-  path: 'template-editor',
-  component: TemplateEditorPage,
-})
+
 // Preserve existing bookmarks while replacing the prototype AI surface.
-export const aiRoute = createRoute({
-  getParentRoute: () => appRoute,
-  path: 'ai',
-  component: PlanningHelperPage,
-})

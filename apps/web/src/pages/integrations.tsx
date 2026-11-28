@@ -1,9 +1,8 @@
 import { useRef, useState } from 'react'
-import { createRoute } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Pencil } from 'lucide-react'
 import { AppButton, AppCard, AppInput, AppPanel, SectionHeading } from '@superapp/ui'
-import { appRoute } from '@/components/layout'
+
 import { IntegrationConnectButton } from '@/components/integration-connect-button'
 import {
   createApiKey,
@@ -716,7 +715,7 @@ function DeliveryLog({ endpointId }: { endpointId: string }) {
 // Page
 // ---------------------------------------------------------------------------
 
-function IntegrationsPage() {
+export function IntegrationsPage() {
   return (
     <div className="space-y-4">
       <AppCard className="p-0">
@@ -747,9 +746,3 @@ function IntegrationsPage() {
     </div>
   )
 }
-
-export const integrationsRoute = createRoute({
-  getParentRoute: () => appRoute,
-  path: 'integrations',
-  component: IntegrationsPage,
-})

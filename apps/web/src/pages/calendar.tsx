@@ -1,6 +1,6 @@
 import { coordinationDays } from '@/lib/coordination-dates'
 import { ScheduleViews } from '@/components/section-views'
-import { createRoute, Link } from '@tanstack/react-router'
+import { Link } from '@tanstack/react-router'
 import { useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ChevronDown, ChevronUp, X } from 'lucide-react'
@@ -15,7 +15,7 @@ import {
   FieldLabel,
   SectionHeading,
 } from '@superapp/ui'
-import { appRoute } from '@/components/layout'
+
 import { useAppStore } from '@/hooks/useAppStore'
 import { fetchCoordinationObjects } from '@/lib/coordination-objects'
 import {
@@ -396,9 +396,19 @@ export function CalendarPage({ linkedProjectId }: { linkedProjectId?: string | n
 
             {/* View switcher + shortcuts */}
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <div role="group" aria-label="Calendar view" className="grid w-full grid-cols-4 gap-1 sm:flex sm:w-auto">
+              <div
+                role="group"
+                aria-label="Calendar view"
+                className="grid w-full grid-cols-4 gap-1 sm:flex sm:w-auto"
+              >
                 {(['month', 'week', 'day', 'agenda'] as CalendarView[]).map((v) => (
-                  <AppButton key={v} className="min-h-11 min-w-0 !px-2" aria-pressed={view === v} variant={view === v ? 'primary' : 'ghost'} onClick={() => setView(v)}>
+                  <AppButton
+                    key={v}
+                    className="min-h-11 min-w-0 !px-2"
+                    aria-pressed={view === v}
+                    variant={view === v ? 'primary' : 'ghost'}
+                    onClick={() => setView(v)}
+                  >
                     {v[0].toUpperCase() + v.slice(1)}
                   </AppButton>
                 ))}
@@ -1737,9 +1747,3 @@ function previewRRule(config: RecurrenceConfig, startsAt: string): string {
 }
 
 // ─── Route ────────────────────────────────────────────────────────────────────
-
-export const calendarRoute = createRoute({
-  getParentRoute: () => appRoute,
-  path: 'calendar',
-  component: CalendarPage,
-})

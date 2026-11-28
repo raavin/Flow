@@ -1,3 +1,4 @@
+import { optimisticWrite, editRows, removeRows, insertRow } from './optimistic'
 import { RRule, RRuleSet, rrulestr } from 'rrule'
 import { supabase } from './supabase'
 import { syncCalendarCoordinationObject } from './coordination-objects'
@@ -21,7 +22,7 @@ export type CalendarEventRow = {
 export type CalendarEventException = {
   id: string
   eventId: string
-  originalDate: string        // YYYY-MM-DD
+  originalDate: string // YYYY-MM-DD
   exceptionType: 'deleted' | 'modified'
   newTitle: string | null
   newStartsAt: string | null
@@ -34,7 +35,7 @@ export type CalendarOccurrence = {
   // Unique per occurrence: eventId for one-off; eventId_YYYY-MM-DD for recurring
   key: string
   eventId: string
-  instanceDate: string        // YYYY-MM-DD of this occurrence
+  instanceDate: string // YYYY-MM-DD of this occurrence
   title: string
   startsAt: string
   endsAt: string
@@ -42,7 +43,7 @@ export type CalendarOccurrence = {
   isAllDay: boolean
   color: string | null
   projectId: string | null
-  rrule: string | null        // null for one-off or expanded exceptions
+  rrule: string | null // null for one-off or expanded exceptions
   isRecurring: boolean
 }
 
@@ -82,7 +83,10 @@ function mapException(row: Record<string, unknown>): CalendarEventException {
 
 // ─── Fetch ────────────────────────────────────────────────────────────────────
 
-export async function fetchCalendarEventsInRange(rangeStart: string, rangeEnd: string): Promise<CalendarEventRow[]> {
+export async function fetchCalendarEventsInRange(
+  rangeStart: string,
+  rangeEnd: string,
+): Promise<CalendarEventRow[]> {
   // Fetch events that either:
   // - start within range (one-off)
   // - are recurring (we expand client-side)
@@ -173,7 +177,9 @@ export function expandOccurrences(
       if (exception?.exceptionType === 'deleted') continue
 
       const occStart = exception?.newStartsAt ? new Date(exception.newStartsAt) : occDate
-      const occEnd = exception?.newEndsAt ? new Date(exception.newEndsAt) : new Date(occDate.getTime() + durationMs)
+      const occEnd = exception?.newEndsAt
+        ? new Date(exception.newEndsAt)
+        : new Date(occDate.getTime() + durationMs)
 
       results.push({
         key: `${event.id}_${dateKey}`,
@@ -217,17 +223,17 @@ function oneOffOccurrence(event: CalendarEventRow): CalendarOccurrence {
 export type RecurrenceConfig = {
   freq: 'daily' | 'weekly' | 'monthly' | 'yearly'
   interval: number
-  byweekday?: number[]    // 0=Mon … 6=Sun
+  byweekday?: number[] // 0=Mon … 6=Sun
   endType: 'never' | 'date' | 'count'
-  until?: string          // YYYY-MM-DD
+  until?: string // YYYY-MM-DD
   count?: number
 }
 
 const FREQ_MAP = {
-  daily:   RRule.DAILY,
-  weekly:  RRule.WEEKLY,
+  daily: RRule.DAILY,
+  weekly: RRule.WEEKLY,
   monthly: RRule.MONTHLY,
-  yearly:  RRule.YEARLY,
+  yearly: RRule.YEARLY,
 } as const
 
 const WEEKDAY_MAP = [RRule.MO, RRule.TU, RRule.WE, RRule.TH, RRule.FR, RRule.SA, RRule.SU]
@@ -274,34 +280,55 @@ export async function createCalendarEvent(params: {
   color?: string | null
   timezone?: string
 }): Promise<CalendarEventRow> {
-  const { data, error } = await supabase!
-    .from('calendar_events')
-    .insert({
-      owner_id:   params.ownerId,
-      title:      params.title,
-      starts_at:  params.startsAt,
-      ends_at:    params.endsAt,
-      project_id: params.projectId ?? null,
-      notes:      params.notes ?? null,
-      rrule:      params.rrule ?? null,
-      is_all_day: params.isAllDay ?? false,
-      color:      params.color ?? null,
-      timezone:   params.timezone ?? 'UTC',
-    })
-    .select()
-    .single()
+  const id = crypto.randomUUID()
 
-  if (error) throw error
-  const event = mapRow(data as Record<string, unknown>)
-  await syncCalendarCoordinationObject({
-    eventId:   event.id,
-    ownerId:   params.ownerId,
-    title:     event.title,
-    startsAt:  event.startsAt,
-    endsAt:    event.endsAt,
-    projectId: event.projectId,
-  })
-  return event
+  return optimisticWrite(
+    'new-event:' + id,
+    [
+      insertRow(['calendar-events'], {
+        id,
+        ...params,
+        projectId: params.projectId ?? null,
+        rrule: params.rrule ?? null,
+        notes: params.notes ?? null,
+        color: params.color ?? null,
+        isAllDay: params.isAllDay ?? false,
+        timezone: params.timezone ?? 'UTC',
+        _pending: true,
+      }),
+    ],
+    async () => {
+      const { data, error } = await supabase!
+        .from('calendar_events')
+        .insert({
+          id,
+          owner_id: params.ownerId,
+          title: params.title,
+          starts_at: params.startsAt,
+          ends_at: params.endsAt,
+          project_id: params.projectId ?? null,
+          notes: params.notes ?? null,
+          rrule: params.rrule ?? null,
+          is_all_day: params.isAllDay ?? false,
+          color: params.color ?? null,
+          timezone: params.timezone ?? 'UTC',
+        })
+        .select()
+        .single()
+
+      if (error) throw error
+      const event = mapRow(data as Record<string, unknown>)
+      await syncCalendarCoordinationObject({
+        eventId: event.id,
+        ownerId: params.ownerId,
+        title: event.title,
+        startsAt: event.startsAt,
+        endsAt: event.endsAt,
+        projectId: event.projectId,
+      })
+      return event
+    },
+  )
 }
 
 // ─── Update ───────────────────────────────────────────────────────────────────
@@ -326,106 +353,124 @@ export async function updateCalendarEvent(params: {
   color?: string | null
   timezone?: string
   scope?: RecurringEditScope
-  instanceDate?: string      // required when scope is 'this' or 'future'
+  instanceDate?: string // required when scope is 'this' or 'future'
 }): Promise<void> {
-  const scope = params.scope ?? 'all'
+  return optimisticWrite(
+    'event:' + params.eventId,
+    !params.scope || params.scope === 'all' || !params.instanceDate
+      ? [
+          editRows(['calendar-events', 'project-detail'], params.eventId, {
+            ...params,
+            projectId: params.projectId ?? null,
+            notes: params.notes ?? null,
+            rrule: params.rrule ?? null,
+            color: params.color ?? null,
+            isAllDay: params.isAllDay ?? false,
+          }),
+        ]
+      : [],
+    async () => {
+      const scope = params.scope ?? 'all'
 
-  if (scope === 'all' || !params.instanceDate) {
-    // Just update the master row
-    const { error } = await supabase!
-      .from('calendar_events')
-      .update({
-        title:      params.title,
-        starts_at:  params.startsAt,
-        ends_at:    params.endsAt,
-        project_id: params.projectId ?? null,
-        notes:      params.notes ?? null,
-        rrule:      params.rrule ?? null,
-        is_all_day: params.isAllDay ?? false,
-        color:      params.color ?? null,
-        timezone:   params.timezone ?? 'UTC',
-      })
-      .eq('id', params.eventId)
+      if (scope === 'all' || !params.instanceDate) {
+        // Just update the master row
+        const { error } = await supabase!
+          .from('calendar_events')
+          .update({
+            title: params.title,
+            starts_at: params.startsAt,
+            ends_at: params.endsAt,
+            project_id: params.projectId ?? null,
+            notes: params.notes ?? null,
+            rrule: params.rrule ?? null,
+            is_all_day: params.isAllDay ?? false,
+            color: params.color ?? null,
+            timezone: params.timezone ?? 'UTC',
+          })
+          .eq('id', params.eventId)
 
-    if (error) throw error
-    await syncCalendarCoordinationObject({
-      eventId:   params.eventId,
-      ownerId:   params.ownerId,
-      title:     params.title,
-      startsAt:  params.startsAt,
-      endsAt:    params.endsAt,
-      projectId: params.projectId ?? null,
-    })
-    return
-  }
-
-  if (scope === 'this') {
-    // Upsert a 'modified' exception for this specific occurrence
-    const { error } = await supabase!
-      .from('calendar_event_exceptions')
-      .upsert({
-        event_id:       params.eventId,
-        original_date:  params.instanceDate,
-        exception_type: 'modified',
-        new_title:      params.title,
-        new_starts_at:  params.startsAt,
-        new_ends_at:    params.endsAt,
-        new_notes:      params.notes ?? null,
-      }, { onConflict: 'event_id,original_date' })
-
-    if (error) throw error
-    return
-  }
-
-  // scope === 'future': terminate original series before instanceDate, create new series
-  if (scope === 'future') {
-    // Fetch the original master to get its rrule
-    const { data: master, error: fetchErr } = await supabase!
-      .from('calendar_events')
-      .select('*')
-      .eq('id', params.eventId)
-      .single()
-
-    if (fetchErr || !master) throw fetchErr ?? new Error('Event not found')
-
-    // Set UNTIL on the original rrule to the day before instanceDate
-    const until = new Date(`${params.instanceDate}T00:00:00Z`)
-    until.setDate(until.getDate() - 1)
-
-    let updatedOriginalRRule: string | null = master.rrule as string | null
-    if (updatedOriginalRRule) {
-      try {
-        const parsed = rrulestr(updatedOriginalRRule)
-        const opts = { ...parsed.options, until }
-        opts.count = null
-        updatedOriginalRRule = new RRule(opts).toString()
-      } catch {
-        updatedOriginalRRule = null
+        if (error) throw error
+        await syncCalendarCoordinationObject({
+          eventId: params.eventId,
+          ownerId: params.ownerId,
+          title: params.title,
+          startsAt: params.startsAt,
+          endsAt: params.endsAt,
+          projectId: params.projectId ?? null,
+        })
+        return
       }
-    }
 
-    // Update original to end before instanceDate
-    const { error: updateErr } = await supabase!
-      .from('calendar_events')
-      .update({ rrule: updatedOriginalRRule })
-      .eq('id', params.eventId)
+      if (scope === 'this') {
+        // Upsert a 'modified' exception for this specific occurrence
+        const { error } = await supabase!.from('calendar_event_exceptions').upsert(
+          {
+            event_id: params.eventId,
+            original_date: params.instanceDate,
+            exception_type: 'modified',
+            new_title: params.title,
+            new_starts_at: params.startsAt,
+            new_ends_at: params.endsAt,
+            new_notes: params.notes ?? null,
+          },
+          { onConflict: 'event_id,original_date' },
+        )
 
-    if (updateErr) throw updateErr
+        if (error) throw error
+        return
+      }
 
-    // Create new event starting from instanceDate
-    await createCalendarEvent({
-      ownerId:   params.ownerId,
-      title:     params.title,
-      startsAt:  params.startsAt,
-      endsAt:    params.endsAt,
-      projectId: params.projectId ?? null,
-      notes:     params.notes ?? null,
-      rrule:     params.rrule ?? null,
-      isAllDay:  params.isAllDay ?? false,
-      color:     params.color ?? null,
-      timezone:  params.timezone ?? 'UTC',
-    })
-  }
+      // scope === 'future': terminate original series before instanceDate, create new series
+      if (scope === 'future') {
+        // Fetch the original master to get its rrule
+        const { data: master, error: fetchErr } = await supabase!
+          .from('calendar_events')
+          .select('*')
+          .eq('id', params.eventId)
+          .single()
+
+        if (fetchErr || !master) throw fetchErr ?? new Error('Event not found')
+
+        // Set UNTIL on the original rrule to the day before instanceDate
+        const until = new Date(`${params.instanceDate}T00:00:00Z`)
+        until.setDate(until.getDate() - 1)
+
+        let updatedOriginalRRule: string | null = master.rrule as string | null
+        if (updatedOriginalRRule) {
+          try {
+            const parsed = rrulestr(updatedOriginalRRule)
+            const opts = { ...parsed.options, until }
+            opts.count = null
+            updatedOriginalRRule = new RRule(opts).toString()
+          } catch {
+            updatedOriginalRRule = null
+          }
+        }
+
+        // Update original to end before instanceDate
+        const { error: updateErr } = await supabase!
+          .from('calendar_events')
+          .update({ rrule: updatedOriginalRRule })
+          .eq('id', params.eventId)
+
+        if (updateErr) throw updateErr
+
+        // Create new event starting from instanceDate
+        await createCalendarEvent({
+          ownerId: params.ownerId,
+          title: params.title,
+          startsAt: params.startsAt,
+          endsAt: params.endsAt,
+          projectId: params.projectId ?? null,
+          notes: params.notes ?? null,
+          rrule: params.rrule ?? null,
+          isAllDay: params.isAllDay ?? false,
+          color: params.color ?? null,
+          timezone: params.timezone ?? 'UTC',
+        })
+      }
+    },
+  )
 }
 
 // ─── Delete ───────────────────────────────────────────────────────────────────
@@ -435,72 +480,82 @@ export async function deleteCalendarEvent(
   scope: RecurringEditScope = 'all',
   instanceDate?: string,
 ): Promise<void> {
-  if (scope === 'all') {
-    const { error } = await supabase!.from('calendar_events').delete().eq('id', eventId)
-    if (error) throw error
-    return
-  }
-
-  if (scope === 'this' && instanceDate) {
-    // Insert a 'deleted' exception
-    const { error } = await supabase!
-      .from('calendar_event_exceptions')
-      .upsert({
-        event_id:       eventId,
-        original_date:  instanceDate,
-        exception_type: 'deleted',
-      }, { onConflict: 'event_id,original_date' })
-
-    if (error) throw error
-    return
-  }
-
-  if (scope === 'future' && instanceDate) {
-    // Set UNTIL on original rrule to the day before instanceDate
-    const { data: master, error: fetchErr } = await supabase!
-      .from('calendar_events')
-      .select('rrule')
-      .eq('id', eventId)
-      .single()
-
-    if (fetchErr || !master) throw fetchErr ?? new Error('Event not found')
-
-    const until = new Date(`${instanceDate}T00:00:00Z`)
-    until.setDate(until.getDate() - 1)
-
-    let updatedRRule: string | null = master.rrule as string | null
-    if (updatedRRule) {
-      try {
-        const parsed = rrulestr(updatedRRule)
-        const opts = { ...parsed.options, until }
-        opts.count = null
-        updatedRRule = new RRule(opts).toString()
-      } catch {
-        updatedRRule = null
+  return optimisticWrite(
+    'event:' + eventId,
+    scope === 'all' ? [removeRows(['calendar-events', 'project-detail'], eventId)] : [],
+    async () => {
+      if (scope === 'all') {
+        const { error } = await supabase!.from('calendar_events').delete().eq('id', eventId)
+        if (error) throw error
+        return
       }
-    }
 
-    const { error } = await supabase!
-      .from('calendar_events')
-      .update({ rrule: updatedRRule })
-      .eq('id', eventId)
+      if (scope === 'this' && instanceDate) {
+        // Insert a 'deleted' exception
+        const { error } = await supabase!.from('calendar_event_exceptions').upsert(
+          {
+            event_id: eventId,
+            original_date: instanceDate,
+            exception_type: 'deleted',
+          },
+          { onConflict: 'event_id,original_date' },
+        )
 
-    if (error) throw error
-  }
+        if (error) throw error
+        return
+      }
+
+      if (scope === 'future' && instanceDate) {
+        // Set UNTIL on original rrule to the day before instanceDate
+        const { data: master, error: fetchErr } = await supabase!
+          .from('calendar_events')
+          .select('rrule')
+          .eq('id', eventId)
+          .single()
+
+        if (fetchErr || !master) throw fetchErr ?? new Error('Event not found')
+
+        const until = new Date(`${instanceDate}T00:00:00Z`)
+        until.setDate(until.getDate() - 1)
+
+        let updatedRRule: string | null = master.rrule as string | null
+        if (updatedRRule) {
+          try {
+            const parsed = rrulestr(updatedRRule)
+            const opts = { ...parsed.options, until }
+            opts.count = null
+            updatedRRule = new RRule(opts).toString()
+          } catch {
+            updatedRRule = null
+          }
+        }
+
+        const { error } = await supabase!
+          .from('calendar_events')
+          .update({ rrule: updatedRRule })
+          .eq('id', eventId)
+
+        if (error) throw error
+      }
+    },
+  )
 }
 
 // ─── Guests ───────────────────────────────────────────────────────────────────
 
 export async function addGuest(eventId: string, profileId: string, displayName: string): Promise<void> {
   const { error } = await supabase!.from('calendar_event_guests').insert({
-    event_id:     eventId,
-    profile_id:   profileId,
+    event_id: eventId,
+    profile_id: profileId,
     display_name: displayName,
   })
   if (error && !error.message.includes('unique')) throw error
 }
 
-export async function updateGuestRsvp(guestId: string, rsvpState: 'accepted' | 'declined' | 'tentative'): Promise<void> {
+export async function updateGuestRsvp(
+  guestId: string,
+  rsvpState: 'accepted' | 'declined' | 'tentative',
+): Promise<void> {
   const { error } = await supabase!
     .from('calendar_event_guests')
     .update({ rsvp_state: rsvpState })

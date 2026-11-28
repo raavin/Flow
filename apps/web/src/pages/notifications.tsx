@@ -1,10 +1,10 @@
 import { useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { QueryFeedback, MutationFeedback } from '@/components/request-feedback'
-import { Link, createRoute } from '@tanstack/react-router'
+import { Link } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { AppButton, AppCard, AppPanel, AppSelect, SectionHeading } from '@superapp/ui'
-import { appRoute } from '@/components/layout'
+
 import { fetchNotifications, markNotificationRead } from '@/lib/coordination'
 
 export function NotificationsPage() {
@@ -120,9 +120,3 @@ export function NotificationsPage() {
     </AppCard>
   )
 }
-
-export const notificationsRoute = createRoute({
-  getParentRoute: () => appRoute,
-  path: 'notifications',
-  component: NotificationsPage,
-})

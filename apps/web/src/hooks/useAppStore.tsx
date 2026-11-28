@@ -3,6 +3,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type PropsWithChildren,
 } from 'react'
@@ -11,6 +12,8 @@ import type { AccountMode, BusinessProfileRecord, ProfileRecord } from '@superap
 import { getSession, signInWithEmail, signOutSession, signUpWithEmail } from '@/lib/auth'
 import { fetchProfile, updateActiveMode, upsertOnboarding } from '@/lib/profile'
 import { supabase } from '@/lib/supabase'
+import { useQueryClient } from '@tanstack/react-query'
+import { optimisticWrites } from '@/lib/optimistic'
 
 type AppStoreValue = {
   session: Session | null
@@ -43,6 +46,10 @@ type AppStoreValue = {
 const AppStoreContext = createContext<AppStoreValue | null>(null)
 
 export function AppStoreProvider({ children }: PropsWithChildren) {
+  const queryClient = useQueryClient()
+  const modeVersion = useRef(0)
+  const confirmedMode = useRef<'individual' | 'business'>('individual')
+  const account = useRef<string | null>(null)
   const [session, setSession] = useState<Session | null>(null)
   const [profile, setProfile] = useState<ProfileRecord | null>(null)
   const [businessProfile, setBusinessProfile] = useState<BusinessProfileRecord | null>(null)
@@ -50,35 +57,55 @@ export function AppStoreProvider({ children }: PropsWithChildren) {
 
   useEffect(() => {
     let mounted = true
+    let currentUser: string | null | undefined
+    let generation = 0
 
     async function syncSession(nextSession: Session | null) {
       if (!mounted) return
-      setLoading(true)
+      const userId = nextSession?.user.id ?? null
       setSession(nextSession)
+      // Token refresh is not an account change: don't blank every page or
+      // reload the profile when Supabase renews the same user's session.
+      if (currentUser === userId) return
+      currentUser = userId
+      account.current = userId
+      const version = ++generation
+      ++modeVersion.current
+      setLoading(true)
+      setProfile(null)
+      setBusinessProfile(null)
+      await queryClient.cancelQueries()
+      if (!mounted || version !== generation) return
+      optimisticWrites.reset()
+      queryClient.clear()
 
       try {
         if (nextSession?.user.id) {
           const result = await fetchProfile(nextSession.user.id)
-          if (!mounted) return
+          if (!mounted || version !== generation) return
           setProfile(result?.profile ?? null)
+          confirmedMode.current = result?.profile?.active_mode ?? 'individual'
           setBusinessProfile(result?.businessProfile ?? null)
         } else {
           setProfile(null)
           setBusinessProfile(null)
         }
       } finally {
-        if (mounted) setLoading(false)
+        if (mounted && version === generation) setLoading(false)
       }
     }
 
     async function bootstrap() {
       const currentSession = await getSession()
-      await syncSession(currentSession)
+      if (generation === 0) await syncSession(currentSession)
     }
 
     void bootstrap()
 
-    if (!supabase) return () => undefined
+    if (!supabase)
+      return () => {
+        mounted = false
+      }
 
     const { data } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       void syncSession(nextSession)
@@ -88,7 +115,7 @@ export function AppStoreProvider({ children }: PropsWithChildren) {
       mounted = false
       data.subscription.unsubscribe()
     }
-  }, [])
+  }, [queryClient])
 
   const value = useMemo<AppStoreValue>(
     () => ({
@@ -128,8 +155,17 @@ export function AppStoreProvider({ children }: PropsWithChildren) {
       },
       setActiveMode: async (mode) => {
         if (!session?.user.id) return
-        await updateActiveMode(session.user.id, mode)
+        const userId = session.user.id
+        const version = ++modeVersion.current
         setProfile((current) => (current ? { ...current, active_mode: mode } : current))
+        try {
+          await updateActiveMode(userId, mode)
+          if (account.current === userId) confirmedMode.current = mode
+        } catch (error) {
+          if (version === modeVersion.current)
+            setProfile((current) => (current ? { ...current, active_mode: confirmedMode.current } : current))
+          throw error
+        }
       },
     }),
     [businessProfile, loading, profile, session],

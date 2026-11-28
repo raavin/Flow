@@ -1,7 +1,7 @@
-import { Link, createRoute } from '@tanstack/react-router'
+import { Link } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import { AppCard, AppButton, AppPanel, SectionHeading } from '@superapp/ui'
-import { appRoute } from '@/components/layout'
+
 import { HeroPanel, TwoColumnGrid } from '@/components/page-primitives'
 import { useAppStore } from '@/hooks/useAppStore'
 import { fetchProjects } from '@/lib/projects'
@@ -12,7 +12,7 @@ import { fetchDmThreads } from '@/lib/dm'
 import { fetchFeed } from '@/lib/social'
 import { fetchCoordinationObjects } from '@/lib/coordination-objects'
 
-function HomePage() {
+export function HomePage() {
   const { profile, businessProfile, session } = useAppStore()
   const projectsQuery = useQuery({ queryKey: ['projects'], queryFn: fetchProjects })
   const walletQuery = useQuery({ queryKey: ['wallet'], queryFn: fetchWalletEntries })
@@ -28,7 +28,11 @@ function HomePage() {
     queryFn: () => fetchFeed(session!.user.id, 'following'),
     enabled: Boolean(session?.user.id),
   })
-  const dmThreadsQuery = useQuery({ queryKey: ['dm-threads'], queryFn: fetchDmThreads, enabled: Boolean(session?.user.id) })
+  const dmThreadsQuery = useQuery({
+    queryKey: ['dm-threads'],
+    queryFn: fetchDmThreads,
+    enabled: Boolean(session?.user.id),
+  })
   if (!profile) return null
 
   const projects = projectsQuery.data ?? []
@@ -62,8 +66,7 @@ function HomePage() {
             : `Hello, ${profile.first_name}`
         }
         subtitle="Your projects, plans and recent activity."
-      >
-      </HeroPanel>
+      ></HeroPanel>
 
       <TwoColumnGrid>
         <div className="space-y-4">
@@ -73,7 +76,9 @@ function HomePage() {
               <AppPanel>
                 <p className="text-lg font-extrabold text-ink">{projects.length} projects</p>
                 <p className="text-sm text-ink/65">
-                  {projects.length ? 'View tasks, dates and costs.' : 'Create your first project to get started.'}
+                  {projects.length
+                    ? 'View tasks, dates and costs.'
+                    : 'Create your first project to get started.'}
                 </p>
               </AppPanel>
               <AppPanel>
@@ -94,7 +99,8 @@ function HomePage() {
               </AppPanel>
               <AppPanel>
                 <p className="text-lg font-extrabold text-ink">
-                  {profile.active_mode === 'business' ? pendingWallet.length : dmThreads.length} {profile.active_mode === 'business' ? 'outstanding payments' : 'conversations'}
+                  {profile.active_mode === 'business' ? pendingWallet.length : dmThreads.length}{' '}
+                  {profile.active_mode === 'business' ? 'outstanding payments' : 'conversations'}
                 </p>
                 <p className="text-sm text-ink/65">
                   {profile.active_mode === 'business'
@@ -122,9 +128,14 @@ function HomePage() {
                 <AppPanel tone="teal">Review unpaid entries in Money.</AppPanel>
               ) : null}
               {dueSoonCoordination.length > 0 && (
-                <AppPanel tone="teal">You have {dueSoonCoordination.length} scheduled plans. View your calendar.</AppPanel>
+                <AppPanel tone="teal">
+                  You have {dueSoonCoordination.length} scheduled plans. View your calendar.
+                </AppPanel>
               )}
-              {projects.length > 0 && coordinationObjects.length > 0 && pendingWallet.length === 0 && dueSoonCoordination.length === 0 ? (
+              {projects.length > 0 &&
+              coordinationObjects.length > 0 &&
+              pendingWallet.length === 0 &&
+              dueSoonCoordination.length === 0 ? (
                 <AppPanel tone="teal">No upcoming plans or outstanding payments.</AppPanel>
               ) : null}
             </div>
@@ -140,7 +151,11 @@ function HomePage() {
                   {item.body}
                 </AppPanel>
               ))}
-              {!unreadNotifications.length ? <AppPanel className="rounded-control">No unread notifications yet. New project activity will show up here.</AppPanel> : null}
+              {!unreadNotifications.length ? (
+                <AppPanel className="rounded-control">
+                  No unread notifications yet. New project activity will show up here.
+                </AppPanel>
+              ) : null}
             </div>
           </AppCard>
 
@@ -160,22 +175,21 @@ function HomePage() {
                   View timeline
                 </AppButton>
               </Link>
-              <Link to={profile.active_mode === 'business' ? '/app/marketplace/services' : '/app/marketplace/templates'}>
+              <Link
+                to={
+                  profile.active_mode === 'business'
+                    ? '/app/marketplace/services'
+                    : '/app/marketplace/templates'
+                }
+              >
                 <AppButton className="w-full" variant="ghost">
                   {profile.active_mode === 'business' ? 'Browse services' : 'Browse templates'}
                 </AppButton>
               </Link>
             </div>
-
           </AppCard>
         </div>
       </TwoColumnGrid>
     </div>
   )
 }
-
-export const homeRoute = createRoute({
-  getParentRoute: () => appRoute,
-  path: 'home',
-  component: HomePage,
-})

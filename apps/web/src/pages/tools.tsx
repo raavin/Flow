@@ -1,9 +1,10 @@
+import { categoryBrowseRoute, searchRoute } from '@/route-definitions'
 import { MarketplaceViews } from '@/components/section-views'
 import { PrivacySettings } from '@/components/privacy-settings'
 import { BusinessSettings } from '@/components/business-settings'
 import { QueryFeedback, MutationFeedback } from '@/components/request-feedback'
 import { useEffect, useMemo, useState } from 'react'
-import { Link, createRoute, useNavigate } from '@tanstack/react-router'
+import { Link, useNavigate } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   AppButton,
@@ -15,7 +16,7 @@ import {
   FieldLabel,
   SectionHeading,
 } from '@superapp/ui'
-import { appRoute } from '@/components/layout'
+
 import { useAppStore } from '@/hooks/useAppStore'
 import {
   addToCart,
@@ -32,7 +33,7 @@ import { universalSearch } from '@/lib/search'
 import { updateProfileSettings } from '@/lib/profile'
 import { fetchSocialProfile } from '@/lib/social'
 
-function CategoryBrowsePage() {
+export function CategoryBrowsePage() {
   const { category } = categoryBrowseRoute.useParams()
   const { session } = useAppStore()
   const queryClient = useQueryClient()
@@ -128,7 +129,7 @@ function CategoryBrowsePage() {
   )
 }
 
-function CartReviewPage() {
+export function CartReviewPage() {
   const queryClient = useQueryClient()
   const cartQuery = useQuery({
     queryKey: ['cart'],
@@ -162,7 +163,9 @@ function CartReviewPage() {
 
   return (
     <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
-      <div className="xl:col-span-2"><MarketplaceViews active="saved" /></div>
+      <div className="xl:col-span-2">
+        <MarketplaceViews active="saved" />
+      </div>
       <AppCard className="space-y-4">
         <SectionHeading title="Saved items" />
         <div className="grid gap-3">
@@ -309,7 +312,7 @@ function CartReviewPage() {
   )
 }
 
-function SearchPage() {
+export function SearchPage() {
   const { session } = useAppStore()
   const { q } = searchRoute.useSearch()
   const query = q ?? ''
@@ -391,7 +394,7 @@ function SearchPage() {
   )
 }
 
-function SettingsPage() {
+export function SettingsPage() {
   const { session, profile } = useAppStore()
   const queryClient = useQueryClient()
   const socialProfileQuery = useQuery({
@@ -575,30 +578,3 @@ function ResultCard({
     </AppCard>
   )
 }
-
-export const categoryBrowseRoute = createRoute({
-  getParentRoute: () => appRoute,
-  path: 'marketplace/category/$category',
-  component: CategoryBrowsePage,
-})
-
-export const cartRoute = createRoute({
-  getParentRoute: () => appRoute,
-  path: 'marketplace/cart',
-  component: CartReviewPage,
-})
-
-export const searchRoute = createRoute({
-  getParentRoute: () => appRoute,
-  path: 'search',
-  validateSearch: (search: Record<string, unknown>): { q?: string } => ({
-    q: typeof search.q === 'string' ? search.q.slice(0, 200) : undefined,
-  }),
-  component: SearchPage,
-})
-
-export const settingsRoute = createRoute({
-  getParentRoute: () => appRoute,
-  path: 'settings',
-  component: SettingsPage,
-})

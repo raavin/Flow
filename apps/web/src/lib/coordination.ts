@@ -1,3 +1,4 @@
+import { optimisticWrite, editRows } from './optimistic'
 import { supabase } from './supabase'
 
 export async function createNotification(input: {
@@ -29,9 +30,18 @@ export async function fetchNotifications() {
 }
 
 export async function markNotificationRead(notificationId: string) {
-  if (!supabase) throw new Error('Supabase is not configured.')
-  const { error } = await supabase.from('notifications').update({ is_read: true }).eq('id', notificationId)
-  if (error) throw error
+  return optimisticWrite(
+    'notification:' + notificationId,
+    [editRows(['notifications'], notificationId, { is_read: true })],
+    async () => {
+      if (!supabase) throw new Error('Supabase is not configured.')
+      const { error } = await supabase
+        .from('notifications')
+        .update({ is_read: true })
+        .eq('id', notificationId)
+      if (error) throw error
+    },
+  )
 }
 
 export async function createActivity(input: {

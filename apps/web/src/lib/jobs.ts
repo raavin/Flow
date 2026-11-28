@@ -1,3 +1,4 @@
+import { optimisticWrite, editRows, removeRows } from './optimistic'
 import { supabase } from './supabase'
 import { createNotification } from './coordination'
 import { createWalletEntry } from './wallet'
@@ -6,7 +7,9 @@ export async function fetchJobs() {
   if (!supabase) return []
   const { data, error } = await supabase
     .from('jobs')
-    .select('id, title, customer_name, linked_project_id, linked_listing_id, booking_at, status, payment_state, notes, created_at')
+    .select(
+      'id, title, customer_name, linked_project_id, linked_listing_id, booking_at, status, payment_state, notes, created_at',
+    )
     .order('created_at', { ascending: false })
   if (error) throw error
   return data ?? []
@@ -17,7 +20,9 @@ export async function fetchJobDetail(jobId: string) {
   const [{ data: job, error: jobError }, { data: steps, error: stepsError }] = await Promise.all([
     supabase
       .from('jobs')
-      .select('id, title, customer_name, linked_project_id, linked_listing_id, booking_at, status, payment_state, notes, created_at')
+      .select(
+        'id, title, customer_name, linked_project_id, linked_listing_id, booking_at, status, payment_state, notes, created_at',
+      )
       .eq('id', jobId)
       .single(),
     supabase
@@ -66,9 +71,27 @@ export async function createJob(input: {
 
   if (createdJob?.id) {
     const { error: stepsError } = await supabase.from('job_workflow_steps').insert([
-      { job_id: createdJob.id, owner_id: input.ownerId, title: 'Confirm appointment', status: 'todo', customer_visible: true },
-      { job_id: createdJob.id, owner_id: input.ownerId, title: 'Prepare materials', status: 'todo', customer_visible: false },
-      { job_id: createdJob.id, owner_id: input.ownerId, title: 'Complete service', status: 'todo', customer_visible: true },
+      {
+        job_id: createdJob.id,
+        owner_id: input.ownerId,
+        title: 'Confirm appointment',
+        status: 'todo',
+        customer_visible: true,
+      },
+      {
+        job_id: createdJob.id,
+        owner_id: input.ownerId,
+        title: 'Prepare materials',
+        status: 'todo',
+        customer_visible: false,
+      },
+      {
+        job_id: createdJob.id,
+        owner_id: input.ownerId,
+        title: 'Complete service',
+        status: 'todo',
+        customer_visible: true,
+      },
     ])
     if (stepsError) throw stepsError
   }
@@ -86,38 +109,63 @@ export async function updateJob(jobId: string, input: { title?: string; customer
   const payload: Record<string, unknown> = {}
   if (input.title !== undefined) payload.title = input.title.trim()
   if (input.customerName !== undefined) payload.customer_name = input.customerName.trim()
-  const { error } = await supabase.from('jobs').update(payload).eq('id', jobId)
-  if (error) throw error
+
+  return optimisticWrite('job:' + jobId, [editRows(['jobs', 'job-detail'], jobId, payload)], async () => {
+    if (!supabase) throw new Error('Supabase is not configured.')
+    const { error } = await supabase.from('jobs').update(payload).eq('id', jobId)
+    if (error) throw error
+  })
 }
 
 export async function deleteJob(jobId: string) {
-  if (!supabase) throw new Error('Supabase is not configured.')
-  const { error } = await supabase.from('jobs').delete().eq('id', jobId)
-  if (error) throw error
+  return optimisticWrite('job:' + jobId, [removeRows(['jobs'], jobId)], async () => {
+    if (!supabase) throw new Error('Supabase is not configured.')
+    const { error } = await supabase.from('jobs').delete().eq('id', jobId)
+    if (error) throw error
+  })
 }
 
-export async function updateJobStatus(jobId: string, status: 'today' | 'upcoming' | 'waiting' | 'delayed' | 'completed') {
-  if (!supabase) throw new Error('Supabase is not configured.')
-  const { error } = await supabase.from('jobs').update({ status }).eq('id', jobId)
-  if (error) throw error
+export async function updateJobStatus(
+  jobId: string,
+  status: 'today' | 'upcoming' | 'waiting' | 'delayed' | 'completed',
+) {
+  return optimisticWrite('job:' + jobId, [editRows(['jobs', 'job-detail'], jobId, { status })], async () => {
+    if (!supabase) throw new Error('Supabase is not configured.')
+    const { error } = await supabase.from('jobs').update({ status }).eq('id', jobId)
+    if (error) throw error
+  })
 }
 
 export async function updateJobPaymentState(jobId: string, paymentState: 'unpaid' | 'deposit due' | 'paid') {
-  if (!supabase) throw new Error('Supabase is not configured.')
-  const { error } = await supabase.from('jobs').update({ payment_state: paymentState }).eq('id', jobId)
-  if (error) throw error
+  return optimisticWrite(
+    'job:' + jobId,
+    [editRows(['jobs', 'job-detail'], jobId, { payment_state: paymentState })],
+    async () => {
+      if (!supabase) throw new Error('Supabase is not configured.')
+      const { error } = await supabase.from('jobs').update({ payment_state: paymentState }).eq('id', jobId)
+      if (error) throw error
+    },
+  )
 }
 
 export async function updateJobBooking(jobId: string, bookingAt: string) {
-  if (!supabase) throw new Error('Supabase is not configured.')
-  const { error } = await supabase.from('jobs').update({ booking_at: bookingAt }).eq('id', jobId)
-  if (error) throw error
+  return optimisticWrite(
+    'job:' + jobId,
+    [editRows(['jobs', 'job-detail'], jobId, { booking_at: bookingAt })],
+    async () => {
+      if (!supabase) throw new Error('Supabase is not configured.')
+      const { error } = await supabase.from('jobs').update({ booking_at: bookingAt }).eq('id', jobId)
+      if (error) throw error
+    },
+  )
 }
 
 export async function updateJobNotes(jobId: string, notes: string) {
-  if (!supabase) throw new Error('Supabase is not configured.')
-  const { error } = await supabase.from('jobs').update({ notes }).eq('id', jobId)
-  if (error) throw error
+  return optimisticWrite('job:' + jobId, [editRows(['jobs', 'job-detail'], jobId, { notes })], async () => {
+    if (!supabase) throw new Error('Supabase is not configured.')
+    const { error } = await supabase.from('jobs').update({ notes }).eq('id', jobId)
+    if (error) throw error
+  })
 }
 
 export async function updateWorkflowStep(input: {
@@ -131,14 +179,24 @@ export async function updateWorkflowStep(input: {
   if (input.title !== undefined) payload.title = input.title.trim() || 'Untitled step'
   if (input.status) payload.status = input.status
   if (typeof input.customerVisible === 'boolean') payload.customer_visible = input.customerVisible
-  const { error } = await supabase.from('job_workflow_steps').update(payload).eq('id', input.stepId)
-  if (error) throw error
+
+  return optimisticWrite(
+    'step:' + input.stepId,
+    [editRows(['job-detail'], input.stepId, payload)],
+    async () => {
+      if (!supabase) throw new Error('Supabase is not configured.')
+      const { error } = await supabase.from('job_workflow_steps').update(payload).eq('id', input.stepId)
+      if (error) throw error
+    },
+  )
 }
 
 export async function deleteWorkflowStep(stepId: string) {
-  if (!supabase) throw new Error('Supabase is not configured.')
-  const { error } = await supabase.from('job_workflow_steps').delete().eq('id', stepId)
-  if (error) throw error
+  return optimisticWrite('step:' + stepId, [removeRows(['job-detail'], stepId)], async () => {
+    if (!supabase) throw new Error('Supabase is not configured.')
+    const { error } = await supabase.from('job_workflow_steps').delete().eq('id', stepId)
+    if (error) throw error
+  })
 }
 
 export async function requestJobPayment(input: {

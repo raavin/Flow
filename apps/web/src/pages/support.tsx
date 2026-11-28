@@ -1,11 +1,11 @@
 import { useMemo, useState } from 'react'
-import { Link, createRoute } from '@tanstack/react-router'
+import { Link } from '@tanstack/react-router'
 import { Search } from 'lucide-react'
 import { AppCard, AppInput, AppPanel, SectionHeading } from '@superapp/ui'
-import { appRoute } from '@/components/layout'
+
 import { searchSupportEntries } from '@/lib/support'
 
-function SupportPage() {
+export function SupportPage() {
   const [query, setQuery] = useState('')
   const results = useMemo(() => searchSupportEntries(query), [query])
 
@@ -65,9 +65,3 @@ function SupportPage() {
     </div>
   )
 }
-
-export const supportRoute = createRoute({
-  getParentRoute: () => appRoute,
-  path: 'support',
-  component: SupportPage,
-})

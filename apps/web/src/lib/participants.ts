@@ -1,3 +1,4 @@
+import { optimisticWrite, editRows, removeRows } from './optimistic'
 import { supabase } from './supabase'
 
 export async function fetchParticipants(projectId: string) {
@@ -49,12 +50,28 @@ export async function updateParticipant(input: {
   if (input.availabilityStatus) payload.availability_status = input.availabilityStatus
   if (input.visibilityScope) payload.visibility_scope = input.visibilityScope
 
-  const { error } = await supabase.from('project_participants').update(payload).eq('id', input.participantId)
-  if (error) throw error
+  return optimisticWrite(
+    'participant:' + input.participantId,
+    [editRows(['participants'], input.participantId, payload)],
+    async () => {
+      if (!supabase) throw new Error('Supabase is not configured.')
+      const { error } = await supabase
+        .from('project_participants')
+        .update(payload)
+        .eq('id', input.participantId)
+      if (error) throw error
+    },
+  )
 }
 
 export async function removeParticipant(participantId: string) {
-  if (!supabase) throw new Error('Supabase is not configured.')
-  const { error } = await supabase.from('project_participants').delete().eq('id', participantId)
-  if (error) throw error
+  return optimisticWrite(
+    'participant:' + participantId,
+    [removeRows(['participants'], participantId)],
+    async () => {
+      if (!supabase) throw new Error('Supabase is not configured.')
+      const { error } = await supabase.from('project_participants').delete().eq('id', participantId)
+      if (error) throw error
+    },
+  )
 }

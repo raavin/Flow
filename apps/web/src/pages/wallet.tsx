@@ -1,8 +1,9 @@
+import { walletRoute } from '@/route-definitions'
 import { useState } from 'react'
-import { Link, createRoute } from '@tanstack/react-router'
+import { Link } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { AppButton, AppCard, AppInput, AppSelect, FieldLabel, SectionHeading } from '@superapp/ui'
-import { appRoute } from '@/components/layout'
+
 import { MoneyViews } from '@/components/section-views'
 import { MoneyActivityTable } from '@/components/money-activity'
 import { MoneyEntryForm } from '@/components/money-entry-form'
@@ -104,7 +105,12 @@ export function WalletPage() {
                 <option value="refunded">Refunded</option>
               </AppSelect>
             </FieldLabel>
-            <MoneyProjectFilter label={fundId ? (fund?.name ?? 'Group projects') : undefined} projects={projects.data ?? []} selected={selected} onChange={setSelected} />
+            <MoneyProjectFilter
+              label={fundId ? (fund?.name ?? 'Group projects') : undefined}
+              projects={projects.data ?? []}
+              selected={selected}
+              onChange={setSelected}
+            />
           </div>
           <AppButton
             onClick={() => {
@@ -169,20 +175,3 @@ export function WalletPage() {
     </div>
   )
 }
-export const walletRoute = createRoute({
-  getParentRoute: () => appRoute,
-  path: 'wallet',
-  component: WalletPage,
-  validateSearch: (
-    search: Record<string, unknown>,
-  ): { highlight?: string; projectId?: string; fundId?: string; scope?: 'all'; filter?: string } => ({
-    fundId: typeof search.fundId === 'string' ? search.fundId : undefined,
-    scope: search.scope === 'all' ? 'all' : undefined,
-    highlight: typeof search.highlight === 'string' ? search.highlight : undefined,
-    projectId: typeof search.projectId === 'string' ? search.projectId : undefined,
-    filter:
-      typeof search.filter === 'string' && ['all', 'unpaid', 'paid', 'refunded'].includes(search.filter)
-        ? search.filter
-        : undefined,
-  }),
-})

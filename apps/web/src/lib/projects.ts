@@ -1,3 +1,12 @@
+import {
+  optimisticWrite,
+  editRows,
+  removeRows,
+  insertRow,
+  mapRecords,
+  isObject,
+  cachedRow,
+} from './optimistic'
 import { assertBudgetAmount } from './budget'
 import type { CalendarEvent, Milestone, Project } from '@superapp/types'
 import { supabase } from './supabase'
@@ -90,53 +99,74 @@ export async function createProject(input: {
   budgetCents?: number | null
   projectKind?: NonNullable<Project['projectKind']>
 }) {
-  if (!supabase) throw new Error('Supabase is not configured.')
-  const normalizedCategory = input.category.trim() || 'General'
-  const normalizedTargetDate = input.targetDate || null
+  const id = crypto.randomUUID()
 
-  const { data: project, error } = await supabase
-    .from('projects')
-    .insert({
-      owner_id: input.ownerId,
-      title: input.title,
-      category: normalizedCategory,
-      project_kind: input.projectKind ?? 'general',
-      target_date: normalizedTargetDate,
-    })
-    .select('id, owner_id, title, category, status, project_kind, target_date')
-    .single<ProjectRow>()
+  return optimisticWrite(
+    'new-project:' + id,
+    [
+      insertRow(['projects'], {
+        id,
+        ...input,
+        category: input.category.trim() || 'General',
+        targetDate: input.targetDate || null,
+        status: 'active',
+        projectKind: input.projectKind ?? 'general',
+        budgetCents: input.budgetCents ?? null,
+        isOwner: true,
+        _pending: true,
+      }),
+    ],
+    async () => {
+      if (!supabase) throw new Error('Supabase is not configured.')
+      const normalizedCategory = input.category.trim() || 'General'
+      const normalizedTargetDate = input.targetDate || null
 
-  if (error) throw error
-  if (input.budgetCents !== undefined) await updateProject(project.id, { budgetCents: input.budgetCents })
+      const { data: project, error } = await supabase
+        .from('projects')
+        .insert({
+          id,
+          owner_id: input.ownerId,
+          title: input.title,
+          category: normalizedCategory,
+          project_kind: input.projectKind ?? 'general',
+          target_date: normalizedTargetDate,
+        })
+        .select('id, owner_id, title, category, status, project_kind, target_date')
+        .single<ProjectRow>()
 
-  // A blank project stays lightweight; templates create intentional dated steps.
+      if (error) throw error
+      if (input.budgetCents !== undefined) await updateProject(project.id, { budgetCents: input.budgetCents })
 
-  await createNotification({
-    profileId: input.ownerId,
-    title: 'Project created',
-    body: `${project.title} is ready for planning.`,
-    kind: 'projects',
-    linkUrl: `/app/projects/${project.id}`,
-  })
+      // A blank project stays lightweight; templates create intentional dated steps.
 
-  await syncProjectCoordinationObject({
-    ownerId: input.ownerId,
-    projectId: project.id,
-    title: project.title,
-    category: project.category,
-    targetDate: project.target_date,
-    status: project.status,
-  })
+      await createNotification({
+        profileId: input.ownerId,
+        title: 'Project created',
+        body: `${project.title} is ready for planning.`,
+        kind: 'projects',
+        linkUrl: `/app/projects/${project.id}`,
+      })
 
-  return {
-    id: project.id,
-    title: project.title,
-    category: project.category,
-    status: project.status,
-    projectKind: project.project_kind,
-    targetDate: project.target_date,
-    budgetCents: input.budgetCents ?? null,
-  } satisfies Project
+      await syncProjectCoordinationObject({
+        ownerId: input.ownerId,
+        projectId: project.id,
+        title: project.title,
+        category: project.category,
+        targetDate: project.target_date,
+        status: project.status,
+      })
+
+      return {
+        id: project.id,
+        title: project.title,
+        category: project.category,
+        status: project.status,
+        projectKind: project.project_kind,
+        targetDate: project.target_date,
+        budgetCents: input.budgetCents ?? null,
+      } satisfies Project
+    },
+  )
 }
 
 export async function createProjectFromTemplate(input: {
@@ -301,105 +331,152 @@ export async function updateProject(
     budgetCents?: number | null
   },
 ) {
-  if (!supabase) throw new Error('Supabase is not configured.')
-  const updates: Record<string, unknown> = {}
-  if (input.title !== undefined) updates.title = input.title.trim() || 'Untitled'
-  if (input.category !== undefined) updates.category = input.category.trim() || 'General'
-  if ('targetDate' in input) updates.target_date = input.targetDate || null
-  if (input.status !== undefined) updates.status = input.status
-  if (input.budgetCents !== undefined) {
-    if (input.budgetCents !== null) assertBudgetAmount(input.budgetCents)
-    const { error } = await supabase
-      .from('project_budget_limits')
-      .upsert({ project_id: projectId, budget_cents: input.budgetCents }, { onConflict: 'project_id' })
-    if (error) throw error
-  }
-  if (!Object.keys(updates).length) return
-  const { error } = await supabase.from('projects').update(updates).eq('id', projectId)
-  if (error) throw error
+  return optimisticWrite(
+    'project:' + projectId,
+    [editRows(['projects', 'project-detail'], projectId, input)],
+    async () => {
+      if (!supabase) throw new Error('Supabase is not configured.')
+      const updates: Record<string, unknown> = {}
+      if (input.title !== undefined) updates.title = input.title.trim() || 'Untitled'
+      if (input.category !== undefined) updates.category = input.category.trim() || 'General'
+      if ('targetDate' in input) updates.target_date = input.targetDate || null
+      if (input.status !== undefined) updates.status = input.status
+      if (input.budgetCents !== undefined) {
+        if (input.budgetCents !== null) assertBudgetAmount(input.budgetCents)
+        const { error } = await supabase
+          .from('project_budget_limits')
+          .upsert({ project_id: projectId, budget_cents: input.budgetCents }, { onConflict: 'project_id' })
+        if (error) throw error
+      }
+      if (!Object.keys(updates).length) return
+      const { error } = await supabase.from('projects').update(updates).eq('id', projectId)
+      if (error) throw error
+    },
+  )
 }
 
 export async function deleteProject(projectId: string) {
-  if (!supabase) throw new Error('Supabase is not configured.')
-  const { error } = await supabase.from('projects').delete().eq('id', projectId)
-  if (error) throw error
+  return optimisticWrite('project:' + projectId, [removeRows(['projects'], projectId)], async () => {
+    if (!supabase) throw new Error('Supabase is not configured.')
+    const { error } = await supabase.from('projects').delete().eq('id', projectId)
+    if (error) throw error
+  })
 }
 
 export async function setProjectKind(projectId: string, projectKind: NonNullable<Project['projectKind']>) {
-  if (!supabase) throw new Error('Supabase is not configured.')
-  const { error } = await supabase.from('projects').update({ project_kind: projectKind }).eq('id', projectId)
-  if (error) throw error
+  return optimisticWrite(
+    'project:' + projectId,
+    [editRows(['projects', 'project-detail'], projectId, { projectKind })],
+    async () => {
+      if (!supabase) throw new Error('Supabase is not configured.')
+      const { error } = await supabase
+        .from('projects')
+        .update({ project_kind: projectKind })
+        .eq('id', projectId)
+      if (error) throw error
+    },
+  )
 }
 
 export async function shiftMilestone(milestoneId: string, days: number) {
-  if (!supabase) throw new Error('Supabase is not configured.')
-  const { data, error } = await supabase
-    .from('milestones')
-    .select('id, project_id, title, starts_on, ends_on, lane, progress')
-    .eq('id', milestoneId)
-    .single<MilestoneRow>()
+  const row = cachedRow(['project-detail'], milestoneId)
 
-  if (error) throw error
+  return optimisticWrite(
+    'milestone:' + milestoneId,
+    row && typeof row.startsOn === 'string' && typeof row.endsOn === 'string'
+      ? [
+          editRows(['project-detail'], milestoneId, {
+            startsOn: shiftDate(row.startsOn, days),
+            endsOn: shiftDate(row.endsOn, days),
+          }),
+        ]
+      : [],
+    async () => {
+      if (!supabase) throw new Error('Supabase is not configured.')
+      const { data, error } = await supabase
+        .from('milestones')
+        .select('id, project_id, title, starts_on, ends_on, lane, progress')
+        .eq('id', milestoneId)
+        .single<MilestoneRow>()
 
-  const startsOn = shiftDate(data.starts_on, days)
-  const endsOn = shiftDate(data.ends_on, days)
+      if (error) throw error
 
-  const { error: updateError } = await supabase
-    .from('milestones')
-    .update({ starts_on: startsOn, ends_on: endsOn })
-    .eq('id', milestoneId)
+      const startsOn = shiftDate(data.starts_on, days)
+      const endsOn = shiftDate(data.ends_on, days)
 
-  if (updateError) throw updateError
+      const { error: updateError } = await supabase
+        .from('milestones')
+        .update({ starts_on: startsOn, ends_on: endsOn })
+        .eq('id', milestoneId)
 
-  const shiftOwnerId = await currentUserId()
-  if (shiftOwnerId) {
-    await createActivity({
-      ownerId: shiftOwnerId,
-      projectId: data.project_id,
-      activityType: 'milestone_shifted',
-      title: 'Milestone moved',
-      detail: `${data.title} shifted by ${days} day${Math.abs(days) === 1 ? '' : 's'}.`,
-    })
-  }
+      if (updateError) throw updateError
+
+      const shiftOwnerId = await currentUserId()
+      if (shiftOwnerId) {
+        await createActivity({
+          ownerId: shiftOwnerId,
+          projectId: data.project_id,
+          activityType: 'milestone_shifted',
+          title: 'Milestone moved',
+          detail: `${data.title} shifted by ${days} day${Math.abs(days) === 1 ? '' : 's'}.`,
+        })
+      }
+    },
+  )
 }
 
 export async function resizeMilestoneBoundary(milestoneId: string, boundary: 'start' | 'end', days: number) {
-  if (!supabase) throw new Error('Supabase is not configured.')
-  const { data, error } = await supabase
-    .from('milestones')
-    .select('id, project_id, title, starts_on, ends_on')
-    .eq('id', milestoneId)
-    .single<Pick<MilestoneRow, 'id' | 'project_id' | 'title' | 'starts_on' | 'ends_on'>>()
+  const row = cachedRow(['project-detail'], milestoneId)
 
-  if (error) throw error
+  return optimisticWrite(
+    'milestone:' + milestoneId,
+    row && typeof row.startsOn === 'string' && typeof row.endsOn === 'string'
+      ? [
+          editRows(['project-detail'], milestoneId, {
+            startsOn: boundary === 'start' ? shiftDate(row.startsOn, days) : row.startsOn,
+            endsOn: boundary === 'end' ? shiftDate(row.endsOn, days) : row.endsOn,
+          }),
+        ]
+      : [],
+    async () => {
+      if (!supabase) throw new Error('Supabase is not configured.')
+      const { data, error } = await supabase
+        .from('milestones')
+        .select('id, project_id, title, starts_on, ends_on')
+        .eq('id', milestoneId)
+        .single<Pick<MilestoneRow, 'id' | 'project_id' | 'title' | 'starts_on' | 'ends_on'>>()
 
-  const nextStartsOn = boundary === 'start' ? shiftDate(data.starts_on, days) : data.starts_on
-  const nextEndsOn = boundary === 'end' ? shiftDate(data.ends_on, days) : data.ends_on
+      if (error) throw error
 
-  if (new Date(nextStartsOn).getTime() > new Date(nextEndsOn).getTime()) {
-    throw new Error('A milestone needs at least one day in its range.')
-  }
+      const nextStartsOn = boundary === 'start' ? shiftDate(data.starts_on, days) : data.starts_on
+      const nextEndsOn = boundary === 'end' ? shiftDate(data.ends_on, days) : data.ends_on
 
-  const { error: updateError } = await supabase
-    .from('milestones')
-    .update({ starts_on: nextStartsOn, ends_on: nextEndsOn })
-    .eq('id', milestoneId)
+      if (new Date(nextStartsOn).getTime() > new Date(nextEndsOn).getTime()) {
+        throw new Error('A milestone needs at least one day in its range.')
+      }
 
-  if (updateError) throw updateError
+      const { error: updateError } = await supabase
+        .from('milestones')
+        .update({ starts_on: nextStartsOn, ends_on: nextEndsOn })
+        .eq('id', milestoneId)
 
-  const resizeOwnerId = await currentUserId()
-  if (resizeOwnerId) {
-    await createActivity({
-      ownerId: resizeOwnerId,
-      projectId: data.project_id,
-      activityType: 'milestone_resized',
-      title: 'Milestone resized',
-      detail:
-        boundary === 'start'
-          ? `${data.title} now starts on ${nextStartsOn}.`
-          : `${data.title} now ends on ${nextEndsOn}.`,
-    })
-  }
+      if (updateError) throw updateError
+
+      const resizeOwnerId = await currentUserId()
+      if (resizeOwnerId) {
+        await createActivity({
+          ownerId: resizeOwnerId,
+          projectId: data.project_id,
+          activityType: 'milestone_resized',
+          title: 'Milestone resized',
+          detail:
+            boundary === 'start'
+              ? `${data.title} now starts on ${nextStartsOn}.`
+              : `${data.title} now ends on ${nextEndsOn}.`,
+        })
+      }
+    },
+  )
 }
 
 export async function createCalendarEvent(input: {
@@ -533,40 +610,70 @@ export async function createTask(input: {
   dueOn?: string | null
   assigneeName?: string | null
 }) {
-  if (!supabase) throw new Error('Supabase is not configured.')
-  const dueOn = input.dueOn ?? (await suggestTaskDueDate(input.projectId))
-  const userId = await currentUserId()
-  if (!userId) throw new Error('You need to be signed in.')
-  const { data: task, error } = await supabase
-    .from('tasks')
-    .insert({
-      project_id: input.projectId,
-      title: input.title,
-      due_on: dueOn,
-      assignee_name: input.assigneeName ?? null,
-    })
-    .select('id, project_id, title, status, due_on, assignee_name')
-    .single()
-  if (error) throw error
-  if (userId) {
-    await createActivity({
-      ownerId: userId,
-      projectId: input.projectId,
-      activityType: 'task_created',
-      title: 'Task added',
-      detail: input.title,
-    })
+  const optimisticId = crypto.randomUUID()
+  const pendingRow = {
+    id: optimisticId,
+    project_id: input.projectId,
+    title: input.title,
+    status: 'todo',
+    due_on: input.dueOn ?? null,
+    assignee_name: input.assigneeName ?? null,
+    _pending: true,
   }
+  return optimisticWrite(
+    'new-createTask:' + optimisticId,
+    [
+      {
+        keys: ['project-detail'],
+        apply: (data, key) => {
+          if (!key.includes(input.projectId) || !isObject(data) || !Array.isArray(data.tasks)) return data
+          return {
+            ...data,
+            tasks: data.tasks.some((row) => isObject(row) && row.id === optimisticId)
+              ? data.tasks
+              : [...data.tasks, pendingRow],
+          }
+        },
+      },
+    ],
+    async () => {
+      if (!supabase) throw new Error('Supabase is not configured.')
+      const dueOn = input.dueOn ?? (await suggestTaskDueDate(input.projectId))
+      const userId = await currentUserId()
+      if (!userId) throw new Error('You need to be signed in.')
+      const { data: task, error } = await supabase
+        .from('tasks')
+        .insert({
+          id: optimisticId,
+          project_id: input.projectId,
+          title: input.title,
+          due_on: dueOn,
+          assignee_name: input.assigneeName ?? null,
+        })
+        .select('id, project_id, title, status, due_on, assignee_name')
+        .single()
+      if (error) throw error
+      if (userId) {
+        await createActivity({
+          ownerId: userId,
+          projectId: input.projectId,
+          activityType: 'task_created',
+          title: 'Task added',
+          detail: input.title,
+        })
+      }
 
-  await syncTaskCoordinationObject({
-    ownerId: userId,
-    taskId: task.id,
-    projectId: task.project_id,
-    title: task.title,
-    dueOn: task.due_on,
-    status: task.status,
-    assigneeName: task.assignee_name,
-  })
+      await syncTaskCoordinationObject({
+        ownerId: userId,
+        taskId: task.id,
+        projectId: task.project_id,
+        title: task.title,
+        dueOn: task.due_on,
+        status: task.status,
+        assigneeName: task.assignee_name,
+      })
+    },
+  )
 }
 
 export async function createMilestone(input: {
@@ -576,51 +683,104 @@ export async function createMilestone(input: {
   endsOn: string
   lane?: string
 }) {
-  if (!supabase) throw new Error('Supabase is not configured.')
-  const userId = await currentUserId()
-  if (!userId) throw new Error('You need to be signed in.')
-
-  const { data, error } = await supabase
-    .from('milestones')
-    .insert({
-      project_id: input.projectId,
-      title: input.title,
-      starts_on: input.startsOn,
-      ends_on: input.endsOn,
-      lane: input.lane ?? 'Planning',
-      progress: 0,
-    })
-    .select('id, project_id, title, starts_on, ends_on, lane, progress')
-    .single<MilestoneRow>()
-  if (error) throw error
-
-  await createActivity({
-    ownerId: userId,
+  const optimisticId = crypto.randomUUID()
+  const pendingRow = {
+    id: optimisticId,
     projectId: input.projectId,
-    activityType: 'milestone_created',
-    title: 'Milestone added',
-    detail: input.title,
-  })
+    title: input.title,
+    startsOn: input.startsOn,
+    endsOn: input.endsOn,
+    lane: input.lane ?? 'Planning',
+    progress: 0,
+    _pending: true,
+  }
+  return optimisticWrite(
+    'new-createMilestone:' + optimisticId,
+    [
+      {
+        keys: ['project-detail'],
+        apply: (data, key) => {
+          if (!key.includes(input.projectId) || !isObject(data) || !Array.isArray(data.milestones))
+            return data
+          return {
+            ...data,
+            milestones: data.milestones.some((row) => isObject(row) && row.id === optimisticId)
+              ? data.milestones
+              : [...data.milestones, pendingRow],
+          }
+        },
+      },
+    ],
+    async () => {
+      if (!supabase) throw new Error('Supabase is not configured.')
+      const userId = await currentUserId()
+      if (!userId) throw new Error('You need to be signed in.')
 
-  return mapMilestone(data)
+      const { data, error } = await supabase
+        .from('milestones')
+        .insert({
+          id: optimisticId,
+          project_id: input.projectId,
+          title: input.title,
+          starts_on: input.startsOn,
+          ends_on: input.endsOn,
+          lane: input.lane ?? 'Planning',
+          progress: 0,
+        })
+        .select('id, project_id, title, starts_on, ends_on, lane, progress')
+        .single<MilestoneRow>()
+      if (error) throw error
+
+      await createActivity({
+        ownerId: userId,
+        projectId: input.projectId,
+        activityType: 'milestone_created',
+        title: 'Milestone added',
+        detail: input.title,
+      })
+
+      return mapMilestone(data)
+    },
+  )
 }
 
 export async function updateTaskStatus(taskId: string, status: 'todo' | 'doing' | 'done') {
-  if (!supabase) throw new Error('Supabase is not configured.')
-  const { data, error } = await supabase.from('tasks').select('project_id, title').eq('id', taskId).single()
-  if (error) throw error
-  const { error: updateError } = await supabase.from('tasks').update({ status }).eq('id', taskId)
-  if (updateError) throw updateError
-  const userId = await currentUserId()
-  if (userId) {
-    await createActivity({
-      ownerId: userId,
-      projectId: data.project_id,
-      activityType: 'task_status',
-      title: 'Task updated',
-      detail: `${data.title} moved to ${status}.`,
-    })
-  }
+  return optimisticWrite(
+    'task:' + taskId,
+    [
+      editRows(['project-detail'], taskId, { status }),
+      {
+        keys: ['coordination-objects', 'coordination-object'],
+        apply: (data) =>
+          mapRecords(data, (row) =>
+            row.sourceTable === 'tasks' && row.sourceId === taskId
+              ? { ...row, state: status === 'done' ? 'completed' : status === 'doing' ? 'active' : 'pending' }
+              : row,
+          ),
+      },
+    ],
+    async () => {
+      if (!supabase) throw new Error('Supabase is not configured.')
+      const { data, error } = await supabase
+        .from('tasks')
+        .select('project_id, title')
+        .eq('id', taskId)
+        .single()
+      if (error) throw error
+      const { error: updateError } = await supabase.from('tasks').update({ status }).eq('id', taskId)
+      if (updateError) throw updateError
+      const userId = await currentUserId()
+      if (userId) {
+        await createActivity({
+          ownerId: userId,
+          projectId: data.project_id,
+          activityType: 'task_status',
+          title: 'Task updated',
+          detail: `${data.title} moved to ${status}.`,
+        })
+      }
+    },
+  )
 }
 
 export async function fetchProjectNotes(projectId: string) {
@@ -640,47 +800,78 @@ export async function createProjectNote(input: {
   title: string
   body: string
 }) {
-  if (!supabase) throw new Error('Supabase is not configured.')
-  const { data, error } = await supabase
-    .from('project_notes')
-    .insert({
-      owner_id: input.ownerId,
-      project_id: input.projectId,
-      title: input.title.trim() || 'Note',
-      body: input.body,
-    })
-    .select('id, project_id, title, body, created_at, updated_at')
-    .single<ProjectNoteRow>()
-  if (error) throw error
-  await createActivity({
-    ownerId: input.ownerId,
-    projectId: input.projectId,
-    activityType: 'note_created',
-    title: 'Note added',
-    detail: input.title.trim() || 'Note',
-  })
-  return data
+  const id = crypto.randomUUID()
+
+  return optimisticWrite(
+    'note:' + id,
+    [
+      insertRow(
+        ['project-notes'],
+        {
+          id,
+          project_id: input.projectId,
+          title: input.title.trim() || 'Note',
+          body: input.body,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          _pending: true,
+        },
+        (key) => key.includes(input.projectId),
+      ),
+    ],
+    async () => {
+      if (!supabase) throw new Error('Supabase is not configured.')
+      const { data, error } = await supabase
+        .from('project_notes')
+        .insert({
+          id,
+          owner_id: input.ownerId,
+          project_id: input.projectId,
+          title: input.title.trim() || 'Note',
+          body: input.body,
+        })
+        .select('id, project_id, title, body, created_at, updated_at')
+        .single<ProjectNoteRow>()
+      if (error) throw error
+      await createActivity({
+        ownerId: input.ownerId,
+        projectId: input.projectId,
+        activityType: 'note_created',
+        title: 'Note added',
+        detail: input.title.trim() || 'Note',
+      })
+      return data
+    },
+  )
 }
 
 export async function updateProjectNote(input: { noteId: string; title: string; body: string }) {
-  if (!supabase) throw new Error('Supabase is not configured.')
-  const { data, error } = await supabase
-    .from('project_notes')
-    .update({
-      title: input.title.trim() || 'Note',
-      body: input.body,
-    })
-    .eq('id', input.noteId)
-    .select('id, project_id, title, body, created_at, updated_at')
-    .single<ProjectNoteRow>()
-  if (error) throw error
-  return data
+  return optimisticWrite(
+    'note:' + input.noteId,
+    [editRows(['project-notes'], input.noteId, { title: input.title.trim() || 'Note', body: input.body })],
+    async () => {
+      if (!supabase) throw new Error('Supabase is not configured.')
+      const { data, error } = await supabase
+        .from('project_notes')
+        .update({
+          title: input.title.trim() || 'Note',
+          body: input.body,
+        })
+        .eq('id', input.noteId)
+        .select('id, project_id, title, body, created_at, updated_at')
+        .single<ProjectNoteRow>()
+      if (error) throw error
+      return data
+    },
+  )
 }
 
 export async function deleteProjectNote(noteId: string) {
-  if (!supabase) throw new Error('Supabase is not configured.')
-  const { error } = await supabase.from('project_notes').delete().eq('id', noteId)
-  if (error) throw error
+  return optimisticWrite('note:' + noteId, [removeRows(['project-notes'], noteId)], async () => {
+    if (!supabase) throw new Error('Supabase is not configured.')
+    const { error } = await supabase.from('project_notes').delete().eq('id', noteId)
+    if (error) throw error
+  })
 }
 
 export async function updateMilestone(milestoneId: string, input: { title?: string; lane?: string }) {
@@ -688,54 +879,84 @@ export async function updateMilestone(milestoneId: string, input: { title?: stri
   const payload: Record<string, unknown> = {}
   if (input.title !== undefined) payload.title = input.title.trim() || 'Milestone'
   if (input.lane !== undefined) payload.lane = input.lane.trim() || 'Planning'
-  const { error } = await supabase.from('milestones').update(payload).eq('id', milestoneId)
-  if (error) throw error
+
+  return optimisticWrite(
+    'milestone:' + milestoneId,
+    [editRows(['project-detail'], milestoneId, payload)],
+    async () => {
+      if (!supabase) throw new Error('Supabase is not configured.')
+      const { error } = await supabase.from('milestones').update(payload).eq('id', milestoneId)
+      if (error) throw error
+    },
+  )
 }
 
 export async function deleteMilestone(milestoneId: string) {
-  if (!supabase) throw new Error('Supabase is not configured.')
-  const { error } = await supabase.from('milestones').delete().eq('id', milestoneId)
-  if (error) throw error
+  return optimisticWrite(
+    'milestone:' + milestoneId,
+    [removeRows(['project-detail'], milestoneId)],
+    async () => {
+      if (!supabase) throw new Error('Supabase is not configured.')
+      const { error } = await supabase.from('milestones').delete().eq('id', milestoneId)
+      if (error) throw error
+    },
+  )
 }
 
 export async function updateTask(taskId: string, input: { title?: string }) {
   if (!supabase) throw new Error('Supabase is not configured.')
   const payload: Record<string, unknown> = {}
   if (input.title !== undefined) payload.title = input.title.trim() || 'Task'
-  const { error } = await supabase.from('tasks').update(payload).eq('id', taskId)
-  if (error) throw error
+
+  return optimisticWrite('task:' + taskId, [editRows(['project-detail'], taskId, payload)], async () => {
+    if (!supabase) throw new Error('Supabase is not configured.')
+    const { error } = await supabase.from('tasks').update(payload).eq('id', taskId)
+    if (error) throw error
+  })
 }
 
 export async function deleteTask(taskId: string) {
-  if (!supabase) throw new Error('Supabase is not configured.')
-  const { error } = await supabase.from('tasks').delete().eq('id', taskId)
-  if (error) throw error
+  return optimisticWrite('task:' + taskId, [removeRows(['project-detail'], taskId)], async () => {
+    if (!supabase) throw new Error('Supabase is not configured.')
+    const { error } = await supabase.from('tasks').delete().eq('id', taskId)
+    if (error) throw error
+  })
 }
 
 export async function moveTaskDueDate(taskId: string, days: number) {
-  if (!supabase) throw new Error('Supabase is not configured.')
-  const { data, error } = await supabase
-    .from('tasks')
-    .select('project_id, title, due_on')
-    .eq('id', taskId)
-    .single()
-  if (error) throw error
-  if (!data.due_on) throw new Error('This task does not have a scheduled date yet.')
+  const row = cachedRow(['project-detail'], taskId)
 
-  const dueOn = shiftDate(data.due_on, days)
-  const { error: updateError } = await supabase.from('tasks').update({ due_on: dueOn }).eq('id', taskId)
-  if (updateError) throw updateError
+  return optimisticWrite(
+    'task:' + taskId,
+    row && typeof row.due_on === 'string'
+      ? [editRows(['project-detail'], taskId, { due_on: shiftDate(row.due_on, days) })]
+      : [],
+    async () => {
+      if (!supabase) throw new Error('Supabase is not configured.')
+      const { data, error } = await supabase
+        .from('tasks')
+        .select('project_id, title, due_on')
+        .eq('id', taskId)
+        .single()
+      if (error) throw error
+      if (!data.due_on) throw new Error('This task does not have a scheduled date yet.')
 
-  const userId = await currentUserId()
-  if (userId) {
-    await createActivity({
-      ownerId: userId,
-      projectId: data.project_id,
-      activityType: 'task_rescheduled',
-      title: 'Task rescheduled',
-      detail: `${data.title} moved to ${dueOn}.`,
-    })
-  }
+      const dueOn = shiftDate(data.due_on, days)
+      const { error: updateError } = await supabase.from('tasks').update({ due_on: dueOn }).eq('id', taskId)
+      if (updateError) throw updateError
+
+      const userId = await currentUserId()
+      if (userId) {
+        await createActivity({
+          ownerId: userId,
+          projectId: data.project_id,
+          activityType: 'task_rescheduled',
+          title: 'Task rescheduled',
+          detail: `${data.title} moved to ${dueOn}.`,
+        })
+      }
+    },
+  )
 }
 
 async function currentUserId() {

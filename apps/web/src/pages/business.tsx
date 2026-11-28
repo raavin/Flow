@@ -1,19 +1,12 @@
+import { jobDetailRoute } from '@/route-definitions'
 import { MoneyEntryForm } from '@/components/money-entry-form'
 import { QueryFeedback, MutationFeedback } from '@/components/request-feedback'
 import { useRef, useState } from 'react'
-import { createRoute, Link } from '@tanstack/react-router'
+import { Link } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Pencil } from 'lucide-react'
-import {
-  AppButton,
-  AppCard,
-  AppInput,
-  AppPanel,
-  AppTextarea,
-  FieldLabel,
-  SectionHeading,
-} from '@superapp/ui'
-import { appRoute } from '@/components/layout'
+import { AppButton, AppCard, AppInput, AppPanel, AppTextarea, FieldLabel, SectionHeading } from '@superapp/ui'
+
 import {
   deleteWorkflowStep,
   fetchJobDetail,
@@ -26,7 +19,7 @@ import {
 import { createStructuredUpdate, fetchStructuredUpdates } from '@/lib/planning'
 import { useAppStore } from '@/hooks/useAppStore'
 
-function JobDetailPage() {
+export function JobDetailPage() {
   const { jobId } = jobDetailRoute.useParams()
   const { session } = useAppStore()
   const queryClient = useQueryClient()
@@ -46,34 +39,25 @@ function JobDetailPage() {
   const [notes, setNotes] = useState<string | null>(null)
   const [entryVersion, setEntryVersion] = useState(0)
   const [entrySaved, setEntrySaved] = useState(false)
-  const [activeTab, setActiveTab] = useState<
-    'overview' | 'workflow' | 'payment' | 'updates'
-  >('overview')
+  const [activeTab, setActiveTab] = useState<'overview' | 'workflow' | 'payment' | 'updates'>('overview')
 
   const statusMutation = useMutation({
-    mutationFn: (
-      status: 'today' | 'upcoming' | 'waiting' | 'delayed' | 'completed',
-    ) => updateJobStatus(jobId, status),
-    onSuccess: () =>
-      void queryClient.invalidateQueries({ queryKey: ['job-detail', jobId] }),
+    mutationFn: (status: 'today' | 'upcoming' | 'waiting' | 'delayed' | 'completed') =>
+      updateJobStatus(jobId, status),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['job-detail', jobId] }),
   })
   const bookingMutation = useMutation({
-    mutationFn: () =>
-      updateJobBooking(jobId, new Date(bookingAt).toISOString()),
-    onSuccess: () =>
-      void queryClient.invalidateQueries({ queryKey: ['job-detail', jobId] }),
+    mutationFn: () => updateJobBooking(jobId, new Date(bookingAt).toISOString()),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['job-detail', jobId] }),
   })
   const notesMutation = useMutation({
-    mutationFn: () =>
-      updateJobNotes(jobId, notes ?? detailQuery.data?.job.notes ?? ''),
-    onSuccess: () =>
-      void queryClient.invalidateQueries({ queryKey: ['job-detail', jobId] }),
+    mutationFn: () => updateJobNotes(jobId, notes ?? detailQuery.data?.job.notes ?? ''),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['job-detail', jobId] }),
   })
   const paymentStateMutation = useMutation({
     mutationFn: (paymentState: 'unpaid' | 'deposit due' | 'paid') =>
       updateJobPaymentState(jobId, paymentState),
-    onSuccess: () =>
-      void queryClient.invalidateQueries({ queryKey: ['job-detail', jobId] }),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['job-detail', jobId] }),
   })
   const stepMutation = useMutation({
     mutationFn: (input: {
@@ -82,8 +66,7 @@ function JobDetailPage() {
       status?: 'todo' | 'doing' | 'done'
       customerVisible?: boolean
     }) => updateWorkflowStep(input),
-    onSuccess: () =>
-      void queryClient.invalidateQueries({ queryKey: ['job-detail', jobId] }),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['job-detail', jobId] }),
   })
   const updateMutation = useMutation({
     mutationFn: () =>
@@ -112,9 +95,7 @@ function JobDetailPage() {
 
   const [editingStepId, setEditingStepId] = useState<string | null>(null)
   const [editStepValue, setEditStepValue] = useState('')
-  const [deleteConfirmStepId, setDeleteConfirmStepId] = useState<string | null>(
-    null,
-  )
+  const [deleteConfirmStepId, setDeleteConfirmStepId] = useState<string | null>(null)
   const stepEditRef = useRef<HTMLInputElement>(null)
 
   function beginStepEdit(stepId: string, currentTitle: string) {
@@ -149,37 +130,30 @@ function JobDetailPage() {
   return (
     <div className="space-y-4">
       <AppCard className="space-y-4">
-        <SectionHeading
-          eyebrow="Job detail"
-          title={`${detail.job.customer_name} · ${detail.job.title}`}
-        />
+        <SectionHeading eyebrow="Job detail" title={`${detail.job.customer_name} · ${detail.job.title}`} />
         <p className="text-sm text-ink/70">
           {detail.job.status} · {detail.job.payment_state} ·{' '}
-          {detail.job.booking_at
-            ? new Date(detail.job.booking_at).toLocaleString()
-            : 'no booking time yet'}
+          {detail.job.booking_at ? new Date(detail.job.booking_at).toLocaleString() : 'no booking time yet'}
         </p>
         <div role="group" aria-label="Job view" className="grid grid-cols-4 gap-1 sm:flex">
-          {(['overview', 'workflow', 'payment', 'updates'] as const).map(
-            (tab) => (
-              <AppButton
-                key={tab}
-                className="min-h-11 min-w-0 !px-2"
-                aria-pressed={activeTab === tab}
-                variant={activeTab === tab ? 'primary' : 'ghost'}
-                onClick={() => setActiveTab(tab)}
-              >
+          {(['overview', 'workflow', 'payment', 'updates'] as const).map((tab) => (
+            <AppButton
+              key={tab}
+              className="min-h-11 min-w-0 !px-2"
+              aria-pressed={activeTab === tab}
+              variant={activeTab === tab ? 'primary' : 'ghost'}
+              onClick={() => setActiveTab(tab)}
+            >
+              {
                 {
-                  {
-                    overview: 'Overview',
-                    workflow: 'Steps',
-                    payment: 'Money',
-                    updates: 'Updates',
-                  }[tab]
-                }
-              </AppButton>
-            ),
-          )}
+                  overview: 'Overview',
+                  workflow: 'Steps',
+                  payment: 'Money',
+                  updates: 'Updates',
+                }[tab]
+              }
+            </AppButton>
+          ))}
         </div>
       </AppCard>
 
@@ -201,10 +175,7 @@ function JobDetailPage() {
             >
               Set appointment
             </AppButton>
-            <MutationFeedback
-              mutation={bookingMutation}
-              success="Appointment saved."
-            />
+            <MutationFeedback mutation={bookingMutation} success="Appointment saved." />
             <FieldLabel>
               Internal notes
               <AppTextarea
@@ -213,10 +184,7 @@ function JobDetailPage() {
                 className="min-h-28"
               />
             </FieldLabel>
-            <AppButton
-              variant="secondary"
-              onClick={() => notesMutation.mutate()}
-            >
+            <AppButton variant="secondary" onClick={() => notesMutation.mutate()}>
               Save notes
             </AppButton>
             <MutationFeedback mutation={notesMutation} success="Notes saved." />
@@ -224,15 +192,7 @@ function JobDetailPage() {
           <AppCard className="space-y-4">
             <SectionHeading eyebrow="Status" title="Job status" />
             <div className="flex flex-wrap gap-2">
-              {(
-                [
-                  'today',
-                  'upcoming',
-                  'waiting',
-                  'delayed',
-                  'completed',
-                ] as const
-              ).map((status) => (
+              {(['today', 'upcoming', 'waiting', 'delayed', 'completed'] as const).map((status) => (
                 <AppButton
                   key={status}
                   variant={detail.job.status === status ? 'primary' : 'ghost'}
@@ -263,9 +223,7 @@ function JobDetailPage() {
                 Open linked project
               </Link>
             ) : (
-              <p className="text-sm text-ink/65">
-                Not linked to a shared project yet.
-              </p>
+              <p className="text-sm text-ink/65">Not linked to a shared project yet.</p>
             )}
           </AppCard>
         </div>
@@ -274,9 +232,7 @@ function JobDetailPage() {
       {activeTab === 'workflow' ? (
         <AppCard className="space-y-4">
           <SectionHeading eyebrow="Workflow" title="Job steps" />
-          {!detail.steps.length ? (
-            <p className="text-sm text-ink/65">No steps for this job.</p>
-          ) : null}
+          {!detail.steps.length ? <p className="text-sm text-ink/65">No steps for this job.</p> : null}
           <MutationFeedback mutation={stepMutation} />
           <MutationFeedback mutation={deleteStepMutation} />
           <div className="grid gap-3">
@@ -307,9 +263,7 @@ function JobDetailPage() {
                       </p>
                     )}
                     <p className="mt-0.5 text-sm text-ink/65">
-                      {step.customer_visible
-                        ? 'Customer-visible'
-                        : 'Internal only'}
+                      {step.customer_visible ? 'Customer-visible' : 'Internal only'}
                     </p>
                   </div>
                   <div className="flex flex-wrap gap-2">
@@ -317,9 +271,7 @@ function JobDetailPage() {
                       <AppButton
                         key={status}
                         variant={step.status === status ? 'primary' : 'ghost'}
-                        onClick={() =>
-                          stepMutation.mutate({ stepId: step.id, status })
-                        }
+                        onClick={() => stepMutation.mutate({ stepId: step.id, status })}
                       >
                         {
                           {
@@ -344,15 +296,11 @@ function JobDetailPage() {
                         })
                       }
                     >
-                      {step.customer_visible
-                        ? 'Hide from customer'
-                        : 'Share with customer'}
+                      {step.customer_visible ? 'Hide from customer' : 'Share with customer'}
                     </AppButton>
                     {deleteConfirmStepId === step.id ? (
                       <>
-                        <span className="flex items-center text-xs font-bold text-berry">
-                          Delete?
-                        </span>
+                        <span className="flex items-center text-xs font-bold text-berry">Delete?</span>
                         <AppButton
                           variant="secondary"
                           onClick={() => deleteStepMutation.mutate(step.id)}
@@ -360,18 +308,12 @@ function JobDetailPage() {
                         >
                           Yes
                         </AppButton>
-                        <AppButton
-                          variant="ghost"
-                          onClick={() => setDeleteConfirmStepId(null)}
-                        >
+                        <AppButton variant="ghost" onClick={() => setDeleteConfirmStepId(null)}>
                           No
                         </AppButton>
                       </>
                     ) : (
-                      <AppButton
-                        variant="ghost"
-                        onClick={() => setDeleteConfirmStepId(step.id)}
-                      >
+                      <AppButton variant="ghost" onClick={() => setDeleteConfirmStepId(step.id)}>
                         Delete
                       </AppButton>
                     )}
@@ -404,9 +346,7 @@ function JobDetailPage() {
             {(['unpaid', 'paid'] as const).map((state) => (
               <AppButton
                 key={state}
-                variant={
-                  detail.job.payment_state === state ? 'primary' : 'ghost'
-                }
+                variant={detail.job.payment_state === state ? 'primary' : 'ghost'}
                 disabled={paymentStateMutation.isPending}
                 onClick={() => paymentStateMutation.mutate(state)}
               >
@@ -414,9 +354,7 @@ function JobDetailPage() {
               </AppButton>
             ))}
           </div>
-          <p className="text-xs text-ink/65">
-            Changing the job status does not create a financial entry.
-          </p>
+          <p className="text-xs text-ink/65">Changing the job status does not create a financial entry.</p>
           <MutationFeedback mutation={paymentStateMutation} />
           <h3 className="font-semibold">Add entry</h3>
           {entrySaved ? (
@@ -444,16 +382,11 @@ function JobDetailPage() {
             <SectionHeading eyebrow="Customer-visible" title="Shared updates" />
             <AppButton
               onClick={() => updateMutation.mutate()}
-              disabled={
-                !detail.job.linked_project_id || updateMutation.isPending
-              }
+              disabled={!detail.job.linked_project_id || updateMutation.isPending}
             >
               Post update
             </AppButton>
-            <MutationFeedback
-              mutation={updateMutation}
-              success="Update posted."
-            />
+            <MutationFeedback mutation={updateMutation} success="Update posted." />
           </AppCard>
           <AppCard className="space-y-4">
             <SectionHeading eyebrow="Feed" title="Customer activity" />
@@ -464,12 +397,8 @@ function JobDetailPage() {
             <div className="grid gap-3">
               {(updatesQuery.data ?? []).map((update) => (
                 <AppPanel key={update.id}>
-                  <p className="font-extrabold text-ink">
-                    {update.update_type}
-                  </p>
-                  <p className="text-sm text-ink/65">
-                    {update.note || 'No detail provided'}
-                  </p>
+                  <p className="font-extrabold text-ink">{update.update_type}</p>
+                  <p className="text-sm text-ink/65">{update.note || 'No detail provided'}</p>
                 </AppPanel>
               ))}
             </div>
@@ -479,9 +408,3 @@ function JobDetailPage() {
     </div>
   )
 }
-
-export const jobDetailRoute = createRoute({
-  getParentRoute: () => appRoute,
-  path: 'jobs/$jobId',
-  component: JobDetailPage,
-})
