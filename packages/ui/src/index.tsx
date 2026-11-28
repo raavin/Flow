@@ -10,10 +10,7 @@ import type {
 import { forwardRef } from 'react'
 import clsx from 'clsx'
 
-export function AppCard({
-  children,
-  className,
-}: PropsWithChildren<{ className?: string }>) {
+export function AppCard({ children, className }: PropsWithChildren<{ className?: string }>) {
   return <section className={clsx('ui-card', className)}>{children}</section>
 }
 
@@ -97,7 +94,11 @@ export const AppTextarea = forwardRef(function AppTextarea(
   return <textarea ref={ref} className={clsx('ui-input ui-textarea', className)} {...props} />
 })
 
-export function AppSelect({ className, children, ...props }: PropsWithChildren<SelectHTMLAttributes<HTMLSelectElement>>) {
+export function AppSelect({
+  className,
+  children,
+  ...props
+}: PropsWithChildren<SelectHTMLAttributes<HTMLSelectElement>>) {
   return (
     <select className={clsx('ui-input ui-select', className)} {...props}>
       {children}
@@ -105,10 +106,7 @@ export function AppSelect({ className, children, ...props }: PropsWithChildren<S
   )
 }
 
-export function FieldLabel({
-  children,
-  className,
-}: PropsWithChildren<{ className?: string }>) {
+export function FieldLabel({ children, className }: PropsWithChildren<{ className?: string }>) {
   return <label className={clsx('ui-field-label', className)}>{children}</label>
 }
 
@@ -136,16 +134,21 @@ export function SectionHeading({
   eyebrow,
   title,
   action,
+  level = 2,
 }: {
   eyebrow?: string
   title: string
   action?: ReactNode
+  level?: 1 | 2 | 3
 }) {
+  const Heading = `h${level}` as 'h1' | 'h2' | 'h3'
   return (
     <div className="ui-section-heading">
       <div>
-        {eyebrow && eyebrow.trim().toLowerCase() !== title.trim().toLowerCase() ? <p className="ui-eyebrow">{eyebrow}</p> : null}
-        <h2 className="ui-section-title">{title}</h2>
+        {eyebrow && eyebrow.trim().toLowerCase() !== title.trim().toLowerCase() ? (
+          <p className="ui-eyebrow">{eyebrow}</p>
+        ) : null}
+        <Heading className="ui-section-title">{title}</Heading>
       </div>
       {action}
     </div>

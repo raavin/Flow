@@ -361,7 +361,7 @@ export function CalendarPage({ linkedProjectId }: { linkedProjectId?: string | n
         <div className="space-y-4">
           <AppCard className="space-y-4">
             <SectionHeading
-              eyebrow={undefined}
+              level={linkedProjectId ? 2 : 1}
               title="Calendar"
               action={
                 <div className="flex flex-wrap gap-2">
@@ -523,15 +523,17 @@ export function CalendarPage({ linkedProjectId }: { linkedProjectId?: string | n
                         <Link
                           to="/app/projects/$projectId/conversation"
                           params={{ projectId: occ.projectId }}
+                          className="ui-button ui-button--secondary"
                         >
-                          <AppButton variant="secondary">Open project</AppButton>
+                          Open project
                         </Link>
                       ) : null}
                       <Link
                         to={occ.projectId ? '/app/projects/$projectId/timeline' : '/app/gantt'}
                         params={occ.projectId ? { projectId: occ.projectId } : (undefined as never)}
+                        className="ui-button ui-button--ghost"
                       >
-                        <AppButton variant="ghost">Timeline</AppButton>
+                        Timeline
                       </Link>
                     </div>
                   </AppPanel>
@@ -556,18 +558,23 @@ export function CalendarPage({ linkedProjectId }: { linkedProjectId?: string | n
                       <AppPill tone="butter">{item.state}</AppPill>
                     </div>
                     <div className="flex flex-wrap gap-2">
-                      <Link to="/app/coordination/$coordinationId" params={{ coordinationId: item.id }}>
-                        <AppButton variant="secondary">Open plan</AppButton>
+                      <Link
+                        to="/app/coordination/$coordinationId"
+                        params={{ coordinationId: item.id }}
+                        className="ui-button ui-button--secondary"
+                      >
+                        Open plan
                       </Link>
-                      <Link to="/app/gantt">
-                        <AppButton variant="ghost">Timeline</AppButton>
+                      <Link to="/app/gantt" className="ui-button ui-button--ghost">
+                        Timeline
                       </Link>
                       {item.linkedProjectId ? (
                         <Link
                           to="/app/projects/$projectId/conversation"
                           params={{ projectId: item.linkedProjectId }}
+                          className="ui-button ui-button--ghost"
                         >
-                          <AppButton variant="ghost">Project</AppButton>
+                          Project
                         </Link>
                       ) : null}
                     </div>
@@ -1173,6 +1180,9 @@ function MonthView({
           return (
             <button
               key={iso}
+              aria-label={`${day.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}${dayOccs.length + dayFlows.length ? `, ${dayOccs.length + dayFlows.length} items` : ''}`}
+              aria-pressed={isSelected}
+              aria-current={isToday ? 'date' : undefined}
               type="button"
               onClick={() => onSelectDay(iso)}
               onDoubleClick={() => onSelectDay(iso, true)}

@@ -20,6 +20,8 @@ type AppStoreValue = {
   profile: ProfileRecord | null
   businessProfile: BusinessProfileRecord | null
   loading: boolean
+  accountError: string | null
+  retryAccount: () => void
   signIn: (email: string, password: string) => Promise<void>
   signUp: (email: string, password: string) => Promise<void>
   signOut: () => Promise<void>
@@ -54,6 +56,8 @@ export function AppStoreProvider({ children }: PropsWithChildren) {
   const [profile, setProfile] = useState<ProfileRecord | null>(null)
   const [businessProfile, setBusinessProfile] = useState<BusinessProfileRecord | null>(null)
   const [loading, setLoading] = useState(true)
+  const [accountError, setAccountError] = useState<string | null>(null)
+  const [retryCount, setRetryCount] = useState(0)
 
   useEffect(() => {
     let mounted = true
@@ -72,14 +76,15 @@ export function AppStoreProvider({ children }: PropsWithChildren) {
       const version = ++generation
       ++modeVersion.current
       setLoading(true)
+      setAccountError(null)
       setProfile(null)
       setBusinessProfile(null)
-      await queryClient.cancelQueries()
-      if (!mounted || version !== generation) return
-      optimisticWrites.reset()
-      queryClient.clear()
-
       try {
+        await queryClient.cancelQueries()
+        if (!mounted || version !== generation) return
+        optimisticWrites.reset()
+        queryClient.clear()
+
         if (nextSession?.user.id) {
           const result = await fetchProfile(nextSession.user.id)
           if (!mounted || version !== generation) return
@@ -90,14 +95,28 @@ export function AppStoreProvider({ children }: PropsWithChildren) {
           setProfile(null)
           setBusinessProfile(null)
         }
+      } catch {
+        if (mounted && version === generation) {
+          currentUser = undefined
+          setAccountError('Your account could not be loaded. Check your connection and try again.')
+        }
       } finally {
         if (mounted && version === generation) setLoading(false)
       }
     }
 
     async function bootstrap() {
-      const currentSession = await getSession()
-      if (generation === 0) await syncSession(currentSession)
+      setLoading(true)
+      setAccountError(null)
+      try {
+        const currentSession = await getSession()
+        if (generation === 0) await syncSession(currentSession)
+      } catch {
+        if (mounted && generation === 0) {
+          setAccountError('Your session could not be restored. Check your connection and try again.')
+          setLoading(false)
+        }
+      }
     }
 
     void bootstrap()
@@ -115,7 +134,7 @@ export function AppStoreProvider({ children }: PropsWithChildren) {
       mounted = false
       data.subscription.unsubscribe()
     }
-  }, [queryClient])
+  }, [queryClient, retryCount])
 
   const value = useMemo<AppStoreValue>(
     () => ({
@@ -123,14 +142,14 @@ export function AppStoreProvider({ children }: PropsWithChildren) {
       profile,
       businessProfile,
       loading,
+      accountError,
+      retryAccount: () => setRetryCount((count) => count + 1),
       signIn: async (email, password) => {
         await signInWithEmail(email, password)
       },
       signUp: async (email, password) => {
-        const result = await signUpWithEmail(email, password)
-        if (!result.session) {
-          await signInWithEmail(email, password)
-        }
+        // A null session is expected when email confirmation is required.
+        await signUpWithEmail(email, password)
       },
       signOut: async () => {
         await signOutSession()
@@ -150,7 +169,9 @@ export function AppStoreProvider({ children }: PropsWithChildren) {
         })
 
         const result = await fetchProfile(currentSession.user.id)
+        if (account.current !== currentSession.user.id) return
         setProfile(result?.profile ?? null)
+        confirmedMode.current = result?.profile?.active_mode ?? 'individual'
         setBusinessProfile(result?.businessProfile ?? null)
       },
       setActiveMode: async (mode) => {
@@ -168,7 +189,7 @@ export function AppStoreProvider({ children }: PropsWithChildren) {
         }
       },
     }),
-    [businessProfile, loading, profile, session],
+    [accountError, businessProfile, loading, profile, session],
   )
 
   return <AppStoreContext.Provider value={value}>{children}</AppStoreContext.Provider>

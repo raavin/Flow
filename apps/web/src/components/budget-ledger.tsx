@@ -449,9 +449,11 @@ export function BudgetLedger({
               ))}
             </AppSelect>
           </label>
-          <Link to="/app/projects/$projectId" params={{ projectId: node.sourceId }} className="underline">
-            Open project
-          </Link>
+          {!projectContextId && (
+            <Link to="/app/projects/$projectId" params={{ projectId: node.sourceId }} className="underline">
+              Open project
+            </Link>
+          )}
         </div>
       )}
       {mutation.error && (

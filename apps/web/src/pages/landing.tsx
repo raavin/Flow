@@ -1,3 +1,5 @@
+import { landingRoute } from '@/route-definitions'
+import { AccountError } from '@/components/account-error'
 import { useEffect, useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { MessageCircle, CalendarDays, FolderKanban } from 'lucide-react'
@@ -7,7 +9,8 @@ import { HeroPanel } from '@/components/page-primitives'
 import { useAppStore } from '@/hooks/useAppStore'
 
 export function LandingPage() {
-  const { signIn, signUp, session, profile, loading } = useAppStore()
+  const { returnTo } = landingRoute.useSearch()
+  const { signIn, signUp, session, profile, loading, accountError, retryAccount } = useAppStore()
   const navigate = useNavigate()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -17,11 +20,11 @@ export function LandingPage() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!loading && session) {
-      const destination = profile ? '/app/messages' : '/onboarding'
-      void navigate({ to: destination })
+    if (!loading && session && !accountError) {
+      if (profile) void navigate({ to: returnTo ?? '/app/messages', replace: true })
+      else void navigate({ to: '/onboarding', search: { returnTo }, replace: true })
     }
-  }, [loading, navigate, profile, session])
+  }, [accountError, loading, navigate, profile, returnTo, session])
 
   async function submit() {
     setError(null)
@@ -41,6 +44,8 @@ export function LandingPage() {
       setSubmitting(false)
     }
   }
+
+  if (accountError) return <AccountError message={accountError} onRetry={retryAccount} />
 
   return (
     <div className="mx-auto flex min-h-screen max-w-6xl flex-col justify-center px-4 py-8 sm:px-6">
@@ -67,10 +72,18 @@ export function LandingPage() {
         <AppCard className="space-y-5">
           <SectionHeading eyebrow="Welcome" title={mode === 'sign-up' ? 'Create account' : 'Sign in'} />
           <div className="flex gap-2">
-            <AppButton variant={mode === 'sign-up' ? 'primary' : 'ghost'} onClick={() => setMode('sign-up')}>
+            <AppButton
+              aria-pressed={mode === 'sign-up'}
+              variant={mode === 'sign-up' ? 'primary' : 'ghost'}
+              onClick={() => setMode('sign-up')}
+            >
               Create account
             </AppButton>
-            <AppButton variant={mode === 'sign-in' ? 'primary' : 'ghost'} onClick={() => setMode('sign-in')}>
+            <AppButton
+              aria-pressed={mode === 'sign-in'}
+              variant={mode === 'sign-in' ? 'primary' : 'ghost'}
+              onClick={() => setMode('sign-in')}
+            >
               Sign in
             </AppButton>
           </div>

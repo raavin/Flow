@@ -130,6 +130,15 @@ it.each(routes)('renders %s with a signed-in account and no failed data queries'
   expect(within(main).queryByText('Something went wrong!')).not.toBeInTheDocument()
   expect(within(main).queryByText('This page could not be opened')).not.toBeInTheDocument()
   expect(main.textContent!.trim().length).toBeGreaterThan(10)
+  expect(main.querySelectorAll('a button, button a, a a')).toHaveLength(0)
+  expect(
+    Array.from(main.querySelectorAll('a')).filter((link) =>
+      /\/(undefined|null)(?:[/?#]|$)/.test(link.getAttribute('href') ?? ''),
+    ),
+  ).toHaveLength(0)
+  for (const input of main.querySelectorAll('input:not([type=hidden]), textarea, select')) {
+    expect(input, `${path}: ${input.outerHTML.slice(0, 200)}`).toHaveAccessibleName()
+  }
 })
 
 it('keeps the familiar sidebar and project sections visible while navigating between pages', async () => {
@@ -162,7 +171,7 @@ it('keeps the familiar sidebar and project sections visible while navigating bet
   expect(within(menu).getByRole('link', { name: 'Messages' })).toHaveClass('ui-nav-link--active')
   await act(() => router.navigate({ to: '/app/coordination' }))
   expect(await screen.findByRole('heading', { name: 'Plans' })).toBeVisible()
-  expect(screen.getByRole('heading', { name: 'New plan' })).toBeVisible()
+  expect(screen.getByRole('button', { name: 'New plan' })).toBeVisible()
 })
 
 it('opens the compact app menu, navigates and restores the page after closing', async () => {
@@ -414,4 +423,33 @@ it('opens project pages when browser storage is blocked', async () => {
   expect(within(main).getByRole('heading', { name: 'Birthday dinner' })).toBeVisible()
   expect(within(main).getByRole('navigation', { name: 'Project navigation' })).toBeVisible()
   expect(within(main).queryByRole('alert')).not.toBeInTheDocument()
+})
+
+it('opens the template editor directly without unrelated plans or creation forms', async () => {
+  const { main } = await openPage('/app/template-editor')
+  expect(within(main).getByRole('heading', { name: 'New template', level: 1 })).toBeVisible()
+  expect(within(main).getByLabelText('Template title')).toBeVisible()
+  expect(within(main).queryByText('Current')).not.toBeInTheDocument()
+  expect(within(main).queryByRole('button', { name: 'Create plan' })).not.toBeInTheDocument()
+})
+
+it('keeps plans visible until a new plan is requested', async () => {
+  const { main } = await openPage('/app/coordination')
+  expect(within(main).queryByLabelText('Title')).not.toBeInTheDocument()
+  fireEvent.click(within(main).getByRole('button', { name: 'New plan' }))
+  const dialog = screen.getByRole('dialog', { name: 'New plan' })
+  expect(within(dialog).getByLabelText('Title')).toBeVisible()
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Close' }))
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+})
+
+it('returns a signed-in visitor to their requested budget after the welcome page', async () => {
+  const { router } = await openPage('/?returnTo=' + encodeURIComponent('/app/budgets?view=project%3Asample-party'))
+  expect(router.state.location.pathname).toBe('/app/budgets')
+  expect(router.state.location.search).toMatchObject({ view: 'project:sample-party' })
+})
+
+it('ignores an external post-login destination', async () => {
+  const { router } = await openPage('/?returnTo=' + encodeURIComponent('https://evil.test/app/messages'))
+  expect(router.state.location.pathname).toBe('/app/messages')
 })

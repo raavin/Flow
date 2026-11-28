@@ -1,3 +1,4 @@
+import { AppDialog } from '@/components/app-dialog'
 import { coordinationDetailRoute } from '@/route-definitions'
 import { calendarDay, coordinationDays } from '@/lib/coordination-dates'
 import { QueryFeedback, MutationFeedback } from '@/components/request-feedback'
@@ -82,7 +83,9 @@ const intentOptions: Array<{ value: CoordinationObjectIntent; label: string }> =
   { value: 'support', label: 'Support' },
 ]
 
-export function TemplateEditorPage({ title: pageTitle = 'Template editor' }: { title?: string } = {}) {
+function CoordinationWorkspace({ editorOnly = false }: { editorOnly?: boolean }) {
+  const pageTitle = editorOnly ? 'New template' : 'Plans'
+  const [showNewPlan, setShowNewPlan] = useState(false)
   const { session } = useAppStore()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -107,16 +110,17 @@ export function TemplateEditorPage({ title: pageTitle = 'Template editor' }: { t
   const coordinationQuery = useQuery({
     queryKey: ['coordination-objects'],
     queryFn: () => fetchCoordinationObjects(),
-    enabled: Boolean(session?.user.id),
+    enabled: Boolean(session?.user.id) && !editorOnly,
   })
   const templatesQuery = useQuery({
     queryKey: ['coordination-templates'],
     queryFn: fetchCoordinationTemplates,
-    enabled: Boolean(session?.user.id),
+    enabled: Boolean(session?.user.id) && !editorOnly,
   })
   const projectsQuery = useQuery({
     queryKey: ['projects'],
     queryFn: fetchProjects,
+    enabled: !editorOnly,
   })
 
   const createMutation = useMutation({
@@ -150,6 +154,7 @@ export function TemplateEditorPage({ title: pageTitle = 'Template editor' }: { t
       setParticipants('')
       setLinkedProjectId('')
       setEndDate('')
+      setShowNewPlan(false)
       void queryClient.invalidateQueries({
         queryKey: ['coordination-objects'],
       })
@@ -215,6 +220,7 @@ export function TemplateEditorPage({ title: pageTitle = 'Template editor' }: { t
       setTemplateJson('')
       setAdvancedTemplate(false)
       setTemplateError(null)
+      void navigate({ to: '/app/ai' })
       void queryClient.invalidateQueries({
         queryKey: ['coordination-templates'],
       })
@@ -293,31 +299,47 @@ export function TemplateEditorPage({ title: pageTitle = 'Template editor' }: { t
     <div className="space-y-4">
       <AppCard className="space-y-4">
         <SectionHeading
+          level={1}
           title={pageTitle}
           action={
             <Link to="/app/ai" className="text-sm underline">
-              Find a template
+              All templates
             </Link>
           }
         />
-        <p className="text-sm text-ink/70">
-          Add a reminder or plan, or use a template for a sequence of steps.
-        </p>
-        <div className="grid gap-3 sm:grid-cols-3">
-          <AppPanel tone="butter">
-            <p className="text-xs font-bold uppercase text-ink/50">Active now</p>
-            <p className="text-2xl font-extrabold text-ink">{buckets.now.length}</p>
-          </AppPanel>
-          <AppPanel tone="peach">
-            <p className="text-xs font-bold uppercase text-ink/50">Upcoming</p>
-            <p className="text-2xl font-extrabold text-ink">{buckets.next.length}</p>
-          </AppPanel>
-          <AppPanel tone="teal">
-            <p className="text-xs font-bold uppercase text-ink/50">Templates</p>
-            <p className="text-2xl font-extrabold text-ink">{templatesQuery.data?.length ?? 0}</p>
-          </AppPanel>
-        </div>
+        {!editorOnly ? (
+          <>
+            <div className="flex flex-wrap gap-2">
+              <AppButton onClick={() => setShowNewPlan(true)}>New plan</AppButton>
+              <Link to="/app/template-editor" className="ui-button ui-button--ghost">
+                Create template
+              </Link>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <AppPanel tone="butter">
+                <p className="text-xs font-bold uppercase text-ink/50">Active now</p>
+                <p className="text-2xl font-extrabold text-ink">{buckets.now.length}</p>
+              </AppPanel>
+              <AppPanel tone="peach">
+                <p className="text-xs font-bold uppercase text-ink/50">Upcoming</p>
+                <p className="text-2xl font-extrabold text-ink">{buckets.next.length}</p>
+              </AppPanel>
+              <AppPanel tone="teal">
+                <p className="text-xs font-bold uppercase text-ink/50">Templates</p>
+                <p className="text-2xl font-extrabold text-ink">{templatesQuery.data?.length ?? 0}</p>
+              </AppPanel>
+            </div>
+          </>
+        ) : (
+          <p className="text-sm text-ink/70">
+            Add reusable steps around a date, such as preparing for a birthday or moving home.
+          </p>
+        )}
       </AppCard>
+      <MutationFeedback mutation={stateMutation} />
+      <MutationFeedback mutation={updateTitleMutation} />
+      <MutationFeedback mutation={deleteObjectMutation} />
+      {!editorOnly && <QueryFeedback query={coordinationQuery} />}
 
       {applyTemplateMutation.error || saveTemplateMutation.error || starterTemplatesMutation.error ? (
         <p role="alert" className="ui-panel">
@@ -327,357 +349,380 @@ export function TemplateEditorPage({ title: pageTitle = 'Template editor' }: { t
           }
         </p>
       ) : null}
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]">
-        <div className="space-y-4">
-          <AppCard className="space-y-4">
-            <SectionHeading title="New plan" />
-            <div className="grid gap-3 md:grid-cols-2">
-              <FieldLabel>
-                Title
-                <AppInput
-                  value={title}
-                  onChange={(event) => setTitle(event.target.value)}
-                  placeholder="Doctor appointment, coffee catch-up, request leave..."
-                  className="mt-2"
-                />
-              </FieldLabel>
-              <FieldLabel>
-                Intent
-                <AppSelect
-                  value={intent}
-                  onChange={(event) => setIntent(event.target.value as CoordinationObjectIntent)}
-                  className="mt-2"
-                >
-                  {intentOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </AppSelect>
-              </FieldLabel>
-              <FieldLabel>
-                Type
-                <AppSelect
-                  value={kind === 'request' ? 'request' : displayKind}
-                  onChange={(event) => {
-                    const value = event.target.value as CoordinationDisplayKind | 'request'
-                    setDisplayKind(value === 'request' ? 'task' : value)
-                    setKind(value === 'task' ? 'reminder' : (value as CoordinationObjectKind))
+      <div
+        className={
+          editorOnly ? 'mx-auto max-w-3xl' : 'grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]'
+        }
+      >
+        {!editorOnly && (
+          <div className="space-y-4">
+            {showNewPlan && (
+              <AppDialog onClose={() => setShowNewPlan(false)} title="New plan">
+                <form
+                  className="space-y-4"
+                  onSubmit={(event) => {
+                    event.preventDefault()
+                    if (!createMutation.isPending && title.trim()) createMutation.mutate()
                   }}
-                  className="mt-2"
                 >
-                  {displayOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </AppSelect>
-              </FieldLabel>
-              <FieldLabel>
-                Starts
-                <AppInput
-                  type="date"
-                  value={date}
-                  onChange={(event) => setDate(event.target.value)}
-                  className="mt-2"
-                />
-              </FieldLabel>
-              <FieldLabel>
-                Ends or due
-                <AppInput
-                  type="date"
-                  value={endDate}
-                  onChange={(event) => setEndDate(event.target.value)}
-                  className="mt-2"
-                />
-              </FieldLabel>
-            </div>
-            <FieldLabel>
-              Notes
-              <AppTextarea
-                value={summary}
-                onChange={(event) => setSummary(event.target.value)}
-                className="mt-2 min-h-24"
-                placeholder="Add notes"
-              />
-            </FieldLabel>
-            <div className="grid gap-3 md:grid-cols-2">
-              <FieldLabel>
-                Participants
-                <AppInput
-                  value={participants}
-                  onChange={(event) => setParticipants(event.target.value)}
-                  className="mt-2"
-                  placeholder="Jimmy, work manager, Dr Smith"
-                />
-              </FieldLabel>
-              <FieldLabel>
-                Linked project
-                <AppSelect
-                  value={linkedProjectId}
-                  onChange={(event) => setLinkedProjectId(event.target.value)}
-                  className="mt-2"
-                >
-                  <option value="">None</option>
-                  {(projectsQuery.data ?? []).map((project) => (
-                    <option key={project.id} value={project.id}>
-                      {project.title}
-                    </option>
-                  ))}
-                </AppSelect>
-              </FieldLabel>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <AppButton
-                disabled={!session || createMutation.isPending || !title.trim()}
-                onClick={() => createMutation.mutate()}
-              >
-                Create plan
-              </AppButton>
-              <Link to="/app/gantt">
-                <AppButton variant="ghost">View timeline</AppButton>
-              </Link>
-            </div>
-          </AppCard>
+                  <MutationFeedback mutation={createMutation} />
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <FieldLabel>
+                      Title
+                      <AppInput
+                        required
+                        autoFocus
+                        value={title}
+                        onChange={(event) => setTitle(event.target.value)}
+                        placeholder="Doctor appointment, coffee catch-up, request leave..."
+                        className="mt-2"
+                      />
+                    </FieldLabel>
+                    <FieldLabel>
+                      Intent
+                      <AppSelect
+                        value={intent}
+                        onChange={(event) => setIntent(event.target.value as CoordinationObjectIntent)}
+                        className="mt-2"
+                      >
+                        {intentOptions.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </AppSelect>
+                    </FieldLabel>
+                    <FieldLabel>
+                      Type
+                      <AppSelect
+                        value={kind === 'request' ? 'request' : displayKind}
+                        onChange={(event) => {
+                          const value = event.target.value as CoordinationDisplayKind | 'request'
+                          setDisplayKind(value === 'request' ? 'task' : value)
+                          setKind(value === 'task' ? 'reminder' : (value as CoordinationObjectKind))
+                        }}
+                        className="mt-2"
+                      >
+                        {displayOptions.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </AppSelect>
+                    </FieldLabel>
+                    <FieldLabel>
+                      Starts
+                      <AppInput
+                        type="date"
+                        required
+                        value={date}
+                        onChange={(event) => setDate(event.target.value)}
+                        className="mt-2"
+                      />
+                    </FieldLabel>
+                    <FieldLabel>
+                      Ends or due
+                      <AppInput
+                        type="date"
+                        min={date}
+                        value={endDate}
+                        onChange={(event) => setEndDate(event.target.value)}
+                        className="mt-2"
+                      />
+                    </FieldLabel>
+                  </div>
+                  <FieldLabel>
+                    Notes
+                    <AppTextarea
+                      value={summary}
+                      onChange={(event) => setSummary(event.target.value)}
+                      className="mt-2 min-h-24"
+                      placeholder="Add notes"
+                    />
+                  </FieldLabel>
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <FieldLabel>
+                      Participants
+                      <AppInput
+                        value={participants}
+                        onChange={(event) => setParticipants(event.target.value)}
+                        className="mt-2"
+                        placeholder="Jimmy, work manager, Dr Smith"
+                      />
+                    </FieldLabel>
+                    <FieldLabel>
+                      Linked project
+                      <AppSelect
+                        value={linkedProjectId}
+                        onChange={(event) => setLinkedProjectId(event.target.value)}
+                        className="mt-2"
+                      >
+                        <option value="">None</option>
+                        {(projectsQuery.data ?? []).map((project) => (
+                          <option key={project.id} value={project.id}>
+                            {project.title}
+                          </option>
+                        ))}
+                      </AppSelect>
+                    </FieldLabel>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <AppButton disabled={!session || createMutation.isPending || !title.trim()} type="submit">
+                      Create plan
+                    </AppButton>
+                    <Link to="/app/gantt" className="ui-button ui-button--ghost">
+                      View timeline
+                    </Link>
+                  </div>
+                </form>
+              </AppDialog>
+            )}
 
-          <BoardSection
-            title="Current"
-            eyebrow="Live"
-            description="Active, happening today, or ready to move."
-            items={buckets.now}
-            onStateChange={(id, state) => stateMutation.mutate({ id, state })}
-            onTitleChange={(id, title) => updateTitleMutation.mutate({ id, title })}
-            onDelete={(id) => deleteObjectMutation.mutate(id)}
-          />
-          <BoardSection
-            title="Upcoming"
-            eyebrow="Upcoming"
-            description="Scheduled for later."
-            items={buckets.next}
-            onStateChange={(id, state) => stateMutation.mutate({ id, state })}
-            onTitleChange={(id, title) => updateTitleMutation.mutate({ id, title })}
-            onDelete={(id) => deleteObjectMutation.mutate(id)}
-          />
-          <BoardSection
-            title="Drafts & unscheduled"
-            eyebrow="Flexible"
-            description="Plans without a fixed date."
-            items={buckets.backlog}
-            onStateChange={(id, state) => stateMutation.mutate({ id, state })}
-            onTitleChange={(id, title) => updateTitleMutation.mutate({ id, title })}
-            onDelete={(id) => deleteObjectMutation.mutate(id)}
-          />
-          <BoardSection
-            title="Completed"
-            eyebrow="Completed"
-            description="Completed plans."
-            items={buckets.done}
-            onStateChange={(id, state) => stateMutation.mutate({ id, state })}
-            onTitleChange={(id, title) => updateTitleMutation.mutate({ id, title })}
-            onDelete={(id) => deleteObjectMutation.mutate(id)}
-          />
-        </div>
+            <BoardSection
+              title="Current"
+              eyebrow=""
+              description="Active plans and reminders."
+              items={buckets.now}
+              onStateChange={(id, state) => stateMutation.mutate({ id, state })}
+              onTitleChange={(id, title) => updateTitleMutation.mutate({ id, title })}
+              onDelete={(id) => deleteObjectMutation.mutate(id)}
+            />
+            <BoardSection
+              title="Upcoming"
+              eyebrow="Upcoming"
+              description="Scheduled for later."
+              items={buckets.next}
+              onStateChange={(id, state) => stateMutation.mutate({ id, state })}
+              onTitleChange={(id, title) => updateTitleMutation.mutate({ id, title })}
+              onDelete={(id) => deleteObjectMutation.mutate(id)}
+            />
+            <BoardSection
+              title="Drafts & unscheduled"
+              eyebrow=""
+              description="Plans without a fixed date."
+              items={buckets.backlog}
+              onStateChange={(id, state) => stateMutation.mutate({ id, state })}
+              onTitleChange={(id, title) => updateTitleMutation.mutate({ id, title })}
+              onDelete={(id) => deleteObjectMutation.mutate(id)}
+            />
+            <BoardSection
+              title="Completed"
+              eyebrow="Completed"
+              description="Completed plans."
+              items={buckets.done}
+              onStateChange={(id, state) => stateMutation.mutate({ id, state })}
+              onTitleChange={(id, title) => updateTitleMutation.mutate({ id, title })}
+              onDelete={(id) => deleteObjectMutation.mutate(id)}
+            />
+          </div>
+        )}
 
         <div className="space-y-4">
-          <AppCard className="space-y-4">
-            <SectionHeading
-              title="Templates"
-              action={
-                <AppButton
-                  variant="ghost"
-                  disabled={!session || starterTemplatesMutation.isPending}
-                  onClick={() => starterTemplatesMutation.mutate()}
-                >
-                  Add starter plans
-                </AppButton>
-              }
-            />
-            <p className="text-sm text-ink/70">Choose a template and a date to schedule its steps.</p>
-            <FieldLabel>
-              Event date
-              <AppInput
-                type="date"
-                value={templateAnchorDate}
-                onChange={(event) => setTemplateAnchorDate(event.target.value)}
-                className="mt-2"
-              />
-            </FieldLabel>
-            <div className="space-y-3">
-              {(templatesQuery.data ?? []).map((template) => (
-                <TemplatePanel
-                  key={template.id}
-                  template={template}
-                  anchorDate={templateAnchorDate}
-                  isApplying={applyTemplateMutation.isPending}
-                  onApply={() => applyTemplateMutation.mutate(template.id)}
-                  onRename={(title) =>
-                    updateTemplateTitleMutation.mutate({
-                      id: template.id,
-                      title,
-                    })
-                  }
-                  onDelete={() => deleteTemplateMutation.mutate(template.id)}
-                  isDeleting={deleteTemplateMutation.isPending}
-                />
-              ))}
-              {!templatesQuery.data?.length ? (
-                <AppPanel className="space-y-3">
-                  <p className="text-sm text-ink/70">No templates yet. Add a starter or make your own.</p>
+          {!editorOnly && (
+            <AppCard className="space-y-4">
+              <SectionHeading
+                title="Templates"
+                action={
                   <AppButton
-                    variant="secondary"
+                    variant="ghost"
                     disabled={!session || starterTemplatesMutation.isPending}
                     onClick={() => starterTemplatesMutation.mutate()}
                   >
                     Add starter templates
                   </AppButton>
-                </AppPanel>
-              ) : null}
-            </div>
-          </AppCard>
-
-          <AppCard className="space-y-4">
-            <SectionHeading title="New template" />
-            <FieldLabel>
-              Template title
-              <AppInput
-                value={templateTitle}
-                onChange={(event) => setTemplateTitle(event.target.value)}
-                className="mt-2"
-                placeholder="Annual birthday prep, concert night, medical admin..."
+                }
               />
-            </FieldLabel>
-            <FieldLabel>
-              Summary
-              <AppTextarea
-                value={templateSummary}
-                onChange={(event) => setTemplateSummary(event.target.value)}
-                className="mt-2 min-h-20"
-                placeholder="What is this template for?"
-              />
-            </FieldLabel>
-            <FieldLabel>
-              Template type
-              <AppSelect
-                value={templateDisplayKind}
-                onChange={(event) => setTemplateDisplayKind(event.target.value as CoordinationDisplayKind)}
-                className="mt-2"
-              >
-                {displayOptions
-                  .filter((option) => ['plan', 'workflow', 'project'].includes(option.value))
-                  .map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-              </AppSelect>
-            </FieldLabel>
-            <p className="text-sm text-ink/70">
-              Add the steps around your main date. Use negative days for preparation, 0 for the day itself,
-              and positive days for follow-up.
-            </p>
-            {!advancedTemplate ? (
-              templateSteps.map((step, index) => (
-                <div key={index} className="grid grid-cols-[1fr_90px_auto] items-end gap-2">
-                  <FieldLabel>
-                    Step {index + 1}
-                    <AppInput
-                      value={step.title}
-                      placeholder="Buy a present"
-                      onChange={(e) =>
-                        setTemplateSteps((steps) =>
-                          steps.map((item, i) => (i === index ? { ...item, title: e.target.value } : item)),
-                        )
-                      }
-                    />
-                  </FieldLabel>
-                  <FieldLabel>
-                    Days +/-
-                    <AppInput
-                      type="number"
-                      step="1"
-                      min="-3650"
-                      max="3650"
-                      value={Number.isNaN(step.offsetDays) ? '' : step.offsetDays}
-                      onChange={(e) =>
-                        setTemplateSteps((steps) =>
-                          steps.map((item, i) =>
-                            i === index
-                              ? {
-                                  ...item,
-                                  offsetDays: e.target.value === '' ? NaN : Number(e.target.value),
-                                }
-                              : item,
-                          ),
-                        )
-                      }
-                    />
-                  </FieldLabel>
-                  <AppButton
-                    variant="ghost"
-                    disabled={templateSteps.length === 1}
-                    aria-label={`Remove step ${index + 1}`}
-                    onClick={() => setTemplateSteps((steps) => steps.filter((_, i) => i !== index))}
-                  >
-                    ×
-                  </AppButton>
-                </div>
-              ))
-            ) : (
+              <p className="text-sm text-ink/70">Choose a template and a date to schedule its steps.</p>
               <FieldLabel>
-                Advanced steps JSON
-                <AppTextarea
-                  className="min-h-40 font-mono text-xs"
-                  value={templateJson}
-                  onChange={(e) => setTemplateJson(e.target.value)}
+                Event date
+                <AppInput
+                  type="date"
+                  value={templateAnchorDate}
+                  onChange={(event) => setTemplateAnchorDate(event.target.value)}
+                  className="mt-2"
                 />
               </FieldLabel>
-            )}
-            {!advancedTemplate ? (
+              <div className="space-y-3">
+                {(templatesQuery.data ?? []).map((template) => (
+                  <TemplatePanel
+                    key={template.id}
+                    template={template}
+                    anchorDate={templateAnchorDate}
+                    isApplying={applyTemplateMutation.isPending}
+                    onApply={() => applyTemplateMutation.mutate(template.id)}
+                    onRename={(title) =>
+                      updateTemplateTitleMutation.mutate({
+                        id: template.id,
+                        title,
+                      })
+                    }
+                    onDelete={() => deleteTemplateMutation.mutate(template.id)}
+                    isDeleting={deleteTemplateMutation.isPending}
+                  />
+                ))}
+                {!templatesQuery.data?.length ? (
+                  <AppPanel className="space-y-3">
+                    <p className="text-sm text-ink/70">No templates yet. Add a starter or make your own.</p>
+                    <AppButton
+                      variant="secondary"
+                      disabled={!session || starterTemplatesMutation.isPending}
+                      onClick={() => starterTemplatesMutation.mutate()}
+                    >
+                      Add starter templates
+                    </AppButton>
+                  </AppPanel>
+                ) : null}
+              </div>
+            </AppCard>
+          )}
+
+          {editorOnly && (
+            <AppCard className="space-y-4">
+              <FieldLabel>
+                Template title
+                <AppInput
+                  value={templateTitle}
+                  onChange={(event) => setTemplateTitle(event.target.value)}
+                  className="mt-2"
+                  placeholder="Annual birthday prep, concert night, medical admin..."
+                />
+              </FieldLabel>
+              <FieldLabel>
+                Summary
+                <AppTextarea
+                  value={templateSummary}
+                  onChange={(event) => setTemplateSummary(event.target.value)}
+                  className="mt-2 min-h-20"
+                  placeholder="What is this template for?"
+                />
+              </FieldLabel>
+              <FieldLabel>
+                Template type
+                <AppSelect
+                  value={templateDisplayKind}
+                  onChange={(event) => setTemplateDisplayKind(event.target.value as CoordinationDisplayKind)}
+                  className="mt-2"
+                >
+                  {displayOptions
+                    .filter((option) => ['plan', 'workflow', 'project'].includes(option.value))
+                    .map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                </AppSelect>
+              </FieldLabel>
+              <p className="text-sm text-ink/70">
+                Add the steps around your main date. Use negative days for preparation, 0 for the day itself,
+                and positive days for follow-up.
+              </p>
+              {!advancedTemplate ? (
+                templateSteps.map((step, index) => (
+                  <div key={index} className="grid grid-cols-[1fr_90px_auto] items-end gap-2">
+                    <FieldLabel>
+                      Step {index + 1}
+                      <AppInput
+                        value={step.title}
+                        placeholder="Buy a present"
+                        onChange={(e) =>
+                          setTemplateSteps((steps) =>
+                            steps.map((item, i) => (i === index ? { ...item, title: e.target.value } : item)),
+                          )
+                        }
+                      />
+                    </FieldLabel>
+                    <FieldLabel>
+                      Days +/-
+                      <AppInput
+                        type="number"
+                        step="1"
+                        min="-3650"
+                        max="3650"
+                        value={Number.isNaN(step.offsetDays) ? '' : step.offsetDays}
+                        onChange={(e) =>
+                          setTemplateSteps((steps) =>
+                            steps.map((item, i) =>
+                              i === index
+                                ? {
+                                    ...item,
+                                    offsetDays: e.target.value === '' ? NaN : Number(e.target.value),
+                                  }
+                                : item,
+                            ),
+                          )
+                        }
+                      />
+                    </FieldLabel>
+                    <AppButton
+                      variant="ghost"
+                      disabled={templateSteps.length === 1}
+                      aria-label={`Remove step ${index + 1}`}
+                      onClick={() => setTemplateSteps((steps) => steps.filter((_, i) => i !== index))}
+                    >
+                      ×
+                    </AppButton>
+                  </div>
+                ))
+              ) : (
+                <FieldLabel>
+                  Advanced steps JSON
+                  <AppTextarea
+                    className="min-h-40 font-mono text-xs"
+                    value={templateJson}
+                    onChange={(e) => setTemplateJson(e.target.value)}
+                  />
+                </FieldLabel>
+              )}
+              {!advancedTemplate ? (
+                <AppButton
+                  variant="secondary"
+                  onClick={() => setTemplateSteps((steps) => [...steps, { title: '', offsetDays: 0 }])}
+                >
+                  Add step
+                </AppButton>
+              ) : null}
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={advancedTemplate}
+                  onChange={(e) => {
+                    if (e.target.checked && !templateJson)
+                      setTemplateJson(
+                        JSON.stringify(
+                          templateSteps.map((step) => ({
+                            ...step,
+                            kind: 'plan',
+                            displayKind: 'task',
+                            intent: 'coordinate',
+                            durationDays: 1,
+                            lane: 'Preparation',
+                          })),
+                          null,
+                          2,
+                        ),
+                      )
+                    setAdvancedTemplate(e.target.checked)
+                  }}
+                />
+                Advanced template editor
+              </label>
+              {templateError ? <AppPanel tone="peach">{templateError}</AppPanel> : null}
               <AppButton
-                variant="secondary"
-                onClick={() => setTemplateSteps((steps) => [...steps, { title: '', offsetDays: 0 }])}
+                disabled={
+                  !session ||
+                  saveTemplateMutation.isPending ||
+                  !templateTitle.trim() ||
+                  (advancedTemplate ? !templateJson.trim() : templateSteps.some((step) => !step.title.trim()))
+                }
+                onClick={() => saveTemplateMutation.mutate()}
               >
-                Add step
+                {saveTemplateMutation.isPending ? 'Saving…' : 'Save template'}
               </AppButton>
-            ) : null}
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={advancedTemplate}
-                onChange={(e) => {
-                  if (e.target.checked && !templateJson)
-                    setTemplateJson(
-                      JSON.stringify(
-                        templateSteps.map((step) => ({
-                          ...step,
-                          kind: 'plan',
-                          displayKind: 'task',
-                          intent: 'coordinate',
-                          durationDays: 1,
-                          lane: 'Preparation',
-                        })),
-                        null,
-                        2,
-                      ),
-                    )
-                  setAdvancedTemplate(e.target.checked)
-                }}
-              />
-              Advanced template editor
-            </label>
-            {templateError ? <AppPanel tone="peach">{templateError}</AppPanel> : null}
-            <AppButton
-              disabled={
-                !session ||
-                saveTemplateMutation.isPending ||
-                !templateTitle.trim() ||
-                (advancedTemplate ? !templateJson.trim() : templateSteps.some((step) => !step.title.trim()))
-              }
-              onClick={() => saveTemplateMutation.mutate()}
-            >
-              Save template
-            </AppButton>
-          </AppCard>
+              <Link to="/app/ai" className="ui-button ui-button--ghost">
+                Cancel
+              </Link>
+            </AppCard>
+          )}
         </div>
       </div>
     </div>
@@ -762,8 +807,12 @@ function BoardSection({
                 {item.summary ? <p className="mt-1 text-sm text-ink/70">{item.summary}</p> : null}
               </div>
               <div className="flex flex-wrap gap-2">
-                <Link to="/app/coordination/$coordinationId" params={{ coordinationId: item.id }}>
-                  <AppButton variant="ghost">Open flow</AppButton>
+                <Link
+                  to="/app/coordination/$coordinationId"
+                  params={{ coordinationId: item.id }}
+                  className="ui-button ui-button--ghost"
+                >
+                  Open plan
                 </Link>
                 {item.state !== 'active' ? (
                   <AppButton variant="ghost" onClick={() => onStateChange(item.id, 'active')}>
@@ -826,7 +875,7 @@ function BoardSection({
           </AppPanel>
         ))}
         {!items.length ? (
-          <AppPanel className="text-sm text-ink/60">Nothing in this lane yet.</AppPanel>
+          <AppPanel className="text-sm text-ink/60">No plans in this section.</AppPanel>
         ) : null}
       </div>
     </AppCard>
@@ -1046,19 +1095,24 @@ export function CoordinationDetailPage() {
           <div className="flex flex-wrap gap-2">
             {flowQuery.data?.linkedProjectId ? (
               <>
-                <Link to="/app/projects/$projectId" params={{ projectId: flowQuery.data.linkedProjectId }}>
-                  <AppButton variant="secondary">Open project</AppButton>
+                <Link
+                  to="/app/projects/$projectId"
+                  params={{ projectId: flowQuery.data.linkedProjectId }}
+                  className="ui-button ui-button--secondary"
+                >
+                  Open project
                 </Link>
                 <Link
                   to="/app/projects/$projectId/conversation"
                   params={{ projectId: flowQuery.data.linkedProjectId }}
+                  className="ui-button ui-button--ghost"
                 >
-                  <AppButton variant="ghost">Project conversation</AppButton>
+                  Project conversation
                 </Link>
               </>
             ) : null}
-            <Link to="/app/coordination">
-              <AppButton variant="ghost">My tasks</AppButton>
+            <Link to="/app/coordination" className="ui-button ui-button--ghost">
+              All plans
             </Link>
           </div>
         </div>
@@ -1129,6 +1183,7 @@ export function CoordinationDetailPage() {
                     event.target.value.startsWith('@') ? event.target.value : `@${event.target.value}`,
                   )
                 }
+                aria-label="Find people to add"
                 placeholder="@name"
               />
               <div className="grid gap-2">
@@ -1182,8 +1237,12 @@ export function CoordinationDetailPage() {
             </div>
             <p className="whitespace-pre-wrap text-[16px] leading-7 text-ink">{sourcePostQuery.data.body}</p>
             <div className="flex flex-wrap gap-2">
-              <Link to="/app/messages/post/$postId" params={{ postId: sourcePostQuery.data.id }}>
-                <AppButton variant="ghost">Open original post</AppButton>
+              <Link
+                to="/app/messages/post/$postId"
+                params={{ postId: sourcePostQuery.data.id }}
+                className="ui-button ui-button--ghost"
+              >
+                Open original post
               </Link>
             </div>
           </div>
@@ -1195,7 +1254,7 @@ export function CoordinationDetailPage() {
         <SectionHeading title="Comments" />
         <QueryFeedback query={messagesQuery} />
         <MutationFeedback mutation={messageMutation} />
-        <p className="text-sm text-ink/70">Messages are visible to people with access to this task.</p>
+        <p className="text-sm text-ink/70">Messages are visible to people with access to this plan.</p>
         <div className="space-y-3">
           {(messagesQuery.data ?? []).map((message) => (
             <FlowMessageCard key={message.id} message={message} />
@@ -1209,6 +1268,7 @@ export function CoordinationDetailPage() {
             value={body}
             onChange={(event) => setBody(event.target.value)}
             className="min-h-24"
+            aria-label="Message"
             placeholder="Write a message…"
           />
           <div className="flex justify-end">
@@ -1284,4 +1344,5 @@ function toDueIso(day: string) {
   return `${day}T17:00:00.000Z`
 }
 
-export const CoordinationRoutePage = () => <TemplateEditorPage title="Plans" />
+export const CoordinationRoutePage = () => <CoordinationWorkspace />
+export const TemplateEditorPage = () => <CoordinationWorkspace editorOnly />

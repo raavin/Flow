@@ -99,6 +99,7 @@ export function ProjectsPage() {
     <div className="space-y-4">
       <AppCard className="space-y-4">
         <SectionHeading
+          level={1}
           title="Projects"
           action={
             <div className="flex flex-wrap gap-2">
@@ -534,6 +535,7 @@ export function ProjectPeoplePage() {
                   event.target.value.startsWith('@') ? event.target.value : `@${event.target.value}`,
                 )
               }
+              aria-label="Find people to invite"
               placeholder="@name"
             />
             <div className="grid gap-2">

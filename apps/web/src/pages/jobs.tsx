@@ -100,8 +100,8 @@ export function JobsPage() {
               eyebrow="Jobs"
               title="New job"
               action={
-                <Link to="/app/business/listings">
-                  <AppButton variant="ghost">Manage listings</AppButton>
+                <Link to="/app/business/listings" className="ui-button ui-button--ghost">
+                  Manage listings
                 </Link>
               }
             />
@@ -164,7 +164,7 @@ export function JobsPage() {
         </div>
       </details>
       <AppCard className="space-y-4">
-        <SectionHeading title="Jobs" />
+        <SectionHeading level={1} title="Jobs" />
         <QueryFeedback query={jobsQuery} />
         <MutationFeedback mutation={statusMutation} />
         <MutationFeedback mutation={updateMutation} />

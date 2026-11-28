@@ -1,3 +1,5 @@
+import { hasUnsafeUrlCharacters } from './navigation'
+
 // Rebuild a small, inert HTML allowlist. Never forward arbitrary attributes.
 export function sanitizeHtml(html: string): string {
   const parsed = new DOMParser().parseFromString(html, 'text/html')
@@ -47,7 +49,10 @@ export function sanitizeHtml(html: string): string {
       const element = document.createElement(node.tagName.toLowerCase())
       if (node.tagName === 'A') {
         const href = node.getAttribute('href')?.trim() ?? ''
-        if (/^https?:\/\//i.test(href) || /^mailto:/i.test(href) || /^\/(?!\/)/.test(href)) {
+        if (
+          !hasUnsafeUrlCharacters(href) &&
+          (/^https?:\/\//i.test(href) || /^mailto:/i.test(href) || /^\/(?!\/)/.test(href))
+        ) {
           element.setAttribute('href', href)
           element.setAttribute('rel', 'nofollow noopener noreferrer')
         }
@@ -61,5 +66,7 @@ export function sanitizeHtml(html: string): string {
   return output.innerHTML
 }
 export function postPlainText(html: string) {
-  return new DOMParser().parseFromString(sanitizeHtml(html), 'text/html').body.textContent?.trim() ?? ''
+  const body = new DOMParser().parseFromString(sanitizeHtml(html), 'text/html').body
+  body.querySelectorAll('p, li, h2, h3, blockquote, pre, br').forEach((element) => element.append(' '))
+  return (body.textContent ?? '').replace(/\s+/g, ' ').trim()
 }

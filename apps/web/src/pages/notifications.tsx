@@ -1,11 +1,11 @@
+import { appDestination } from '@/lib/navigation'
 import { useState } from 'react'
-import { supabase } from '@/lib/supabase'
 import { QueryFeedback, MutationFeedback } from '@/components/request-feedback'
 import { Link } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { AppButton, AppCard, AppPanel, AppSelect, SectionHeading } from '@superapp/ui'
 
-import { fetchNotifications, markNotificationRead } from '@/lib/coordination'
+import { fetchNotifications, markNotificationRead, markNotificationsRead } from '@/lib/coordination'
 
 export function NotificationsPage() {
   const [category, setCategory] = useState('all')
@@ -23,10 +23,10 @@ export function NotificationsPage() {
   })
 
   const markAll = useMutation({
-    mutationFn: async () => {
-      const { error } = await supabase!.from('notifications').update({ is_read: true }).eq('is_read', false)
-      if (error) throw error
-    },
+    mutationFn: () =>
+      markNotificationsRead(
+        (notificationsQuery.data ?? []).filter((item) => !item.is_read).map((item) => item.id),
+      ),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['notifications'] })
     },
@@ -42,6 +42,7 @@ export function NotificationsPage() {
   return (
     <AppCard className="space-y-4">
       <SectionHeading
+        level={1}
         title="Notifications"
         action={
           <AppButton
@@ -54,10 +55,18 @@ export function NotificationsPage() {
         }
       />
       <div className="flex gap-2">
-        <AppButton variant={filter === 'unread' ? 'primary' : 'ghost'} onClick={() => setFilter('unread')}>
+        <AppButton
+          aria-pressed={filter === 'unread'}
+          variant={filter === 'unread' ? 'primary' : 'ghost'}
+          onClick={() => setFilter('unread')}
+        >
           Unread
         </AppButton>
-        <AppButton variant={filter === 'all' ? 'primary' : 'ghost'} onClick={() => setFilter('all')}>
+        <AppButton
+          aria-pressed={filter === 'all'}
+          variant={filter === 'all' ? 'primary' : 'ghost'}
+          onClick={() => setFilter('all')}
+        >
           All
         </AppButton>
       </div>
@@ -87,9 +96,9 @@ export function NotificationsPage() {
                 </time>
                 <p className="text-sm text-ink/65">{item.body}</p>
 
-                {item.link_url ? (
+                {appDestination(item.link_url) ? (
                   <Link
-                    to={item.link_url as never}
+                    to={appDestination(item.link_url)!}
                     onClick={() => {
                       if (!item.is_read) mutation.mutate(item.id)
                     }}
