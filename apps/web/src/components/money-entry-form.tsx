@@ -1,13 +1,13 @@
 import { supabase } from '@/lib/supabase'
 import { ReceiptPicker } from './receipt-picker'
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { AppButton, AppInput, AppSelect, FieldLabel } from '@superapp/ui'
 import { useAppStore } from '@/hooks/useAppStore'
 import { fetchProjects } from '@/lib/projects'
 import { createExpense, updateExpense } from '@/lib/planning'
 import { createWalletEntry, updateWalletEntry } from '@/lib/wallet'
-import { parseBudgetAmount } from '@/lib/budget'
+import { parseBudgetAmount, summarizeCosts } from '@/lib/budget'
 import {
   fetchAllocations,
   uploadReceipt,
@@ -15,6 +15,7 @@ import {
   featureError,
   type ReceiptTarget,
 } from '@/lib/supplier-requests'
+import { formatCurrency } from '@/lib/commerce'
 import { localDay, type MoneyRecord } from '@/lib/money'
 
 export function MoneyEntryForm({
@@ -25,9 +26,11 @@ export function MoneyEntryForm({
   defaultTitle = '',
   defaultCounterparty = '',
   defaultAllocationId = '',
+  layout = 'form',
   onSaved,
   onCancel,
 }: {
+  layout?: 'form' | 'row'
   projectId?: string
   expenseId?: string
   record?: MoneyRecord
@@ -39,6 +42,7 @@ export function MoneyEntryForm({
   onCancel?: () => void
 }) {
   const { session } = useAppStore()
+  const formId = useId()
   const client = useQueryClient()
   const projects = useQuery({ queryKey: ['projects'], queryFn: fetchProjects })
   const [projectId, setProject] = useState(record?.projectId ?? initialProject)
@@ -173,8 +177,189 @@ export function MoneyEntryForm({
       setError(featureError(e))
     }
   }
+  const receiptFields = (
+    <div className="space-y-2">
+      <p className="text-sm font-semibold">Receipt (optional)</p>
+      <div className="flex flex-wrap items-center gap-2">
+        <ReceiptPicker disabled={busy} onChoose={chooseFile} />
+        {file ? (
+          <>
+            <span className="min-w-0 break-all text-sm">{file.name}</span>
+            <AppButton type="button" variant="ghost" disabled={busy} onClick={() => setFile(null)}>
+              Remove file
+            </AppButton>
+          </>
+        ) : (
+          <span className="text-xs text-ink/65">Private · up to 10 MB</span>
+        )}
+      </div>
+    </div>
+  )
+  const saveActions = (
+    <div className="flex flex-wrap items-center gap-2">
+      <AppButton
+        type="submit"
+        form={formId}
+        disabled={busy || !session || !!allocations.error || !!projects.error}
+      >
+        {busy ? 'Saving…' : saved ? 'Retry receipt upload' : record ? 'Save changes' : 'Save entry'}
+      </AppButton>
+      {saved ? (
+        <AppButton type="button" variant="secondary" disabled={busy} onClick={() => onSaved(saved)}>
+          Finish without receipt
+        </AppButton>
+      ) : onCancel ? (
+        <AppButton type="button" variant="ghost" disabled={busy} onClick={onCancel}>
+          Cancel
+        </AppButton>
+      ) : null}
+      {layout !== 'row' && (
+        <span className="text-xs text-ink/65">
+          {isCost ? 'Updates this project’s budget.' : 'No money is transferred.'}
+        </span>
+      )}
+    </div>
+  )
+  if (layout === 'row' && isCost) {
+    let forecast: number | null = null
+    let remaining: number | null = null
+    try {
+      const estimateCents = parseBudgetAmount(estimate)
+      const actualCents = parseBudgetAmount(amount)
+      forecast = summarizeCosts([
+        {
+          estimate_cents: estimateCents,
+          actual_cents: actualCents,
+          payment_status: status === 'paid' ? 'paid' : 'pending',
+          ...(record?.hasPayments ? { paid_cents: record.paid ?? 0 } : {}),
+        },
+      ]).forecast
+      remaining = estimateCents - forecast
+    } catch {
+      /* Keep invalid drafts editable; submit displays the validation error. */
+    }
+    return (
+      <>
+        <tr className="budget-draft" aria-label={record ? `Edit cost ${record.title}` : 'New cost'}>
+          <th scope="row" className="budget-name-cell">
+            <AppInput
+              autoFocus
+              form={formId}
+              aria-label="Cost name"
+              placeholder="Cost description"
+              required
+              value={title}
+              disabled={busy || !!saved}
+              onChange={(e) => setTitle(e.target.value)}
+            />
+          </th>
+          <td className="budget-money">
+            <AppInput
+              form={formId}
+              aria-label="Estimate (AUD)"
+              inputMode="decimal"
+              placeholder="0.00"
+              value={estimate}
+              disabled={busy || !!saved}
+              onChange={(e) => setEstimate(e.target.value)}
+              className="budget-cell-input"
+            />
+          </td>
+          <td className="budget-money">
+            <AppInput
+              form={formId}
+              aria-label="Actual cost (AUD)"
+              inputMode="decimal"
+              placeholder="Not recorded"
+              value={amount}
+              disabled={busy || !!saved}
+              onChange={(e) => setAmount(e.target.value)}
+              className="budget-cell-input"
+            />
+          </td>
+          <td className="budget-money">{forecast === null ? '—' : formatCurrency(forecast)}</td>
+          <td className="budget-money">{remaining === null ? '—' : formatCurrency(remaining)}</td>
+          <td className="budget-actions">
+            <form
+              id={formId}
+              onSubmit={(e) => {
+                e.preventDefault()
+                void submit()
+              }}
+            >
+              {saveActions}
+            </form>
+          </td>
+        </tr>
+        <tr className="budget-draft">
+          <td colSpan={6} className="!p-0">
+            <div className="budget-inline-panel space-y-3 p-3">
+              <fieldset disabled={busy || !!saved} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <FieldLabel>
+                  Status
+                  <AppSelect
+                    form={formId}
+                    value={status}
+                    disabled={record?.hasPayments}
+                    onChange={(e) => setStatus(e.target.value)}
+                  >
+                    <option value="planned">Planned</option>
+                    <option value="committed">Unpaid</option>
+                    <option value="paid">Paid</option>
+                  </AppSelect>
+                </FieldLabel>
+                <FieldLabel>
+                  Supplier
+                  <AppInput
+                    form={formId}
+                    maxLength={200}
+                    value={counterparty}
+                    onChange={(e) => setCounterparty(e.target.value)}
+                  />
+                </FieldLabel>
+                <FieldLabel>
+                  Date
+                  <AppInput
+                    form={formId}
+                    required
+                    type="date"
+                    value={date}
+                    onChange={(e) => setDate(e.target.value)}
+                  />
+                </FieldLabel>
+                <FieldLabel>
+                  Budget allocation
+                  <AppSelect form={formId} value={allocation} onChange={(e) => setAllocation(e.target.value)}>
+                    <option value="">No allocation</option>
+                    {allocations.data?.map((a) => (
+                      <option key={a.id} value={a.id}>
+                        {a.name}
+                      </option>
+                    ))}
+                  </AppSelect>
+                </FieldLabel>
+              </fieldset>
+              {record?.hasPayments && (
+                <p className="text-xs text-ink/65">Payment status comes from linked payments.</p>
+              )}
+              {receiptFields}
+              {allocations.error || projects.error ? (
+                <p role="alert">Could not load project options. Please reload before saving.</p>
+              ) : null}
+              {error && (
+                <p role="alert" className="text-sm text-berry">
+                  {error}
+                </p>
+              )}
+            </div>
+          </td>
+        </tr>
+      </>
+    )
+  }
   return (
     <form
+      id={formId}
       className="space-y-4"
       onSubmit={(e) => {
         e.preventDefault()
@@ -227,7 +412,7 @@ export function MoneyEntryForm({
             {isCost ? (
               <>
                 <option value="planned">Planned</option>
-                <option value="committed">Committed / unpaid</option>
+                <option value="committed">Unpaid</option>
               </>
             ) : (
               <option value="pending">{direction === 'in' ? 'Expected' : 'Unpaid'}</option>
@@ -256,7 +441,7 @@ export function MoneyEntryForm({
             <FieldLabel>
               Budget allocation
               <AppSelect value={allocation} onChange={(e) => setAllocation(e.target.value)}>
-                <option value="">Unallocated</option>
+                <option value="">No allocation</option>
                 {allocations.data?.map((a) => (
                   <option key={a.id} value={a.id}>
                     {a.name}
@@ -278,44 +463,13 @@ export function MoneyEntryForm({
       {allocations.error || projects.error ? (
         <p role="alert">Could not load project options. Please reload before saving.</p>
       ) : null}
-      <div className="space-y-2">
-        <p className="text-sm font-semibold">Receipt (optional)</p>
-        <div className="flex flex-wrap items-center gap-2">
-          <ReceiptPicker disabled={busy} onChoose={chooseFile} />
-          {file ? (
-            <>
-              <span className="min-w-0 break-all text-sm">{file.name}</span>
-              <AppButton type="button" variant="ghost" disabled={busy} onClick={() => setFile(null)}>
-                Remove file
-              </AppButton>
-            </>
-          ) : (
-            <span className="text-xs text-ink/65">Private · up to 10 MB</span>
-          )}
-        </div>
-      </div>
+      {receiptFields}
       {error ? (
         <p role="alert" className="text-sm text-berry">
           {error}
         </p>
       ) : null}
-      <div className="flex flex-wrap items-center gap-2">
-        <AppButton disabled={busy || !session || !!allocations.error || !!projects.error}>
-          {busy ? 'Saving…' : saved ? 'Retry receipt upload' : record ? 'Save changes' : 'Save entry'}
-        </AppButton>
-        {saved ? (
-          <AppButton type="button" variant="secondary" disabled={busy} onClick={() => onSaved(saved)}>
-            Finish without receipt
-          </AppButton>
-        ) : onCancel ? (
-          <AppButton type="button" variant="ghost" disabled={busy} onClick={onCancel}>
-            Cancel
-          </AppButton>
-        ) : null}
-        <span className="text-xs text-ink/65">
-          {isCost ? 'Updates this project’s budget.' : 'No money is transferred.'}
-        </span>
-      </div>
+      {saveActions}
     </form>
   )
 }

@@ -66,8 +66,7 @@ beforeEach(() => {
 describe('project budget editing', () => {
   it('saves a planned cost as unpaid with exact cents', async () => {
     open()
-    fireEvent.click(await screen.findByRole('button', { name: 'Add entry' }))
-    await screen.findByRole('option', { name: 'Party' })
+    fireEvent.click(await screen.findByRole('button', { name: 'Add cost' }))
     fireEvent.change(screen.getByLabelText('Cost name'), {
       target: { value: 'Present' },
     })
@@ -89,8 +88,7 @@ describe('project budget editing', () => {
   })
   it('requires an actual amount when marking a cost paid', async () => {
     open()
-    fireEvent.click(await screen.findByRole('button', { name: 'Add entry' }))
-    await screen.findByRole('option', { name: 'Party' })
+    fireEvent.click(await screen.findByRole('button', { name: 'Add cost' }))
     fireEvent.change(screen.getByLabelText('Cost name'), {
       target: { value: 'Present' },
     })

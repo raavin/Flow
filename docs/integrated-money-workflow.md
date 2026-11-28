@@ -1,73 +1,91 @@
-# Money: budgets, allocations and costs
+# Money: budget worksheet and cost records
 
 28 November 2026
 
-## Purpose
+## Purpose and scope
 
-Flow's money area supports the work people organise in conversations and projects. It is a private spending plan with cost, payment and receipt records. It does not hold money or process payments.
+Flow supports conversations that lead to projects. Its money tools help people set spending limits, allocate them, record costs and keep receipts. Flow does not hold money, move funds or provide a general ledger.
 
-The previous implementation separated the project limit, allocation form and cost list into three panels. The overall screen was another summary with different columns. The new implementation uses one budget table and one calculation model at every level:
+The previous revision connected the totals but left the allocation form above the table. That interrupted the task: users had to enter a line somewhere other than where it would appear. It also used Expected and Left after costs without clearly separating a recorded expense from its payment. This revision corrects both the entry workflow and the financial meaning of the columns.
+
+One worksheet works at every level:
 
 **Overall budget → optional project groups → projects → optional allocations → costs.**
 
-A person can keep things simple with a project budget and a few costs. Groups and allocations add detail when needed; neither is mandatory.
+Groups and allocations are optional. A project can have just a budget and a few costs. Existing amounts and global navigation are preserved.
 
-## Research and design decisions
+## References and specific decisions
 
-- [Xero's Budget Manager](https://central.xero.com/0/article/Create-a-budget) provides an overall worksheet, direct budget entry and comparison against actual results. Flow adopts direct amount editing and aligned financial columns, without charts of accounts, report configuration or accounting terminology.
-- [Monarch group budgeting](https://help.monarch.com/hc/en-us/articles/18345219809940-Group-Budgeting) demonstrates how lower-level spending can roll up to a readable group total. Flow provides optional groups of projects and retains the ability to allocate within them. This is a Flow-specific hierarchy, not a reproduction of Monarch's budget modes.
-- [YNAB's assignment workflow](https://support.ynab.com/en_us/assigning-your-money-a-guide-SypgkrNJi) distinguishes assigning money from spending it. Flow likewise separates **unallocated** money from **left after costs**. Flow's starting amount is manually entered; it is not a verified bank balance.
-- A single level at a time avoids an ever-widening nested tree on phones. Breadcrumbs show where the user is. Main Money views use URL state so browser Back, reloads and links retain the selected level. The project budget uses the same table inside its existing project navigation.
+These are primary product documentation and design guidance, reviewed on 28 November 2026. The implementation is adapted to Flow; none of these sources prescribes Flow's exact hierarchy or screen.
 
-These product patterns inform the design. Their suitability for Flow is a design judgement, not a claim that one app is a universal UX standard.
+| Reference | What it actually does | Decision for Flow |
+| --- | --- | --- |
+| [Xero: Budget Variance report](https://central.xero.com/0/article/Budget-Variance-report) | Compares budgeted revenue/expenses against actuals, with variance and reporting-period controls. | Use conventional Budget and Actual column names. Keep values aligned. Do not call paid cash Actual when a recorded cost is still unpaid. |
+| [Xero: project expenses](https://central.xero.com/0/article/Add-an-expense-to-a-project) and [Xero Projects](https://central.xero.com/0/article/About-Xero-Projects) | Separates estimated expenses from actual expenses; actuals can be tracked against estimates. Its expense entry uses a form, including Save and add another. | Preserve the original estimate, record the eventual actual cost and avoid adding the two together. Repeated allocation entry keeps a fresh line open. Flow's inline row is our adaptation, not a claim about Xero's expense-entry layout. |
+| [Intuit Enterprise Suite: project budgets](https://quickbooks.intuit.com/learn-support/en-us/help-article/manage-projects/manage-project-budgets-intuit-enterprise-suite/L313o8AOm_US_en_US) | Uses internal cost line items, budget-versus-actual tracking and a tracker with budget, actual cost and forecast. Availability depends on product/subscription. | Treat project costs as lines in a budget worksheet. Show Forecast separately from Actual so unpurchased items still contribute to planning. Avoid importing quantities, tax codes or invoicing controls until Flow needs them. |
+| [Zoho Books: budgets](https://www.zoho.com/us/books/help/accountant/budgets.html) | Enters budget amounts beside account rows and compares budgets with actuals by period. | Edit the amount in the row it belongs to. Flow uses project/allocation names rather than asking casual users to understand a chart of accounts. |
+| [business.gov.au: cash and accrual accounting](https://business.gov.au/finance/tax/choose-between-cash-and-accrual-accounting) | Distinguishes when money is paid from when a cost occurs. | A $500 recorded bill with $200 paid is a $500 actual cost and $300 unpaid. A $500 estimate is neither a bill nor $500 unpaid. This distinction does not make Flow a complete accrual accounting system. |
+| [Nielsen Norman Group: data-table tasks](https://www.nngroup.com/articles/data-tables/) | Covers finding, comparing, adding/editing rows and acting on records; inline editing can preserve table context. | Add the editor at the bottom of the table, with inputs under the matching headings. Edit a cost in its existing row. Keep explicit Save/Cancel and preserve failed drafts. |
+| [Carbon: data tables](https://www.carbondesignsystem.com/building-blocks/core/components/data-table/guidelines) | Places secondary information in expanded rows and distinguishes table-wide from row-specific actions. | Put supplier, date, status, allocation and receipt controls immediately below the cost being edited. Keep the primary amount columns readable. |
 
-## Everyday workflow
+Xero's report commonly uses **Budget / Actual / Variance**. Flow's planning worksheet uses **Budget / Actual / Forecast / Remaining** because projects also contain future estimates. Remaining is explicitly **Budget minus Forecast**, not the historical Budget-versus-Actual variance used in accounting reports.
 
-1. Open **Money** and select **Set budget** in the Overall budget row. Existing project limits and costs remain in place; no funding amount is guessed.
-2. Enter project budgets directly in the table. Optionally add a group such as Personal or Business, give it a budget, and select the projects it funds.
-3. Open a project row. Its allocations and costs appear in the same table. Edit allocation amounts in place or choose **Add allocation**.
-4. Open an allocation and choose **Add entry**. The project and allocation are already selected. The existing entry form supports estimates, actual amounts and a receipt photo or PDF.
-5. Open a cost's **Details** to edit it, record a payment or upload receipts. Linked payments retain their own receipts in Activity. Use **Link to cost** for a separate payment that belongs to an existing cost.
-6. Open **Project activity & receipts** or **Group activity & receipts** for the matching records. **View budget** returns to that same level. The all-activity link explicitly clears saved project filters.
+The earlier revision also consulted Monarch's group budgeting and YNAB's assignment workflow. Those helped with hierarchy and allocation, but did not adequately determine the line-entry interaction. They are not the justification for this revision's financial column names.
 
-The desktop menu and project navigation are unchanged. Financial tables stay tables. Amounts are right-aligned with tabular numerals; the name column stays visible while the table scrolls. Forms opened within a row stay within the visible panel width. Budget edits have Save/Cancel, error messages and keyboard focus restoration. Groups and allocations may be renamed; deleting a group keeps its projects and budgets. Only empty allocations can be removed, subject to existing quote links.
+## Entry and navigation
 
-Activity's existing saved combinations of projects are now labelled **Saved views**. They still work and may overlap. Funding groups are different: a project has exactly one funding parent, so it cannot consume two groups' money accidentally.
+1. In Money → Budgets, edit the **Overall budget** amount in its row. It is a manually chosen spending limit, not a bank balance. Blank means unset; zero is an explicit zero limit.
+2. Enter project budgets directly in their cells. To organise several projects, choose **+ Add group** at the bottom of the table. Enter the name under Description and its limit under Budget. Saving opens another blank group line; Cancel closes it.
+3. Open a group and choose **+ Add project** at the bottom. Select an existing project in the new row; its existing budget and cost totals appear alongside it before adding. A project has one funding parent. Moving it preserves its budget and costs.
+4. Open a project and choose **+ Add allocation** at the bottom of its table. Enter the name and amount in the matching columns. Save adds that line and leaves the next line ready, with keyboard focus in its name. Invalid amounts and failed saves leave the draft intact.
+5. Choose **+ Add cost** in a project or allocation. The new cost's description, estimate and actual amount occupy the corresponding table cells. Forecast and Remaining preview the draft calculation. Supplier, date, status, allocation and photo/PDF receipt controls sit directly beneath this row. The current project and allocation are preselected.
+6. Click a cost's budget amount or **Details → Edit** to replace that saved row with its editor. Existing group/allocation names and budgets can also be edited in their own total row. Financial writes still use the existing shared entry logic.
+7. **Details** provides payments and receipts without leaving the worksheet. A linked payment settles the existing cost; it does not create another cost. **Activity & receipts** opens the corresponding project/group scope. Budget links return to that level. Browser Back and URL state preserve the selected level in Money.
 
-## What the figures mean
+The project Budget page embeds this same component. It does not require a second navigation scheme. Tables remain tables on phones, with contained horizontal scrolling and a sticky description column. Inputs use normal Tab/Shift+Tab and real HTML form association; this is not an Excel-style keyboard grid. Allocation/group drafts also support Escape to cancel. Actions are labelled, not icon-only.
 
-| Figure | Meaning |
+Activity's existing overlapping project filters remain **Saved views**. They are not funding groups and cannot consume a budget a second time.
+
+## Financial definitions
+
+| Label | Definition |
 | --- | --- |
-| Budget | Amount set aside at this level. Blank means unset; zero is an explicit zero budget. |
-| Expected | Actual cost where recorded, otherwise estimate, never less than paid. Includes active separate AUD outgoing payments. |
-| Paid | Settled payments plus costs recorded as paid. A linked payment contributes through its cost once. |
-| Left after costs | Budget minus expected costs. An unset budget shows a dash rather than a misleading balance. |
-| Unallocated / left to allocate | Budget minus reservations below this level. Reservations include child budgets and costs outside allocations. Oversubscribed child budgets carry upward, so an intermediate shortfall cannot hide commitments. |
+| Budget | Spending limit for a group, project or allocation. On an individual cost, its original estimate is the line's budget baseline. |
+| Actual | Recorded cost, including an unpaid bill. Estimates are excluded. An unknown actual on a cost line displays a dash, not a misleading zero. |
+| Forecast | Actual cost where recorded, otherwise the estimate, never less than payments already recorded. Includes separate active outgoing AUD records once. |
+| Remaining | Budget minus Forecast. A negative value is marked Over budget. An unset budget displays a dash. This is expected room in the spending plan, not cash available. |
+| Paid | Settled payments and costs recorded as paid. A linked payment contributes through its cost once. |
+| Unpaid | The unpaid portion of recorded costs: sum of max(Actual − Paid, 0) for each item. Estimates are excluded. Overpaying one item cannot conceal another item's unpaid bill. |
+| Unallocated | Budget minus reservations for the lines beneath it. Reservations retain child budgets and original cost estimates, and carry overruns upward. It answers how much still needs assigning, rather than how much the final costs are expected to leave. |
 
-Example with one group, one project, one allocation and a $650 cost with $200 paid:
+Example: a project has a $1,000 budget and two direct cost lines.
 
-| Level | Budget | Assigned below it | Unallocated | Expected | Paid | Left after costs |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| Overall | $10,000 | $6,000 | $4,000 | $650 | $200 | $9,350 |
-| Personal group | $6,000 | $1,500 | $4,500 | $650 | $200 | $5,350 |
-| Party project | $1,500 | $700 | $800 | $650 | $200 | $850 |
-| Catering allocation | $700 | $650 | $50 | $650 | $200 | $50 |
+| Description | Budget | Actual | Forecast | Remaining |
+| --- | ---: | ---: | ---: | ---: |
+| Project total | $1,000 | $500 | $800 | $200 |
+| Catering | $600 | $500 | $500 | $100 |
+| Flowers, still planned | $300 | — | $300 | $0 |
 
-The parent budget is not added to its child budgets. Expected and paid totals reconcile up the hierarchy. If the group's projects reserve $7,000 against its $6,000 budget, the group is marked overallocated and the overall budget reserves $7,000.
+If $200 of catering has been paid, the project has **$200 paid and $300 unpaid**. It does not have $600 unpaid: the flowers are only planned. It has **$900 allocated and $100 unallocated** because the original catering budget remains $600 until the user changes it. The expected final headroom is $200, shown in Remaining. This distinction keeps a favourable actual cost from silently reallocating the user's original plan.
 
-Income remains visible by currency and does not automatically increase the funding plan. Non-AUD records stay in Activity and are excluded from AUD spending totals. Cancelled/refunded transactions are excluded from active spending totals. The scope is explicitly all-time, matching project lifetimes rather than imposing a monthly household or accounting period. Separate payments need an explicit cost link if they represent an existing cost; Flow does not guess matches.
+At each higher level, Actual, Forecast, Paid and Unpaid roll up from children. Parent budgets are never added to child budgets. An unset or undersized intermediate budget cannot hide lower-level reservations: a group budget of $6,000 with $7,000 allocated to projects reserves $7,000 at the overall level and is marked overallocated.
+
+Income stays visible by currency and does not automatically increase a budget. Non-AUD records remain in Activity, outside these AUD totals. Cancelled/refunded transactions are excluded from active spending totals. Budgets are all-time, matching project lifetimes; Flow does not imply monthly, tax-period or general-ledger reporting. Separate payments require an explicit cost link; Flow does not guess matches.
 
 ## Implementation and privacy
 
-- `lib/budget-ledger.ts` builds the hierarchy and calculates all rollups. `components/budget-ledger.tsx` is shared by Money and project budgets. The superseded allocations-only component is removed.
-- `money_budget_settings` stores the owner's optional overall amount. `budget_funds` stores private funding groups. A nullable `fund_id` on the existing private project limit assigns one parent.
-- RLS limits the new tables to their owner. A composite owner/group foreign key prevents cross-owner project assignment. Existing project ownership checks still apply to project limit updates. Group deletion clears only the parent link, preserving project budgets and costs.
-- The migration is additive and does not populate, modify or infer users' existing financial amounts. Public/shared project metadata never receives these financial fields. Existing receipt storage policies, payment reconciliation and quote security remain in force.
+- `lib/budget-ledger.ts` calculates the hierarchy, actuals, forecast, per-item unpaid balances and reservations using integer cents.
+- `components/budget-ledger.tsx` renders the same worksheet in Money and project budgets. Creation actions and editors are table rows, not detached panels above the list.
+- `components/budget-line-row.tsx` implements new/edit group and allocation rows with validation, repeat entry and retryable errors. Inputs use HTML `form` attributes because a form cannot wrap a table row.
+- `components/money-entry-form.tsx` supports both its existing form layout and the cost-row layout with the same mutation and receipt logic. If the financial record saves but its receipt fails, retry uploads the receipt to that saved record instead of creating a duplicate.
+- Existing private budget tables, project ownership checks, owner RLS, payment reconciliation, receipt storage policies and quote permissions are unchanged. No database migration or new production financial data is required for this revision.
 
-## Verification and limits
+## Verification and known limits
 
-Coverage includes nested rollups, unset and zero budgets, overallocations, partial linked payments, separate payments, currencies, invalid amounts, retryable saves, group creation and project moves, allocation defaults, photo upload controls, URL navigation, browser Back, scoped activity and direct RLS tests with two users and an anonymous role. The route suite continues to cover all 48 app page URLs.
+Regression coverage includes nested totals, original estimates versus actuals, partial linked payments, unknown actuals, completed zero-cost items, overpayments, currencies, zero/unset budgets and overallocations. Interaction coverage checks that allocation creation is in the table's last entry row, inputs belong to matching cells and a real form, save opens the next line, Escape closes it, failed writes preserve drafts and receipt retry does not duplicate a cost. Existing route and database-permission suites remain part of the complete check.
 
-Validation: 199 tests passed, including the complete route suite; lint and the TypeScript/production build passed. The production build retains its existing large-bundle warning. The additive migration `20261127224058_integrated_budget_funds.sql` was applied to Flow’s connected Supabase project. Read-only checks confirmed owner-only RLS, denied anonymous access and a validated owner/group foreign key. The repository migration version matches the version recorded by Supabase.
+Validation for this revision: **205 tests across 30 files passed**, including all 48 page-route checks and database-permission tests. ESLint and the TypeScript/production build passed. The build retains the existing warning about a JavaScript bundle larger than 500 kB.
 
-The browser preview is unavailable in this workspace, so automated interaction checks use jsdom. These checks do not certify pixel layout or a real camera/upload session. Live visual review at narrow phone, tablet and desktop widths remains outstanding. No live user financial records were created for testing.
+The schema represents an unknown actual cost as zero until it is recorded. A cost marked paid can have a known actual of zero. It does not yet have a separate flag for a final zero-valued unpaid cost. A partly paid item with no recorded final cost remains estimated; the worksheet does not invent a bill balance from that estimate.
+
+Live browser preview is unavailable in this workspace. Automated interaction checks use jsdom and do not certify the visual layout, a real camera or a live file upload. Narrow-phone, tablet and desktop visual review remains outstanding. No live user financial records are created for testing.

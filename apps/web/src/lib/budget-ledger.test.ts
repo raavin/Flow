@@ -106,7 +106,77 @@ it('does not lose costs outside allocations or projects whose group was removed'
 })
 it('counts pending payments as expected but not paid', () => {
   const root = buildBudgetTree(projects, [], [payment({ status: 'pending' })], [], plan)
-  expect(root).toMatchObject({ expected: 2000, paid: 0 })
+  expect(root).toMatchObject({ expected: 2000, actual: 2000, unpaid: 2000, paid: 0 })
+})
+
+it('separates the original budget, recorded costs, forecast and unpaid bills at every level', () => {
+  const root = buildBudgetTree(
+    [{ ...projects[0], budgetCents: 100000 }],
+    [
+      { ...cost, estimate_cents: 60000, actual_cents: 50000, paid_cents: 20000 },
+      {
+        ...cost,
+        id: 'flowers',
+        estimate_cents: 30000,
+        actual_cents: 0,
+        paid_cents: undefined,
+        linked_payment_count: 0,
+        payment_status: 'unpaid',
+      },
+    ],
+    [payment({ expenseId: 'c1', totalCents: 20000 })],
+    [{ ...allocations[0], limit_cents: 100000 }],
+    plan,
+  )
+  for (const id of ['overall', 'fund:f1', 'project:p1', 'allocation:a1']) {
+    expect(budgetPath(root, id)?.at(-1)).toMatchObject({
+      actual: 50000,
+      expected: 80000,
+      paid: 20000,
+      unpaid: 30000,
+      estimatedCount: 1,
+    })
+  }
+  const allocation = budgetPath(root, 'allocation:a1')!.at(-1)!
+  expect(allocation.budget! - allocation.expected).toBe(20000)
+  expect(allocation.budget! - allocation.assigned).toBe(10000)
+  expect(budgetPath(root, 'cost:c1')?.at(-1)?.budget).toBe(60000)
+})
+
+it('does not treat an unfinished estimate as an unpaid bill even when part has been paid', () => {
+  const root = buildBudgetTree(
+    projects,
+    [{ ...cost, actual_cents: 0, estimate_cents: 60000, paid_cents: 20000 }],
+    [],
+    allocations,
+    plan,
+  )
+  expect(root).toMatchObject({ actual: 0, expected: 60000, paid: 20000, unpaid: 0, estimatedCount: 1 })
+})
+
+it('does not let an overpayment on one cost hide another unpaid bill', () => {
+  const root = buildBudgetTree(
+    projects,
+    [
+      { ...cost, id: 'overpaid', actual_cents: 10000, paid_cents: 15000 },
+      { ...cost, id: 'unpaid', actual_cents: 20000, paid_cents: 0 },
+    ],
+    [],
+    allocations,
+    plan,
+  )
+  expect(root).toMatchObject({ actual: 30000, expected: 35000, paid: 15000, unpaid: 20000 })
+})
+
+it('keeps a completed zero-cost item distinct from an unknown actual cost', () => {
+  const root = buildBudgetTree(
+    projects,
+    [{ ...cost, actual_cents: 0, paid_cents: undefined, linked_payment_count: 0, payment_status: 'paid' }],
+    [],
+    allocations,
+    plan,
+  )
+  expect(root).toMatchObject({ actual: 0, expected: 0, paid: 0, unpaid: 0, estimatedCount: 0 })
 })
 it('does not hide overallocated projects inside an underfunded group', () => {
   const root = buildBudgetTree(projects, [], [], allocations, {

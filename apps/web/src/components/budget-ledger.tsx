@@ -27,6 +27,7 @@ import type { MoneyRecord } from '@/lib/money'
 import { MoneyEntryForm } from './money-entry-form'
 import { ReceiptPanel } from './money-activity'
 import { CostPayment } from './cost-payment'
+import { BudgetLineRow } from './budget-line-row'
 
 function BudgetAmount({
   node,
@@ -130,9 +131,9 @@ export function BudgetLedger({
     enabled: !!owner,
   })
   const [form, setForm] = useState<'fund' | 'allocation' | 'rename' | null>(null)
-  const [name, setName] = useState('')
-  const [amount, setAmount] = useState('')
   const [editing, setEditing] = useState<MoneyRecord | 'new' | null>(null)
+  const [addingProject, setAddingProject] = useState(false)
+  const [projectToAdd, setProjectToAdd] = useState('')
   const [search, setSearch] = useState('')
   const [details, setDetails] = useState<string | null>(null)
   const [receipt, setReceipt] = useState<MoneyRecord | null>(null)
@@ -164,6 +165,8 @@ export function BudgetLedger({
   useEffect(() => {
     if (previousFocus.current !== focus) {
       setForm(null)
+      setAddingProject(false)
+      setProjectToAdd('')
       setEditing(null)
       setDetails(null)
       setReceipt(null)
@@ -211,10 +214,23 @@ export function BudgetLedger({
     await refresh()
   }
   function startForm(kind: 'fund' | 'allocation' | 'rename') {
-    setName(kind === 'rename' ? node!.name : '')
-    setAmount(kind === 'rename' && node!.budget !== null ? String(node!.budget / 100) : '')
     setForm(kind)
+    setAddingProject(false)
+    setEditing(null)
     mutation.reset()
+  }
+  async function saveStructure(name: string, value: number | null) {
+    if (form === 'fund' || (form === 'rename' && node!.kind === 'fund'))
+      await saveFund(owner, name, value, form === 'rename' ? node!.sourceId : undefined)
+    else
+      await saveAllocation(
+        owner,
+        node!.projectId!,
+        name,
+        value ?? 0,
+        form === 'rename' ? node!.sourceId : undefined,
+      )
+    await refresh()
   }
   const projectId = node.projectId
   const parentFund = path?.find((n) => n.kind === 'fund')
@@ -238,6 +254,7 @@ export function BudgetLedger({
   const matches = (row: BudgetNode): boolean =>
     row.name.toLowerCase().includes(search.trim().toLowerCase()) || row.children.some(matches)
   const visibleRows = node.children.filter(matches)
+  const selectedProject = budgetPath(root, `project:${projectToAdd}`)?.at(-1)
   const go = (id: string) => {
     mutation.reset()
     onFocus(id)
@@ -269,18 +286,38 @@ export function BudgetLedger({
                   : row.kind === 'allocation'
                     ? 'Allocation'
                     : row.kind === 'payment'
-                      ? 'Separate payment'
+                      ? row.record?.status === 'paid'
+                        ? 'Paid expense'
+                        : 'Unpaid expense'
                       : row.record?.status === 'paid'
                         ? 'Paid'
-                        : row.record?.status === 'committed'
-                          ? 'Committed'
-                          : row.record?.status === 'part paid'
-                            ? 'Part paid'
-                            : 'Planned cost'}
+                        : row.actual > 0 && row.paid === 0
+                          ? 'Unpaid'
+                          : row.record?.status === 'committed'
+                            ? row.estimatedCount
+                              ? 'Planned cost'
+                              : 'Unpaid'
+                            : row.record?.status === 'part paid'
+                              ? 'Part paid'
+                              : 'Planned cost'}
           </span>
         </th>
         <td className="budget-money">
-          <BudgetAmount key={row.id} node={row} onSave={(value) => saveBudget(row, value)} />
+          {row.kind === 'cost' ? (
+            <button
+              className="budget-edit"
+              aria-label={`Edit cost ${row.name}`}
+              onClick={() => {
+                setEditing(row.record!)
+                setDetails(null)
+              }}
+            >
+              {formatCurrency(row.budget ?? 0)}
+              <Pencil size={12} aria-hidden="true" />
+            </button>
+          ) : (
+            <BudgetAmount key={row.id} node={row} onSave={(value) => saveBudget(row, value)} />
+          )}
           {!row.record && row.budget !== null && (
             <span
               className={`block mt-1 text-xs font-normal ${row.assigned > row.budget ? 'text-berry' : 'text-ink/60'}`}
@@ -290,8 +327,17 @@ export function BudgetLedger({
             </span>
           )}
         </td>
+        <td className="budget-money">
+          {row.record && row.estimatedCount ? (
+            <span aria-label="Actual cost not recorded">—</span>
+          ) : (
+            formatCurrency(row.actual)
+          )}
+          {row.paid > 0 && (
+            <span className="block text-xs font-normal text-ink/60">{formatCurrency(row.paid)} paid</span>
+          )}
+        </td>
         <td className="budget-money">{formatCurrency(row.expected)}</td>
-        <td className="budget-money">{formatCurrency(row.paid)}</td>
         <td className={`budget-money ${balance !== null && balance < 0 ? 'text-berry font-semibold' : ''}`}>
           {balance === null ? '—' : formatCurrency(balance)}
           {balance !== null && balance < 0 && <span className="block text-xs">Over budget</span>}
@@ -318,49 +364,45 @@ export function BudgetLedger({
   }
   return (
     <AppCard className="min-w-0 space-y-4">
-      <nav aria-label="Budget location" className="flex flex-wrap gap-x-2 gap-y-1 text-sm">
-        {path?.map((part, i) => (
-          <Fragment key={part.id}>
-            {i > 0 && <span aria-hidden="true">/</span>}
-            {part.id === node.id ? (
-              <span aria-current="page">{part.name}</span>
-            ) : projectContextId && (part.kind === 'overall' || part.kind === 'fund') ? (
-              <Link
-                to="/app/budgets"
-                search={{ view: part.kind === 'overall' ? undefined : part.id }}
-                className="underline underline-offset-4"
-              >
-                {part.kind === 'overall' ? 'All budgets' : part.name}
-              </Link>
-            ) : (
-              <button className="underline underline-offset-4" onClick={() => go(part.id)}>
-                {part.name === 'Overall budget' ? 'All budgets' : part.name}
-              </button>
-            )}
-          </Fragment>
-        ))}
-      </nav>
+      {path && path.length > 1 && (
+        <nav aria-label="Budget location" className="flex flex-wrap gap-x-2 gap-y-1 text-sm">
+          {path?.map((part, i) => (
+            <Fragment key={part.id}>
+              {i > 0 && <span aria-hidden="true">/</span>}
+              {part.id === node.id ? (
+                <span aria-current="page">{part.name}</span>
+              ) : projectContextId && (part.kind === 'overall' || part.kind === 'fund') ? (
+                <Link
+                  to="/app/budgets"
+                  search={{ view: part.kind === 'overall' ? undefined : part.id }}
+                  className="underline underline-offset-4"
+                >
+                  {part.kind === 'overall' ? 'All budgets' : part.name}
+                </Link>
+              ) : (
+                <button className="underline underline-offset-4" onClick={() => go(part.id)}>
+                  {part.name === 'Overall budget' ? 'All budgets' : part.name}
+                </button>
+              )}
+            </Fragment>
+          ))}
+        </nav>
+      )}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 ref={heading} tabIndex={-1} className="text-xl font-semibold outline-none">
-            {node.name}
+            {node.kind === 'overall'
+              ? 'Budgets'
+              : projectContextId && node.kind === 'project'
+                ? 'Budget'
+                : node.name}
           </h2>
           <p className="mt-1 text-xs text-ink/60">AUD · All-time · Private to you</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {node.kind === 'overall' && (
-            <AppButton variant="secondary" onClick={() => startForm('fund')}>
-              Add group
-            </AppButton>
-          )}
           {(node.kind === 'fund' || node.kind === 'allocation') && (
             <AppButton variant="secondary" onClick={() => startForm('rename')}>
               Edit {node.kind === 'fund' ? 'group' : 'allocation'}
-            </AppButton>
-          )}
-          {node.kind === 'project' && (
-            <AppButton variant="secondary" onClick={() => startForm('allocation')}>
-              Add allocation
             </AppButton>
           )}
           {projectId && (
@@ -372,50 +414,12 @@ export function BudgetLedger({
               Request a quote
             </Link>
           )}
-          {(projectId || node.kind === 'overall') && (
-            <AppButton
-              onClick={() => {
-                setEditing('new')
-                setDetails(null)
-                setReceipt(null)
-              }}
-            >
-              Add entry
-            </AppButton>
-          )}
         </div>
       </div>
       {node.kind === 'overall' && (
         <p className="text-sm text-ink/70">
           Set your overall budget, then assign money to groups or projects. Open a row to see its breakdown.
         </p>
-      )}
-      {node.kind === 'fund' && (
-        <label className="flex flex-wrap gap-2 items-center text-sm">
-          Add project to group
-          <AppSelect
-            aria-label="Add project to group"
-            className="!w-auto max-w-full"
-            value=""
-            disabled={mutation.isPending}
-            onChange={(e) => {
-              const id = e.target.value
-              if (id) mutation.mutate(() => moveProjectToFund(id, node.sourceId))
-            }}
-          >
-            <option value="">Choose a project</option>
-            {(projects.data ?? [])
-              .filter((p) => p.isOwner && !node.children.some((c) => c.sourceId === p.id))
-              .map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.title}
-                  {plan.data?.memberships.find((m) => m.project_id === p.id)?.fund_id
-                    ? ' (move from another group)'
-                    : ''}
-                </option>
-              ))}
-          </AppSelect>
-        </label>
       )}
       {node.kind === 'project' && (
         <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
@@ -444,109 +448,10 @@ export function BudgetLedger({
           </Link>
         </div>
       )}
-      {form && (
-        <form
-          className="flex flex-wrap items-end gap-3 border-y border-border py-4"
-          onSubmit={(e) => {
-            e.preventDefault()
-            mutation.mutate(async () => {
-              const value = amount.trim() ? parseBudgetAmount(amount) : null
-              if (form === 'fund' || (form === 'rename' && node.kind === 'fund'))
-                await saveFund(owner, name, value, form === 'rename' ? node.sourceId : undefined)
-              else
-                await saveAllocation(
-                  owner,
-                  projectId!,
-                  name,
-                  value ?? 0,
-                  form === 'rename' ? node.sourceId : undefined,
-                )
-              setForm(null)
-            })
-          }}
-        >
-          <FieldLabel>
-            Name
-            <AppInput
-              autoFocus
-              required
-              maxLength={100}
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-            />
-          </FieldLabel>
-          <FieldLabel>
-            Budget (AUD)
-            <AppInput inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} />
-          </FieldLabel>
-          <AppButton disabled={mutation.isPending}>
-            Save {form === 'fund' || node.kind === 'fund' ? 'group' : 'allocation'}
-          </AppButton>
-          <AppButton
-            type="button"
-            variant="ghost"
-            disabled={mutation.isPending}
-            onClick={() => setForm(null)}
-          >
-            Cancel
-          </AppButton>
-          {form === 'rename' && (
-            <AppButton
-              type="button"
-              variant="ghost"
-              disabled={mutation.isPending || (node.kind === 'allocation' && node.children.length > 0)}
-              title={
-                node.kind === 'allocation' && node.children.length
-                  ? 'Move the costs to another allocation before removing this one.'
-                  : undefined
-              }
-              onClick={() => setRemove(node)}
-            >
-              Remove {node.kind === 'fund' ? 'group' : 'allocation'}
-            </AppButton>
-          )}
-        </form>
-      )}
       {mutation.error && (
         <p role="alert" className="text-sm text-berry">
           {featureError(mutation.error)}
         </p>
-      )}
-      {remove && !remove.record && (
-        <div className="border border-border p-3 space-y-2 text-sm">
-          <p>
-            {remove.kind === 'fund'
-              ? 'Remove this group? Its projects and their budgets will stay in All budgets.'
-              : 'Remove this empty allocation? Allocations linked to supplier requests must be kept.'}
-          </p>
-          <AppButton
-            disabled={mutation.isPending}
-            onClick={() =>
-              mutation.mutate(async () => {
-                if (remove.kind === 'fund') await removeFund(remove.sourceId)
-                else await removeAllocation(remove.sourceId)
-                setRemove(null)
-                setForm(null)
-                onFocus(remove.kind === 'fund' ? 'overall' : `project:${remove.projectId}`)
-              })
-            }
-          >
-            Confirm removal
-          </AppButton>
-          <AppButton variant="ghost" disabled={mutation.isPending} onClick={() => setRemove(null)}>
-            Cancel
-          </AppButton>
-        </div>
-      )}
-      {editing === 'new' && (
-        <section aria-label="Add money entry" className="border-y border-border py-4">
-          <MoneyEntryForm
-            projectId={projectId}
-            defaultAllocationId={node.kind === 'allocation' ? node.sourceId : undefined}
-            onSaved={() => setEditing(null)}
-            onCancel={() => setEditing(null)}
-          />
-        </section>
       )}
       {(node.children.length > 5 || search) && (
         <FieldLabel>
@@ -571,22 +476,21 @@ export function BudgetLedger({
       >
         <table className="ui-budget-table min-w-[720px]">
           <caption className="sr-only">
-            {node.name}: budget, expected costs, paid and left after costs in Australian dollars
+            {node.name}: budget, actual costs, forecast costs and remaining budget in Australian dollars
           </caption>
           <thead>
             <tr>
               <th scope="col" className="budget-name-cell">
-                {node.kind === 'overall'
-                  ? 'Groups & projects'
-                  : node.kind === 'fund'
-                    ? 'Projects'
-                    : node.kind === 'project'
-                      ? 'Allocations & costs'
-                      : 'Costs'}
+                Description
               </th>
-              {['Budget', 'Expected', 'Paid', 'Left after costs'].map((label) => (
+              {[
+                ['Budget', 'Spending limit. On a cost line, the original estimate.'],
+                ['Actual', 'Recorded costs, including unpaid bills. Does not include estimates.'],
+                ['Forecast', 'Actual costs plus estimates for costs not yet recorded.'],
+                ['Remaining', 'Budget minus Forecast.'],
+              ].map(([label, help]) => (
                 <th scope="col" className="budget-money" key={label}>
-                  {label}
+                  <span title={help}>{label}</span>
                 </th>
               ))}
               <th scope="col">
@@ -595,107 +499,308 @@ export function BudgetLedger({
             </tr>
           </thead>
           <tbody>
-            <tr className="budget-total">{rowCells(node, true)}</tr>
+            {form === 'rename' ? (
+              <BudgetLineRow
+                kind={node.kind === 'fund' ? 'group' : 'allocation'}
+                row={node}
+                onSave={saveStructure}
+                onCancel={() => setForm(null)}
+                onRemove={() => setRemove(node)}
+              />
+            ) : (
+              <tr className="budget-total">{rowCells(node, true)}</tr>
+            )}
             {visibleRows.map((row) => (
               <Fragment key={row.id}>
-                <tr>{rowCells(row)}</tr>
-                {details === row.id && row.record && (
-                  <tr>
-                    <td colSpan={6} className="!p-0">
-                      <div className="budget-inline-panel space-y-3 p-4">
-                        <div className="flex flex-wrap justify-between gap-3">
-                          <div>
-                            <h3 className="font-semibold">{row.name}</h3>
-                            <p className="text-sm text-ink/70">
-                              {formatCurrency(Math.max(0, row.expected - row.paid))} to pay
-                              {row.record.counterparty ? ` · ${row.record.counterparty}` : ''}
-                            </p>
-                          </div>
-                          <AppButton
-                            variant="ghost"
-                            onClick={() => {
-                              setDetails(null)
-                              setEditing(null)
-                              setReceipt(null)
-                            }}
-                          >
-                            Close details
-                          </AppButton>
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                          <CostPayment record={row.record} />
-                          {row.record.editable && (
+                {editing && editing !== 'new' && editing.id === row.record?.id && row.kind === 'cost' ? (
+                  <MoneyEntryForm
+                    key={editing.id}
+                    layout="row"
+                    record={editing}
+                    projectId={projectId}
+                    onSaved={() => setEditing(null)}
+                    onCancel={() => setEditing(null)}
+                  />
+                ) : (
+                  <tr>{rowCells(row)}</tr>
+                )}
+                {details === row.id &&
+                  row.record &&
+                  !(editing && editing !== 'new' && editing.id === row.record.id && row.kind === 'cost') && (
+                    <tr>
+                      <td colSpan={6} className="!p-0">
+                        <div className="budget-inline-panel space-y-3 p-4">
+                          <div className="flex flex-wrap justify-between gap-3">
+                            <div>
+                              <h3 className="font-semibold">{row.name}</h3>
+                              <p className="text-sm text-ink/70">
+                                {formatCurrency(row.paid)} paid · {formatCurrency(row.unpaid)} unpaid
+                                {row.record.counterparty ? ` · ${row.record.counterparty}` : ''}
+                              </p>
+                            </div>
                             <AppButton
-                              variant="secondary"
+                              variant="ghost"
                               onClick={() => {
-                                setEditing(row.record!)
+                                setDetails(null)
+                                setEditing(null)
                                 setReceipt(null)
                               }}
                             >
-                              Edit
-                            </AppButton>
-                          )}
-                          <AppButton
-                            variant="secondary"
-                            onClick={() => {
-                              setReceipt(row.record!)
-                              setEditing(null)
-                            }}
-                          >
-                            Receipts
-                          </AppButton>
-                          {row.kind === 'cost' && (
-                            <AppButton
-                              variant="ghost"
-                              disabled={!!row.record.hasPayments || mutation.isPending}
-                              onClick={() => setRemove(row)}
-                            >
-                              Delete cost
-                            </AppButton>
-                          )}
-                        </div>
-                        {row.record.hasPayments && (
-                          <p className="text-xs text-ink/60">
-                            Payments and their receipts are listed in Activity.
-                          </p>
-                        )}
-                        {remove?.id === row.id && (
-                          <div className="space-y-2">
-                            <p>Delete this cost? Attached receipts or quotes may prevent deletion.</p>
-                            <AppButton
-                              disabled={mutation.isPending}
-                              onClick={() =>
-                                mutation.mutate(async () => {
-                                  await deleteExpense(row.sourceId)
-                                  setRemove(null)
-                                  setDetails(null)
-                                })
-                              }
-                            >
-                              Confirm delete
-                            </AppButton>
-                            <AppButton variant="ghost" onClick={() => setRemove(null)}>
-                              Cancel
+                              Close details
                             </AppButton>
                           </div>
-                        )}
-                        {editing && editing !== 'new' && editing.id === row.record.id && (
-                          <MoneyEntryForm
-                            record={editing}
-                            projectId={projectId}
-                            onSaved={() => setEditing(null)}
-                            onCancel={() => setEditing(null)}
-                          />
-                        )}
-                        {receipt?.id === row.record.id && (
-                          <ReceiptPanel record={receipt} onClose={() => setReceipt(null)} />
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                )}
+                          <div className="flex flex-wrap gap-2">
+                            <CostPayment record={row.record} />
+                            {row.record.editable && (
+                              <AppButton
+                                variant="secondary"
+                                onClick={() => {
+                                  setEditing(row.record!)
+                                  setReceipt(null)
+                                }}
+                              >
+                                Edit
+                              </AppButton>
+                            )}
+                            <AppButton
+                              variant="secondary"
+                              onClick={() => {
+                                setReceipt(row.record!)
+                                setEditing(null)
+                              }}
+                            >
+                              Receipts
+                            </AppButton>
+                            {row.kind === 'cost' && (
+                              <AppButton
+                                variant="ghost"
+                                disabled={!!row.record.hasPayments || mutation.isPending}
+                                onClick={() => setRemove(row)}
+                              >
+                                Delete cost
+                              </AppButton>
+                            )}
+                          </div>
+                          {row.estimatedCount > 0 && (
+                            <p className="text-xs text-ink/65">
+                              Actual cost not recorded. The estimate is included in Forecast, not Unpaid.
+                            </p>
+                          )}
+                          {row.record.hasPayments && (
+                            <p className="text-xs text-ink/60">
+                              Payments and their receipts are listed in Activity.
+                            </p>
+                          )}
+                          {remove?.id === row.id && (
+                            <div className="space-y-2">
+                              <p>Delete this cost? Attached receipts or quotes may prevent deletion.</p>
+                              <AppButton
+                                disabled={mutation.isPending}
+                                onClick={() =>
+                                  mutation.mutate(async () => {
+                                    await deleteExpense(row.sourceId)
+                                    setRemove(null)
+                                    setDetails(null)
+                                  })
+                                }
+                              >
+                                Confirm delete
+                              </AppButton>
+                              <AppButton variant="ghost" onClick={() => setRemove(null)}>
+                                Cancel
+                              </AppButton>
+                            </div>
+                          )}
+                          {editing &&
+                            editing !== 'new' &&
+                            editing.id === row.record.id &&
+                            row.kind !== 'cost' && (
+                              <MoneyEntryForm
+                                record={editing}
+                                projectId={projectId}
+                                onSaved={() => setEditing(null)}
+                                onCancel={() => setEditing(null)}
+                              />
+                            )}
+                          {receipt?.id === row.record.id && (
+                            <ReceiptPanel record={receipt} onClose={() => setReceipt(null)} />
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  )}
               </Fragment>
             ))}
+            {addingProject && (
+              <tr className="budget-draft" aria-label="Add project to group">
+                <th scope="row" className="budget-name-cell">
+                  <AppSelect
+                    autoFocus
+                    aria-label="Project to add"
+                    value={projectToAdd}
+                    disabled={mutation.isPending}
+                    onChange={(e) => setProjectToAdd(e.target.value)}
+                  >
+                    <option value="">Choose a project</option>
+                    {(projects.data ?? [])
+                      .filter((p) => p.isOwner && !node.children.some((c) => c.sourceId === p.id))
+                      .map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.title}
+                          {plan.data?.memberships.find((m) => m.project_id === p.id)?.fund_id
+                            ? ' (move from another group)'
+                            : ''}
+                        </option>
+                      ))}
+                  </AppSelect>
+                </th>
+                <td className="budget-money">
+                  {selectedProject?.budget == null ? '—' : formatCurrency(selectedProject.budget)}
+                </td>
+                <td className="budget-money">
+                  {selectedProject ? formatCurrency(selectedProject.actual) : '—'}
+                </td>
+                <td className="budget-money">
+                  {selectedProject ? formatCurrency(selectedProject.expected) : '—'}
+                </td>
+                <td className="budget-money">
+                  {selectedProject?.budget == null
+                    ? '—'
+                    : formatCurrency(selectedProject.budget - selectedProject.expected)}
+                </td>
+                <td className="budget-actions">
+                  <AppButton
+                    disabled={!projectToAdd || mutation.isPending}
+                    onClick={() =>
+                      mutation.mutate(async () => {
+                        await moveProjectToFund(projectToAdd, node.sourceId)
+                        setAddingProject(false)
+                        setProjectToAdd('')
+                      })
+                    }
+                  >
+                    Add project
+                  </AppButton>
+                  <AppButton
+                    variant="ghost"
+                    disabled={mutation.isPending}
+                    onClick={() => setAddingProject(false)}
+                  >
+                    Cancel
+                  </AppButton>
+                </td>
+              </tr>
+            )}
+            {form && form !== 'rename' && (
+              <BudgetLineRow
+                key={form}
+                kind={form === 'fund' ? 'group' : 'allocation'}
+                onSave={saveStructure}
+                onCancel={() => setForm(null)}
+              />
+            )}
+            {editing === 'new' &&
+              (projectId ? (
+                <MoneyEntryForm
+                  layout="row"
+                  projectId={projectId}
+                  defaultAllocationId={node.kind === 'allocation' ? node.sourceId : undefined}
+                  onSaved={() => setEditing(null)}
+                  onCancel={() => setEditing(null)}
+                />
+              ) : (
+                <tr>
+                  <td colSpan={6}>
+                    <div className="budget-inline-panel">
+                      <MoneyEntryForm onSaved={() => setEditing(null)} onCancel={() => setEditing(null)} />
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            <tr hidden={!remove || !!remove.record}>
+              <td colSpan={6}>
+                <div className="budget-inline-panel">
+                  {remove && !remove.record && (
+                    <div className="border border-border p-3 space-y-2 text-sm">
+                      <p>
+                        {remove.kind === 'fund'
+                          ? 'Remove this group? Its projects and their budgets will stay in All budgets.'
+                          : 'Remove this empty allocation? Allocations linked to supplier requests must be kept.'}
+                      </p>
+                      <AppButton
+                        disabled={mutation.isPending}
+                        onClick={() =>
+                          mutation.mutate(async () => {
+                            if (remove.kind === 'fund') await removeFund(remove.sourceId)
+                            else await removeAllocation(remove.sourceId)
+                            setRemove(null)
+                            setForm(null)
+                            onFocus(remove.kind === 'fund' ? 'overall' : `project:${remove.projectId}`)
+                          })
+                        }
+                      >
+                        Confirm removal
+                      </AppButton>
+                      <AppButton
+                        variant="ghost"
+                        disabled={mutation.isPending}
+                        onClick={() => setRemove(null)}
+                      >
+                        Cancel
+                      </AppButton>
+                    </div>
+                  )}
+                </div>
+              </td>
+            </tr>
+            {!form && !editing && !addingProject && (
+              <tr className="budget-add-row">
+                <td colSpan={6}>
+                  <div className="budget-inline-panel flex flex-wrap gap-2">
+                    {node.kind === 'overall' && (
+                      <AppButton aria-label="Add group" variant="ghost" onClick={() => startForm('fund')}>
+                        + Add group
+                      </AppButton>
+                    )}
+                    {node.kind === 'fund' && (
+                      <AppButton
+                        aria-label="Add project"
+                        variant="ghost"
+                        onClick={() => {
+                          setAddingProject(true)
+                          setProjectToAdd('')
+                          mutation.reset()
+                        }}
+                      >
+                        + Add project
+                      </AppButton>
+                    )}
+                    {node.kind === 'project' && (
+                      <AppButton
+                        aria-label="Add allocation"
+                        variant="ghost"
+                        onClick={() => startForm('allocation')}
+                      >
+                        + Add allocation
+                      </AppButton>
+                    )}
+                    {(projectId || node.kind === 'overall') && (
+                      <AppButton
+                        aria-label={projectId ? 'Add cost' : 'Record expense or income'}
+                        variant="ghost"
+                        onClick={() => {
+                          setEditing('new')
+                          setDetails(null)
+                          setReceipt(null)
+                        }}
+                      >
+                        {projectId ? '+ Add cost' : '+ Record expense or income'}
+                      </AppButton>
+                    )}
+                  </div>
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>
@@ -712,13 +817,15 @@ export function BudgetLedger({
           {node.kind === 'overall'
             ? 'No projects yet. Create a project to start allocating your budget.'
             : node.kind === 'fund'
-              ? 'Choose a project above to include it in this group.'
-              : 'No costs yet. Add an entry, or set aside money in an allocation.'}
+              ? 'Choose a project to include it in this group.'
+              : node.kind === 'allocation'
+                ? 'Use Add cost in the table to start.'
+                : 'Use Add allocation or Add cost in the table to start.'}
         </p>
       )}
       <div className="flex flex-wrap justify-between gap-2 text-sm">
         <p className={leftToAssign !== null && leftToAssign < 0 ? 'text-berry' : 'text-ink/70'}>
-          {formatCurrency(node.assigned)} assigned
+          {formatCurrency(node.assigned)} allocated
           {leftToAssign !== null
             ? ` · ${formatCurrency(Math.abs(leftToAssign))} ${leftToAssign < 0 ? 'overallocated' : 'left to allocate'}`
             : ' · Set a budget to see what is left to allocate'}
@@ -739,14 +846,21 @@ export function BudgetLedger({
               : 'All activity & receipts'}
         </Link>
       </div>
+      <p className="text-sm text-ink/70">
+        {formatCurrency(node.paid)} paid · {formatCurrency(node.unpaid)} unpaid
+        {node.estimatedCount
+          ? ` · ${node.estimatedCount} cost${node.estimatedCount === 1 ? '' : 's'} still estimated`
+          : ''}
+      </p>
       <details className="text-xs text-ink/65">
         <summary className="cursor-pointer min-h-8 py-2">How these totals work</summary>
         <p className="max-w-3xl leading-relaxed">
-          Budget is the money you set aside. Unallocated is what remains after budgets below this level and
-          costs outside those budgets. If a lower level goes over its allocation, the extra is also reserved
-          here. Expected uses actual costs when recorded, otherwise estimates, and includes unpaid costs. Paid
-          counts linked payments once. Left after costs is budget minus expected costs; it is not your bank
-          balance. Income does not automatically increase your budget.
+          Budget is your spending limit; on a cost line it is the original estimate. Actual is the recorded
+          cost, including unpaid bills. Forecast uses actual costs where recorded and estimates for the rest,
+          and never falls below payments already recorded. Remaining is Budget minus Forecast. Unpaid is
+          recorded costs minus payments, calculated for each cost; estimates are not bills. Unallocated is the
+          budget not reserved for the lines below it. Income does not change your budget automatically. These
+          are project planning figures, not a bank balance or tax report.
         </p>
       </details>
       {otherCurrencies.length > 0 && (
