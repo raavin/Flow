@@ -18,6 +18,9 @@ export type BudgetNode = {
   name: string
   budget: number | null
   expected: number
+  actual: number
+  unpaid: number
+  estimatedCount: number
   paid: number
   assigned: number
   children: BudgetNode[]
@@ -104,10 +107,15 @@ export async function removeAllocation(id: string) {
 export function reserved(node: BudgetNode): number {
   return Math.max(node.budget ?? 0, node.children.length ? node.assigned : node.expected)
 }
-function branch(node: Omit<BudgetNode, 'expected' | 'paid' | 'assigned'>): BudgetNode {
+function branch(
+  node: Omit<BudgetNode, 'expected' | 'actual' | 'unpaid' | 'estimatedCount' | 'paid' | 'assigned'>,
+): BudgetNode {
   return {
     ...node,
     expected: node.children.reduce((n, c) => n + c.expected, 0),
+    actual: node.children.reduce((n, c) => n + c.actual, 0),
+    unpaid: node.children.reduce((n, c) => n + c.unpaid, 0),
+    estimatedCount: node.children.reduce((n, c) => n + c.estimatedCount, 0),
     paid: node.children.reduce((n, c) => n + c.paid, 0),
     assigned: node.children.reduce((n, c) => n + reserved(c), 0),
   }
@@ -131,8 +139,11 @@ export function buildBudgetTree(
         kind: 'cost',
         sourceId: c.id,
         name: c.title,
-        budget: null,
+        budget: c.estimate_cents,
         expected: totals.forecast,
+        actual: c.actual_cents,
+        unpaid: Math.max(0, c.actual_cents - totals.paid),
+        estimatedCount: c.actual_cents === 0 && c.payment_status !== 'paid' ? 1 : 0,
         paid: totals.paid,
         assigned: 0,
         children: [],
@@ -160,6 +171,9 @@ export function buildBudgetTree(
         name: r.title,
         budget: null,
         expected: r.amount,
+        actual: r.amount,
+        unpaid: r.status === 'paid' ? 0 : r.amount,
+        estimatedCount: 0,
         paid: r.status === 'paid' ? r.amount : 0,
         assigned: 0,
         children: [],

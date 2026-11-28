@@ -1369,3 +1369,13 @@
   .budget-workspace .ui-budget-table .budget-name-cell { min-width: 120px; width: 120px; max-width: 160px; }
   .budget-workspace .ui-budget-table th, .budget-workspace .ui-budget-table td { padding: 10px; }
 }
+
+/* Drafts use the same columns as saved rows; contextual fields stay directly below. */
+.budget-workspace .budget-draft,
+.budget-workspace .budget-draft .budget-name-cell { background: rgb(var(--color-cloud)); }
+.budget-workspace .budget-draft .budget-name-cell { min-width: 180px; }
+.budget-workspace .budget-cell-input { width: 8rem; min-width: 7rem; margin-left: auto; padding: 8px; text-align: right; font-variant-numeric: tabular-nums; }
+.budget-workspace .budget-draft input:focus,
+.budget-workspace .budget-draft select:focus { outline: 2px solid rgb(var(--color-ink)); outline-offset: 2px; }
+.budget-workspace .budget-add-row td { border-top: 1px dashed rgb(var(--color-ink) / .25); }
+.budget-workspace .budget-draft .budget-actions { min-width: 160px; }

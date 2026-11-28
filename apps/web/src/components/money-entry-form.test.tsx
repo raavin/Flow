@@ -1,12 +1,6 @@
 import '../test-setup'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import {
-  cleanup,
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-} from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MoneyEntryForm } from './money-entry-form'
 import { createExpense } from '@/lib/planning'
@@ -35,16 +29,8 @@ vi.mock('@/lib/supplier-requests', async (importOriginal) => ({
 const saved = vi.fn()
 async function open(projectId?: string, defaultDirection?: 'in' | 'out') {
   render(
-    <QueryClientProvider
-      client={
-        new QueryClient({ defaultOptions: { queries: { retry: false } } })
-      }
-    >
-      <MoneyEntryForm
-        projectId={projectId}
-        defaultDirection={defaultDirection}
-        onSaved={saved}
-      />
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <MoneyEntryForm projectId={projectId} defaultDirection={defaultDirection} onSaved={saved} />
     </QueryClientProvider>,
   )
   await screen.findByRole('option', { name: 'Birthday dinner' })
@@ -70,9 +56,7 @@ it('records project spending once in the budget and attaches its receipt to that
     target: { files: [file] },
   })
   fireEvent.click(screen.getByRole('button', { name: 'Save entry' }))
-  await waitFor(() =>
-    expect(saved).toHaveBeenCalledWith({ kind: 'expense', id: 'cost' }),
-  )
+  await waitFor(() => expect(saved).toHaveBeenCalledWith({ kind: 'expense', id: 'cost' }))
   expect(createExpense).toHaveBeenCalledWith(
     expect.objectContaining({
       projectId: 'party',
@@ -81,16 +65,10 @@ it('records project spending once in the budget and attaches its receipt to that
     }),
   )
   expect(createWalletEntry).not.toHaveBeenCalled()
-  expect(uploadReceipt).toHaveBeenCalledWith(
-    file,
-    { kind: 'expense', id: 'cost' },
-    'owner',
-  )
+  expect(uploadReceipt).toHaveBeenCalledWith(file, { kind: 'expense', id: 'cost' }, 'owner')
 })
 it('retries a failed receipt without creating a second financial record', async () => {
-  vi.mocked(uploadReceipt).mockRejectedValueOnce(
-    new Error('Upload unavailable'),
-  )
+  vi.mocked(uploadReceipt).mockRejectedValueOnce(new Error('Upload unavailable'))
   await open()
   fireEvent.change(screen.getByLabelText('Description'), {
     target: { value: 'Supplies' },
@@ -102,15 +80,11 @@ it('retries a failed receipt without creating a second financial record', async 
     target: { files: [new File(['r'], 'r.pdf', { type: 'application/pdf' })] },
   })
   fireEvent.click(screen.getByRole('button', { name: 'Save entry' }))
-  expect(await screen.findByRole('alert')).toHaveTextContent(
-    'Record saved. Receipt upload failed.',
-  )
+  expect(await screen.findByRole('alert')).toHaveTextContent('Record saved. Receipt upload failed.')
   expect(saved).not.toHaveBeenCalled()
   expect(screen.getByLabelText('Description')).toBeDisabled()
   fireEvent.click(screen.getByRole('button', { name: 'Retry receipt upload' }))
-  await waitFor(() =>
-    expect(saved).toHaveBeenCalledWith({ kind: 'transaction', id: 'payment' }),
-  )
+  await waitFor(() => expect(saved).toHaveBeenCalledWith({ kind: 'transaction', id: 'payment' }))
   expect(createWalletEntry).toHaveBeenCalledTimes(1)
   expect(uploadReceipt).toHaveBeenCalledTimes(2)
 })
@@ -142,9 +116,65 @@ it('rejects an unsupported attachment before saving any money record', async () 
       files: [new File(['<script/>'], 'r.svg', { type: 'image/svg+xml' })],
     },
   })
-  expect(await screen.findByRole('alert')).toHaveTextContent(
-    'Choose a JPEG, PNG, WebP image or PDF.',
-  )
+  expect(await screen.findByRole('alert')).toHaveTextContent('Choose a JPEG, PNG, WebP image or PDF.')
   expect(createExpense).not.toHaveBeenCalled()
+  expect(createWalletEntry).not.toHaveBeenCalled()
+})
+
+it('enters a cost in aligned table cells and retries its receipt without duplicating the cost', async () => {
+  vi.mocked(uploadReceipt).mockRejectedValueOnce(new Error('Upload unavailable'))
+  render(
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <table>
+        <tbody>
+          <MoneyEntryForm layout="row" projectId="party" onSaved={saved} />
+        </tbody>
+      </table>
+    </QueryClientProvider>,
+  )
+  const row = screen.getByRole('row', { name: 'New cost' }) as HTMLTableRowElement
+  const title = screen.getByLabelText('Cost name') as HTMLInputElement
+  const estimate = screen.getByLabelText('Estimate (AUD)') as HTMLInputElement
+  const actual = screen.getByLabelText('Actual cost (AUD)') as HTMLInputElement
+  expect(row.cells[0]).toContainElement(title)
+  expect(row.cells[1]).toContainElement(estimate)
+  expect(row.cells[2]).toContainElement(actual)
+  expect(title.form).toBe(row.querySelector('form'))
+  for (const control of [
+    estimate,
+    actual,
+    screen.getByLabelText('Date'),
+    screen.getByLabelText('Supplier'),
+  ]) {
+    expect((control as HTMLInputElement).form).toBe(title.form)
+  }
+  fireEvent.change(title, { target: { value: 'Cake' } })
+  fireEvent.change(estimate, { target: { value: '60' } })
+  fireEvent.change(actual, { target: { value: '42.50' } })
+  fireEvent.change(screen.getByLabelText('Status'), { target: { value: 'paid' } })
+  expect(row.cells[3]).toHaveTextContent('$42.50')
+  expect(row.cells[4]).toHaveTextContent('$17.50')
+  const file = new File(['photo'], 'receipt.jpg', { type: 'image/jpeg' })
+  fireEvent.change(screen.getByLabelText('Choose receipt'), { target: { files: [file] } })
+  expect(screen.getByLabelText('Take receipt photo')).toHaveAttribute('capture', 'environment')
+  fireEvent.click(screen.getByRole('button', { name: 'Save entry' }))
+  expect(await screen.findByRole('alert')).toHaveTextContent('Record saved. Receipt upload failed.')
+  expect(title).toBeDisabled()
+  expect(actual).toBeDisabled()
+  expect(saved).not.toHaveBeenCalled()
+  fireEvent.click(screen.getByRole('button', { name: 'Retry receipt upload' }))
+  await waitFor(() => expect(saved).toHaveBeenCalledWith({ kind: 'expense', id: 'cost' }))
+  expect(createExpense).toHaveBeenCalledTimes(1)
+  expect(createExpense).toHaveBeenCalledWith(
+    expect.objectContaining({
+      title: 'Cake',
+      projectId: 'party',
+      estimateCents: 6000,
+      actualCents: 4250,
+      paymentStatus: 'paid',
+    }),
+  )
+  expect(uploadReceipt).toHaveBeenCalledTimes(2)
+  expect(uploadReceipt).toHaveBeenLastCalledWith(file, { kind: 'expense', id: 'cost' }, 'owner')
   expect(createWalletEntry).not.toHaveBeenCalled()
 })

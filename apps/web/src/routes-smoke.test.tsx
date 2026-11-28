@@ -275,7 +275,7 @@ it('combines project budgets, allocations and costs in one navigable table', asy
   expect(await within(main).findByRole('heading', { name: 'Food' })).toBeInTheDocument()
   expect(within(main).getByRole('button', { name: 'Edit budget for Food' })).toBeInTheDocument()
   fireEvent.click(within(main).getByRole('button', { name: 'Birthday dinner' }))
-  expect(await within(main).findByRole('heading', { name: 'Birthday dinner', level: 2 })).toBeInTheDocument()
+  expect(await within(main).findByRole('heading', { name: 'Budget', level: 2 })).toBeInTheDocument()
 })
 
 it('drills from overall funds to groups and projects and supports browser back', async () => {
@@ -355,7 +355,7 @@ it.each(['/app/wallet', '/app/projects/sample-party/budget'])(
   async (path) => {
     const { main } = await openPage(path)
     expect(within(main).getAllByRole('table').length).toBeGreaterThan(0)
-    fireEvent.click(within(main).getByRole('button', { name: 'Add entry' }))
+    fireEvent.click(within(main).getByRole('button', { name: path === '/app/wallet' ? 'Add entry' : 'Add cost' }))
     expect(await screen.findByLabelText('Choose receipt')).toHaveAttribute(
       'accept',
       expect.stringContaining('image/jpeg'),
