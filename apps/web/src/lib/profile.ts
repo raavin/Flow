@@ -1,3 +1,4 @@
+import { optimisticWrite } from './optimistic'
 import type { AccountMode, BusinessProfileRecord, ProfileRecord } from '@superapp/types'
 import { supabase } from './supabase'
 import { ensureSocialProfile, updateSocialProfile } from './social'
@@ -57,7 +58,8 @@ export async function upsertOnboarding(payload: {
 
   if (profileError) throw profileError
 
-  const displayName = [payload.firstName, payload.lastName].filter(Boolean).join(' ').trim() || payload.firstName
+  const displayName =
+    [payload.firstName, payload.lastName].filter(Boolean).join(' ').trim() || payload.firstName
   await ensureSocialProfile(payload.userId, displayName, payload.handle)
   await updateSocialProfile({
     userId: payload.userId,
@@ -82,9 +84,11 @@ export async function upsertOnboarding(payload: {
 }
 
 export async function updateActiveMode(userId: string, activeMode: 'individual' | 'business') {
-  if (!supabase) return
-  const { error } = await supabase.from('profiles').update({ active_mode: activeMode }).eq('id', userId)
-  if (error) throw error
+  return optimisticWrite(`profile-mode:${userId}`, [], async () => {
+    if (!supabase) return
+    const { error } = await supabase.from('profiles').update({ active_mode: activeMode }).eq('id', userId)
+    if (error) throw error
+  })
 }
 
 export async function updateProfileSettings(input: {

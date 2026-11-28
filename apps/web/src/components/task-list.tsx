@@ -1,3 +1,4 @@
+import { isPendingRecord } from '@/lib/optimistic'
 import { useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -124,15 +125,25 @@ export function TaskList({ projectId, parentId }: { projectId?: string; parentId
                       checked={item.state === 'completed'}
                       onChange={(e) => status.mutate({ item, done: e.target.checked })}
                       className="h-5 w-5"
-                      disabled={status.isPending || item.ownerId !== session?.user.id}
+                      disabled={
+                        isPendingRecord(item) ||
+                        (status.isPending && status.variables?.item.id === item.id) ||
+                        item.ownerId !== session?.user.id
+                      }
                     />
-                    <Link
-                      to="/app/coordination/$coordinationId"
-                      params={{ coordinationId: item.id }}
-                      className="min-w-0 flex-1 break-words font-medium hover:underline"
-                    >
-                      {item.title}
-                    </Link>
+                    {isPendingRecord(item) ? (
+                      <span className="min-w-0 flex-1 break-words font-medium">
+                        {item.title} <span className="text-xs font-normal">Saving…</span>
+                      </span>
+                    ) : (
+                      <Link
+                        to="/app/coordination/$coordinationId"
+                        params={{ coordinationId: item.id }}
+                        className="min-w-0 flex-1 break-words font-medium hover:underline"
+                      >
+                        {item.title}
+                      </Link>
+                    )}
                     <span className="text-xs text-ink/65">
                       {item.time.dueAt || item.time.startsAt
                         ? new Date((item.time.dueAt || item.time.startsAt)!).toLocaleDateString(undefined, {

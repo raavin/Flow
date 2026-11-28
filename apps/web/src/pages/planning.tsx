@@ -1,9 +1,9 @@
+import { availabilityRoute, budgetRoute, structuredUpdatesRoute } from '@/route-definitions'
 import { ProjectShell } from '@/components/project-shell'
 import { ProjectAvailability } from '@/components/project-availability'
 import { QueryFeedback, MutationFeedback } from '@/components/request-feedback'
 import { ProjectBudget } from '@/components/project-budget'
 import { useState } from 'react'
-import { createRoute } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   AppButton,
@@ -15,7 +15,7 @@ import {
   FieldLabel,
   SectionHeading,
 } from '@superapp/ui'
-import { appRoute } from '@/components/layout'
+
 import { useAppStore } from '@/hooks/useAppStore'
 import { fetchProjectDetail } from '@/lib/projects'
 import {
@@ -25,7 +25,7 @@ import {
   previewStructuredImpact,
 } from '@/lib/planning'
 
-function AvailabilityPage() {
+export function AvailabilityPage() {
   const { projectId } = availabilityRoute.useParams()
   return (
     <ProjectShell projectId={projectId} activeTab="availability">
@@ -34,7 +34,7 @@ function AvailabilityPage() {
   )
 }
 
-function BudgetPage() {
+export function BudgetPage() {
   const { projectId } = budgetRoute.useParams()
   return <ProjectBudget projectId={projectId} />
 }
@@ -223,21 +223,3 @@ export function UpdatesPage() {
     </ProjectShell>
   )
 }
-
-export const availabilityRoute = createRoute({
-  getParentRoute: () => appRoute,
-  path: 'projects/$projectId/availability',
-  component: AvailabilityPage,
-})
-
-export const budgetRoute = createRoute({
-  getParentRoute: () => appRoute,
-  path: 'projects/$projectId/budget',
-  component: BudgetPage,
-})
-
-export const structuredUpdatesRoute = createRoute({
-  getParentRoute: () => appRoute,
-  path: 'projects/$projectId/updates',
-  component: UpdatesPage,
-})

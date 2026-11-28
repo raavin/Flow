@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
-import { createRoute, useNavigate } from '@tanstack/react-router'
+import { useNavigate } from '@tanstack/react-router'
 import { AppButton, AppCard, AppInput, SectionHeading } from '@superapp/ui'
-import { rootRoute } from '@/components/layout'
+
 import { useAppStore } from '@/hooks/useAppStore'
-function OnboardingPage() {
+export function OnboardingPage() {
   const { session, profile, saveOnboarding, loading } = useAppStore()
   const navigate = useNavigate()
   const [name, setName] = useState(profile?.first_name ?? '')
@@ -94,9 +94,3 @@ function validateHandle(handle: string) {
     return 'Only lowercase letters, numbers, underscores, hyphens and dots.'
   return null
 }
-
-export const onboardingRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: '/onboarding',
-  component: OnboardingPage,
-})

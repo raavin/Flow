@@ -1,6 +1,15 @@
 import { navSection } from './section-views'
+import { WriteStatus } from './write-status'
 import { useEffect, useState } from 'react'
-import { Link, Outlet, createRootRoute, createRoute, useNavigate, useRouter, useRouterState } from '@tanstack/react-router'
+import {
+  Link,
+  Outlet,
+  createRootRoute,
+  createRoute,
+  useNavigate,
+  useRouter,
+  useRouterState,
+} from '@tanstack/react-router'
 import {
   Bell,
   BriefcaseBusiness,
@@ -34,7 +43,7 @@ function RootComponent() {
 
 function AppLayout() {
   const { session, profile, businessProfile, signOut, setActiveMode, loading } = useAppStore()
-  const activeSection = useRouterState({ select: state => navSection(state.location.pathname) })
+  const activeSection = useRouterState({ select: (state) => navSection(state.location.pathname) })
   const navigate = useNavigate()
   const router = useRouter()
   const [menuOpen, setMenuOpen] = useState(false)
@@ -67,7 +76,10 @@ function AppLayout() {
       <div className="mx-auto max-w-3xl px-6 py-10">
         <AppCard className="p-6">
           <p className="text-sm text-ink/70">Sign in or create an account to open the full app.</p>
-          <Link to="/" className="mt-4 inline-flex rounded-full bg-ink px-4 py-3 text-sm font-bold text-white">
+          <Link
+            to="/"
+            className="mt-4 inline-flex rounded-full bg-ink px-4 py-3 text-sm font-bold text-white"
+          >
             Back to welcome
           </Link>
         </AppCard>
@@ -80,7 +92,10 @@ function AppLayout() {
       <div className="mx-auto max-w-3xl px-6 py-10">
         <AppCard className="p-6">
           <p className="text-sm text-ink/70">Your account is signed in, but setup is not complete yet.</p>
-          <Link to="/onboarding" className="mt-4 inline-flex rounded-full bg-ink px-4 py-3 text-sm font-bold text-white">
+          <Link
+            to="/onboarding"
+            className="mt-4 inline-flex rounded-full bg-ink px-4 py-3 text-sm font-bold text-white"
+          >
             Finish onboarding
           </Link>
         </AppCard>
@@ -105,151 +120,203 @@ function AppLayout() {
   const utilityNavItems = [
     { to: '/app/search', label: 'Search', icon: Search },
     { to: '/app/notifications', label: 'Notifications', icon: Bell },
-    { to: '/app/settings', label: profile?.active_mode === 'business' ? 'Profile & Admin' : 'Profile', icon: CircleUserRound },
+    {
+      to: '/app/settings',
+      label: profile?.active_mode === 'business' ? 'Profile & Admin' : 'Profile',
+      icon: CircleUserRound,
+    },
     { to: '/app/integrations', label: 'Integrations', icon: Plug },
     { to: '/app/support', label: 'Support', icon: CircleHelp },
   ] as const
 
-  const currentSection = [...coreNavItems, ...commerceNavItems, ...utilityNavItems]
-    .find((item) => item.to === activeSection)?.label ?? 'Flow'
+  const currentSection =
+    [...coreNavItems, ...commerceNavItems, ...utilityNavItems].find((item) => item.to === activeSection)
+      ?.label ?? 'Flow'
   const navigation = (
     <>
-
-        {/* Frozen header — stays put while nav scrolls underneath */}
-        <div className="shrink-0 px-2.5 pt-1 pb-2 sm:px-3">
-          <button type="button" aria-label="Flow home" className="flex items-center gap-3 text-left" onClick={() => void navigate({ to: '/app/messages' })}>
-            {theme === 'flow' ? (
-              <>
-                <span className="flex h-9 w-9 shrink-0 items-center justify-center text-base font-bold" style={{ background: '#C45A3B', color: '#F5F2ED', fontFamily: "'Space Grotesk', system-ui, sans-serif" }}>F</span>
-                <span className="text-base font-bold tracking-[0.18em]" style={{ color: '#F5F2ED', fontFamily: "'Space Grotesk', system-ui, sans-serif" }}>flow</span>
-              </>
-            ) : theme === 'mono' ? (
-              <img src="/logo-flow.png" alt="flow" className="w-28 px-2 py-2" />
-            ) : (
-              <span className="flex h-11 w-11 items-center justify-center bg-butter text-lg font-black text-ink shadow-sm" style={{ borderRadius: 'var(--radius-control)' }}>F</span>
-            )}
-          </button>
-          {businessProfile?.business_name ? <p className={`mt-1 pl-3 text-sm font-bold ${theme === 'flow' ? 'text-white/70' : 'text-ink/70'}`}>{businessProfile.business_name}</p> : null}
-
-          {profile?.account_mode === 'both' ? (
-            <div className="mt-2 flex rounded-full bg-white/80 p-1">
-              <button
-                type="button"
-                className={`flex-1 rounded-full px-4 py-2 text-sm font-bold transition ${profile.active_mode === 'individual' ? 'bg-butter text-ink shadow-sm' : 'text-ink/60'}`}
-                onClick={() => void setActiveMode('individual')}
+      {/* Frozen header — stays put while nav scrolls underneath */}
+      <div className="shrink-0 px-2.5 pt-1 pb-2 sm:px-3">
+        <button
+          type="button"
+          aria-label="Flow home"
+          className="flex items-center gap-3 text-left"
+          onClick={() => void navigate({ to: '/app/messages' })}
+        >
+          {theme === 'flow' ? (
+            <>
+              <span
+                className="flex h-9 w-9 shrink-0 items-center justify-center text-base font-bold"
+                style={{
+                  background: '#C45A3B',
+                  color: '#F5F2ED',
+                  fontFamily: "'Space Grotesk', system-ui, sans-serif",
+                }}
               >
-                Personal
-              </button>
-              <button
-                type="button"
-                className={`flex-1 rounded-full px-4 py-2 text-sm font-bold transition ${profile.active_mode === 'business' ? 'bg-butter text-ink shadow-sm' : 'text-ink/60'}`}
-                onClick={() => void setActiveMode('business')}
+                F
+              </span>
+              <span
+                className="text-base font-bold tracking-[0.18em]"
+                style={{ color: '#F5F2ED', fontFamily: "'Space Grotesk', system-ui, sans-serif" }}
               >
-                Business
-              </button>
-            </div>
-          ) : null}
-        </div>
+                flow
+              </span>
+            </>
+          ) : theme === 'mono' ? (
+            <img src="/logo-flow.png" alt="flow" className="w-28 px-2 py-2" />
+          ) : (
+            <span
+              className="flex h-11 w-11 items-center justify-center bg-butter text-lg font-black text-ink shadow-sm"
+              style={{ borderRadius: 'var(--radius-control)' }}
+            >
+              F
+            </span>
+          )}
+        </button>
+        {businessProfile?.business_name ? (
+          <p className={`mt-1 pl-3 text-sm font-bold ${theme === 'flow' ? 'text-white/70' : 'text-ink/70'}`}>
+            {businessProfile.business_name}
+          </p>
+        ) : null}
 
-        {/* Scrollable nav — slides under the frozen header */}
-        <div className="ui-scrollbar-hidden flex flex-1 flex-col overflow-y-auto px-3 pb-4">
-          <nav aria-label="Main navigation" className="grid gap-4">
-            <div className="grid gap-2">
-              <p className={`px-3 text-[10px] font-bold uppercase tracking-[0.18em] ${theme === 'flow' ? 'text-white/30' : 'text-ink/30'}`}>Flow</p>
-              {coreNavItems.map(({ to, label, icon: Icon }) => (
-                <Link
-                  key={to}
-                  to={to}
-                  activeOptions={{ exact: true }}
-                  aria-label={label}
-                  title={label}
-                  aria-current={activeSection === to ? 'page' : undefined}
-                  onClick={() => setMenuOpen(false)}
-                  className={`ui-nav-link !min-h-11 !flex-row !justify-start !gap-3 !px-3 !text-sm !text-left ${activeSection === to ? 'ui-nav-link--active' : ''}`}
-                  activeProps={{
-                    className: 'ui-nav-link ui-nav-link--active !min-h-11 !flex-row !justify-start !gap-3 !px-3 !text-sm !text-left',
-                  }}
-                >
-                  <Icon className="h-5 w-5 shrink-0" />
-                  <span className="text-sm">{label}</span>
-                </Link>
-              ))}
-            </div>
-            <div className="grid gap-2">
-              <p className={`px-3 text-[10px] font-bold uppercase tracking-[0.18em] ${theme === 'flow' ? 'text-white/30' : 'text-ink/30'}`}>Money &amp; marketplace</p>
-              {commerceNavItems.map(({ to, label, icon: Icon }) => (
-                <Link
-                  key={to}
-                  to={to}
-                  activeOptions={{ exact: true }}
-                  aria-label={label}
-                  title={label}
-                  aria-current={activeSection === to ? 'page' : undefined}
-                  onClick={() => setMenuOpen(false)}
-                  className={`ui-nav-link !min-h-11 !flex-row !justify-start !gap-3 !px-3 !text-sm !text-left ${activeSection === to ? 'ui-nav-link--active' : ''}`}
-                  activeProps={{
-                    className: 'ui-nav-link ui-nav-link--active !min-h-11 !flex-row !justify-start !gap-3 !px-3 !text-sm !text-left',
-                  }}
-                >
-                  <Icon className="h-5 w-5 shrink-0" />
-                  <span className="text-sm">{label}</span>
-                </Link>
-              ))}
-            </div>
-          </nav>
-
-          <div className="mt-auto pt-4 grid gap-4">
-            <div className="grid gap-2">
-              <p className={`px-3 text-[10px] font-bold uppercase tracking-[0.18em] ${theme === 'flow' ? 'text-white/30' : 'text-ink/30'}`}>Account</p>
-              {utilityNavItems.map(({ to, label, icon: Icon }) => (
-                <Link
-                  key={to}
-                  to={to}
-                  activeOptions={{ exact: true }}
-                  aria-label={label}
-                  title={label}
-                  aria-current={activeSection === to ? 'page' : undefined}
-                  onClick={() => setMenuOpen(false)}
-                  className={`ui-nav-link !min-h-11 !flex-row !justify-start !gap-3 !px-3 !text-sm !text-left ${activeSection === to ? 'ui-nav-link--active' : ''}`}
-                  activeProps={{
-                    className: 'ui-nav-link ui-nav-link--active !min-h-11 !flex-row !justify-start !gap-3 !px-3 !text-sm !text-left',
-                  }}
-                >
-                  <Icon className="h-5 w-5 shrink-0" />
-                  <span className="text-sm">{label}</span>
-                </Link>
-              ))}
-            </div>
-
-            {/* Theme cycle */}
+        {profile?.account_mode === 'both' ? (
+          <div className="mt-2 flex rounded-full bg-white/80 p-1">
             <button
               type="button"
-              onClick={cycleTheme}
-              className="ui-nav-link !min-h-11 !flex-row !justify-start !gap-3 !px-3 !text-sm !text-left w-full text-left"
-              aria-label={`Change theme. Current: ${THEME_LABELS[theme]}`}
-              title={`Current: ${THEME_LABELS[theme]} — click to cycle`}
+              className={`flex-1 rounded-full px-4 py-2 text-sm font-bold transition ${profile.active_mode === 'individual' ? 'bg-butter text-ink shadow-sm' : 'text-ink/60'}`}
+              onClick={() => void setActiveMode('individual').catch(() => undefined)}
             >
-              <Palette className="h-5 w-5 shrink-0" />
-              <span>{THEME_LABELS[theme]} theme</span>
+              Personal
             </button>
-
-            <AppButton
-              variant="ghost"
-              className={`justify-start ${theme === 'flow' ? '!text-white/70' : ''}`}
-              onClick={() => {
-                void signOut().then(() => navigate({ to: '/' }))
-              }}
+            <button
+              type="button"
+              className={`flex-1 rounded-full px-4 py-2 text-sm font-bold transition ${profile.active_mode === 'business' ? 'bg-butter text-ink shadow-sm' : 'text-ink/60'}`}
+              onClick={() => void setActiveMode('business').catch(() => undefined)}
             >
-              Sign out
-            </AppButton>
+              Business
+            </button>
           </div>
+        ) : null}
+      </div>
+
+      {/* Scrollable nav — slides under the frozen header */}
+      <div className="ui-scrollbar-hidden flex flex-1 flex-col overflow-y-auto px-3 pb-4">
+        <nav aria-label="Main navigation" className="grid gap-4">
+          <div className="grid gap-2">
+            <p
+              className={`px-3 text-[10px] font-bold uppercase tracking-[0.18em] ${theme === 'flow' ? 'text-white/30' : 'text-ink/30'}`}
+            >
+              Flow
+            </p>
+            {coreNavItems.map(({ to, label, icon: Icon }) => (
+              <Link
+                key={to}
+                to={to}
+                activeOptions={{ exact: true }}
+                aria-label={label}
+                title={label}
+                aria-current={activeSection === to ? 'page' : undefined}
+                onClick={() => setMenuOpen(false)}
+                className={`ui-nav-link !min-h-11 !flex-row !justify-start !gap-3 !px-3 !text-sm !text-left ${activeSection === to ? 'ui-nav-link--active' : ''}`}
+                activeProps={{
+                  className:
+                    'ui-nav-link ui-nav-link--active !min-h-11 !flex-row !justify-start !gap-3 !px-3 !text-sm !text-left',
+                }}
+              >
+                <Icon className="h-5 w-5 shrink-0" />
+                <span className="text-sm">{label}</span>
+              </Link>
+            ))}
+          </div>
+          <div className="grid gap-2">
+            <p
+              className={`px-3 text-[10px] font-bold uppercase tracking-[0.18em] ${theme === 'flow' ? 'text-white/30' : 'text-ink/30'}`}
+            >
+              Money &amp; marketplace
+            </p>
+            {commerceNavItems.map(({ to, label, icon: Icon }) => (
+              <Link
+                key={to}
+                to={to}
+                activeOptions={{ exact: true }}
+                aria-label={label}
+                title={label}
+                aria-current={activeSection === to ? 'page' : undefined}
+                onClick={() => setMenuOpen(false)}
+                className={`ui-nav-link !min-h-11 !flex-row !justify-start !gap-3 !px-3 !text-sm !text-left ${activeSection === to ? 'ui-nav-link--active' : ''}`}
+                activeProps={{
+                  className:
+                    'ui-nav-link ui-nav-link--active !min-h-11 !flex-row !justify-start !gap-3 !px-3 !text-sm !text-left',
+                }}
+              >
+                <Icon className="h-5 w-5 shrink-0" />
+                <span className="text-sm">{label}</span>
+              </Link>
+            ))}
+          </div>
+        </nav>
+
+        <div className="mt-auto pt-4 grid gap-4">
+          <div className="grid gap-2">
+            <p
+              className={`px-3 text-[10px] font-bold uppercase tracking-[0.18em] ${theme === 'flow' ? 'text-white/30' : 'text-ink/30'}`}
+            >
+              Account
+            </p>
+            {utilityNavItems.map(({ to, label, icon: Icon }) => (
+              <Link
+                key={to}
+                to={to}
+                activeOptions={{ exact: true }}
+                aria-label={label}
+                title={label}
+                aria-current={activeSection === to ? 'page' : undefined}
+                onClick={() => setMenuOpen(false)}
+                className={`ui-nav-link !min-h-11 !flex-row !justify-start !gap-3 !px-3 !text-sm !text-left ${activeSection === to ? 'ui-nav-link--active' : ''}`}
+                activeProps={{
+                  className:
+                    'ui-nav-link ui-nav-link--active !min-h-11 !flex-row !justify-start !gap-3 !px-3 !text-sm !text-left',
+                }}
+              >
+                <Icon className="h-5 w-5 shrink-0" />
+                <span className="text-sm">{label}</span>
+              </Link>
+            ))}
+          </div>
+
+          {/* Theme cycle */}
+          <button
+            type="button"
+            onClick={cycleTheme}
+            className="ui-nav-link !min-h-11 !flex-row !justify-start !gap-3 !px-3 !text-sm !text-left w-full text-left"
+            aria-label={`Change theme. Current: ${THEME_LABELS[theme]}`}
+            title={`Current: ${THEME_LABELS[theme]} — click to cycle`}
+          >
+            <Palette className="h-5 w-5 shrink-0" />
+            <span>{THEME_LABELS[theme]} theme</span>
+          </button>
+
+          <AppButton
+            variant="ghost"
+            className={`justify-start ${theme === 'flow' ? '!text-white/70' : ''}`}
+            onClick={() => {
+              void signOut().then(() => navigate({ to: '/' }))
+            }}
+          >
+            Sign out
+          </AppButton>
         </div>
+      </div>
     </>
   )
 
   return (
     <div className="mx-auto flex min-h-screen max-w-7xl flex-col gap-3 px-3 py-3 sm:px-4 lg:flex-row">
-      <a href="#main-content" className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[100] focus:bg-white focus:p-3">Skip to content</a>
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[100] focus:bg-white focus:p-3"
+      >
+        Skip to content
+      </a>
       <header className="ui-card sticky top-0 z-40 flex items-center justify-between gap-3 !p-3 lg:hidden">
         <Link to="/app/messages" aria-label="Flow home" className="flex min-h-11 items-center gap-3">
           <img src="/logo-flow.png" alt="flow" className="w-20" />
@@ -277,6 +344,7 @@ function AppLayout() {
         </AppDialog>
       ) : null}
       <main id="main-content" tabIndex={-1} className="min-w-0 flex-1">
+        <WriteStatus />
         <Outlet />
       </main>
     </div>

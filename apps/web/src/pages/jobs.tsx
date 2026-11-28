@@ -1,10 +1,10 @@
 import { QueryFeedback, MutationFeedback } from '@/components/request-feedback'
 import { useRef, useState } from 'react'
-import { Link, createRoute } from '@tanstack/react-router'
+import { Link } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Pencil } from 'lucide-react'
 import { AppButton, AppCard, AppInput, AppPanel, AppSelect, FieldLabel, SectionHeading } from '@superapp/ui'
-import { appRoute } from '@/components/layout'
+
 import { useAppStore } from '@/hooks/useAppStore'
 import { fetchJobs, createJob, updateJobStatus, updateJob, deleteJob } from '@/lib/jobs'
 import { fetchProjects } from '@/lib/projects'
@@ -308,9 +308,3 @@ export function JobsPage() {
     </div>
   )
 }
-
-export const jobsRoute = createRoute({
-  getParentRoute: () => appRoute,
-  path: 'jobs',
-  component: JobsPage,
-})

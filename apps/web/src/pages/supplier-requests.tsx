@@ -1,9 +1,10 @@
+import { requestsRoute, requestDetailRoute } from '@/route-definitions'
 import { MarketplaceViews } from '@/components/section-views'
 import { useState } from 'react'
-import { createRoute, Link } from '@tanstack/react-router'
+import { Link } from '@tanstack/react-router'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { AppCard, AppButton, AppInput, AppSelect, FieldLabel, SectionHeading } from '@superapp/ui'
-import { appRoute } from '@/components/layout'
+
 import { useAppStore } from '@/hooks/useAppStore'
 import { fetchProjects } from '@/lib/projects'
 import { parseBudgetAmount } from '@/lib/budget'
@@ -123,7 +124,11 @@ export function RequestsPage() {
       </AppCard>
       <MarketplaceViews active="requests" />
       <div className="flex flex-wrap items-center justify-between gap-3" aria-label="Request list controls">
-        <div role="group" aria-label="Request view" className="grid w-full grid-cols-3 gap-1 sm:flex sm:w-auto">
+        <div
+          role="group"
+          aria-label="Request view"
+          className="grid w-full grid-cols-3 gap-1 sm:flex sm:w-auto"
+        >
           {[
             ['open', 'Open requests'],
             ['mine', 'My requests'],
@@ -140,7 +145,12 @@ export function RequestsPage() {
             </AppButton>
           ))}
         </div>
-        <AppButton className="w-full sm:w-auto" aria-expanded={create} aria-controls="request-form" onClick={() => setCreate(!create)}>
+        <AppButton
+          className="w-full sm:w-auto"
+          aria-expanded={create}
+          aria-controls="request-form"
+          onClick={() => setCreate(!create)}
+        >
           {create ? 'Close request form' : 'Request a quote'}
         </AppButton>
       </div>
@@ -677,16 +687,3 @@ export function RequestDetail() {
     </div>
   )
 }
-export const requestsRoute = createRoute({
-  getParentRoute: () => appRoute,
-  path: 'marketplace/requests',
-  validateSearch: (search: Record<string, unknown>): { projectId?: string } => ({
-    projectId: typeof search.projectId === 'string' ? search.projectId : undefined,
-  }),
-  component: RequestsPage,
-})
-export const requestDetailRoute = createRoute({
-  getParentRoute: () => appRoute,
-  path: 'marketplace/requests/$requestId',
-  component: RequestDetail,
-})

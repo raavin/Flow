@@ -1,9 +1,10 @@
+import { listingDetailRoute, sellerProfileRoute, businessProfileRoute } from '@/route-definitions'
 import { MarketplaceViews } from '@/components/section-views'
 import { ApplyTemplateDialog } from '@/components/apply-template-dialog'
 import { listingTemplateBlocks } from '@/lib/apply-template'
 import { useState } from 'react'
 import { ChevronLeft, ChevronRight, MapPin, RotateCcw, Truck } from 'lucide-react'
-import { Link, createRoute, useNavigate } from '@tanstack/react-router'
+import { Link, useNavigate } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   AppButton,
@@ -17,7 +18,7 @@ import {
   SectionHeading,
 } from '@superapp/ui'
 import type { TemplatePayload } from '@superapp/types'
-import { appRoute } from '@/components/layout'
+
 import { fetchProjects, attachListingToProject } from '@/lib/projects'
 import {
   createMarketplaceListing,
@@ -447,7 +448,7 @@ function MoreFromSeller({
 
 // ─── Listing detail ───────────────────────────────────────────────────────────
 
-function ListingDetailPage() {
+export function ListingDetailPage() {
   const { listingId } = listingDetailRoute.useParams()
   const { session } = useAppStore()
   const queryClient = useQueryClient()
@@ -812,7 +813,7 @@ function ListingDetailPage() {
 
 // ─── Seller profile ───────────────────────────────────────────────────────────
 
-function SellerProfilePage() {
+export function SellerProfilePage() {
   const { sellerId } = sellerProfileRoute.useParams()
   const profileQuery = useQuery({
     queryKey: ['seller-profile', sellerId],
@@ -952,7 +953,7 @@ function SellerProfilePage() {
 }
 
 // Legacy business profile redirect
-function BusinessProfilePage() {
+export function BusinessProfilePage() {
   const { ownerId } = businessProfileRoute.useParams()
   const navigate = useNavigate()
   void navigate({
@@ -965,7 +966,7 @@ function BusinessProfilePage() {
 
 // ─── Your listings ──────────────────────────────────────────────────────
 
-function ListingsManagementPage() {
+export function ListingsManagementPage() {
   const { session } = useAppStore()
   const queryClient = useQueryClient()
   const ownerId = session?.user.id ?? ''
@@ -1321,36 +1322,7 @@ function ListingsManagementPage() {
 
 // ─── Routes ───────────────────────────────────────────────────────────────────
 
-export const listingDetailRoute = createRoute({
-  getParentRoute: () => appRoute,
-  path: 'marketplace/listings/$listingId',
-  component: ListingDetailPage,
-})
-
-export const sellerProfileRoute = createRoute({
-  getParentRoute: () => appRoute,
-  path: 'marketplace/seller/$sellerId',
-  component: SellerProfilePage,
-})
-
-export const businessProfileRoute = createRoute({
-  getParentRoute: () => appRoute,
-  path: 'business/$ownerId',
-  component: BusinessProfilePage,
-})
-
-export const listingsManagementRoute = createRoute({
-  getParentRoute: () => appRoute,
-  path: 'marketplace/manage',
-  component: ListingsManagementPage,
-})
-
 // Legacy route kept for compatibility
-export const legacyListingsManagementRoute = createRoute({
-  getParentRoute: () => appRoute,
-  path: 'business/listings',
-  component: ListingsManagementPage,
-})
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 

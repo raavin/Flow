@@ -113,6 +113,12 @@ it('covers every registered app page', () => {
   }
 })
 
+it('opens a budget deep link directly and retains its selected project', async () => {
+  const { router } = await openPage('/app/budgets?view=project%3Asample-party')
+  expect(router.state.location.search).toMatchObject({ view: 'project:sample-party' })
+  expect(await screen.findByRole('heading', { name: 'Birthday dinner' })).toBeVisible()
+})
+
 it.each(routes)('renders %s with a signed-in account and no failed data queries', async (path) => {
   const { main, queryClient } = await openPage(path)
   const errors = queryClient
@@ -168,9 +174,11 @@ it('opens the compact app menu, navigates and restores the page after closing', 
   expect(trigger).toHaveAttribute('aria-expanded', 'true')
   expect(document.body.style.overflow).toBe('hidden')
   const navigation = within(dialog).getByRole('navigation', { name: 'Main navigation' })
-  expect(within(navigation).getAllByRole('link').map((link) => link.textContent)).toEqual([
-    'Messages', 'Projects', 'Plans', 'Calendar', 'Money', 'Marketplace',
-  ])
+  expect(
+    within(navigation)
+      .getAllByRole('link')
+      .map((link) => link.textContent),
+  ).toEqual(['Messages', 'Projects', 'Plans', 'Calendar', 'Money', 'Marketplace'])
   expect(within(navigation).getByRole('link', { name: 'Projects' })).toHaveAttribute('aria-current', 'page')
   for (const name of ['Profile', 'Integrations', 'Support'])
     expect(within(dialog).getByRole('link', { name })).toBeVisible()
@@ -200,7 +208,10 @@ it('dismisses the app menu with Escape and on navigation outside the menu', asyn
 
 it('unlocks the page when an open app menu changes to the desktop layout', async () => {
   const breakpoint = Object.assign(new EventTarget(), { matches: false })
-  vi.stubGlobal('matchMedia', vi.fn(() => breakpoint))
+  vi.stubGlobal(
+    'matchMedia',
+    vi.fn(() => breakpoint),
+  )
   await openPage('/app/projects')
   fireEvent.click(screen.getByRole('button', { name: 'Menu' }))
   expect(await screen.findByRole('dialog', { name: 'Menu' })).toBeInTheDocument()
@@ -221,8 +232,16 @@ it('lets the compact project chooser reach every section without leaving the pro
   expect(chooser).toHaveAttribute('open')
   const links = within(chooser).getAllByRole('link')
   expect(links.map((link) => link.textContent)).toEqual([
-    'Conversation', 'People', 'Availability', 'Updates', 'Notes', 'Tasks',
-    'Calendar', 'Timeline', 'Budget', 'Listings',
+    'Conversation',
+    'People',
+    'Availability',
+    'Updates',
+    'Notes',
+    'Tasks',
+    'Calendar',
+    'Timeline',
+    'Budget',
+    'Listings',
   ])
   for (const link of links) expect(link.getAttribute('href')).toMatch(/^\/app\/projects\/sample-party\//)
   fireEvent.click(within(chooser).getByRole('link', { name: 'Availability' }))
@@ -233,8 +252,11 @@ it('lets the compact project chooser reach every section without leaving the pro
   expect(within(desktop).getByRole('link', { name: 'People' })).toHaveClass('flow-page-link--active')
   fireEvent.click(currentSummary)
   const currentChooser = currentSummary.closest('details')!
-  expect(within(currentChooser).getAllByRole('link').filter((link) => link.getAttribute('aria-current') === 'page'))
-    .toEqual([within(currentChooser).getByRole('link', { name: 'Availability' })])
+  expect(
+    within(currentChooser)
+      .getAllByRole('link')
+      .filter((link) => link.getAttribute('aria-current') === 'page'),
+  ).toEqual([within(currentChooser).getByRole('link', { name: 'Availability' })])
   fireEvent.click(within(currentChooser).getByRole('link', { name: 'Budget' }))
   await waitFor(() => expect(router.state.location.pathname).toBe('/app/projects/sample-party/budget'))
   expect(await screen.findByLabelText('Project page: Budget')).toBeInTheDocument()
@@ -315,8 +337,11 @@ it('keeps marketplace sections connected with one current page in each navigatio
     ['My listings', 'Browse', '/app/marketplace'],
   ]) {
     const desktop = screen.getByRole('navigation', { name: 'Marketplace navigation' })
-    expect(within(desktop).getAllByRole('link').filter((link) => link.getAttribute('aria-current') === 'page'))
-      .toEqual([within(desktop).getByRole('link', { name: current })])
+    expect(
+      within(desktop)
+        .getAllByRole('link')
+        .filter((link) => link.getAttribute('aria-current') === 'page'),
+    ).toEqual([within(desktop).getByRole('link', { name: current })])
     const summary = screen.getByLabelText(`Marketplace page: ${current}`)
     fireEvent.click(summary)
     fireEvent.click(within(summary.closest('details')!).getByRole('link', { name: next }))
@@ -355,7 +380,9 @@ it.each(['/app/wallet', '/app/projects/sample-party/budget'])(
   async (path) => {
     const { main } = await openPage(path)
     expect(within(main).getAllByRole('table').length).toBeGreaterThan(0)
-    fireEvent.click(within(main).getByRole('button', { name: path === '/app/wallet' ? 'Add entry' : 'Add cost' }))
+    fireEvent.click(
+      within(main).getByRole('button', { name: path === '/app/wallet' ? 'Add entry' : 'Add cost' }),
+    )
     expect(await screen.findByLabelText('Choose receipt')).toHaveAttribute(
       'accept',
       expect.stringContaining('image/jpeg'),

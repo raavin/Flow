@@ -96,6 +96,7 @@ function BudgetAmount({
       ref={button}
       type="button"
       className="budget-edit"
+      disabled={node.pending}
       aria-label={`Edit budget for ${node.name}`}
       onClick={() => {
         setValue(node.budget === null ? '' : String(node.budget / 100))
@@ -211,7 +212,7 @@ export function BudgetLedger({
     if (row.kind === 'project') await updateProject(row.sourceId, { budgetCents: value })
     if (row.kind === 'allocation')
       await saveAllocation(owner, row.projectId!, row.name, value ?? 0, row.sourceId)
-    await refresh()
+    void refresh()
   }
   function startForm(kind: 'fund' | 'allocation' | 'rename') {
     setForm(kind)
@@ -267,6 +268,7 @@ export function BudgetLedger({
           {!total && !row.record ? (
             <button
               className="budget-drill"
+              disabled={row.pending}
               onClick={() => go(row.id)}
               aria-label={`Open ${row.name} budget`}
             >
@@ -277,35 +279,38 @@ export function BudgetLedger({
             <span className="font-semibold">{total ? node!.name : row.name}</span>
           )}
           <span className="block text-xs font-normal text-ink/60 mt-1">
-            {row.kind === 'overall'
-              ? 'All projects · AUD'
-              : row.kind === 'fund'
-                ? `${row.children.length} projects`
-                : row.kind === 'project'
-                  ? 'Project'
-                  : row.kind === 'allocation'
-                    ? 'Allocation'
-                    : row.kind === 'payment'
-                      ? row.record?.status === 'paid'
-                        ? 'Paid expense'
-                        : 'Unpaid expense'
-                      : row.record?.status === 'paid'
-                        ? 'Paid'
-                        : row.actual > 0 && row.paid === 0
-                          ? 'Unpaid'
-                          : row.record?.status === 'committed'
-                            ? row.estimatedCount
-                              ? 'Planned cost'
-                              : 'Unpaid'
-                            : row.record?.status === 'part paid'
-                              ? 'Part paid'
-                              : 'Planned cost'}
+            {row.pending
+              ? 'Saving…'
+              : row.kind === 'overall'
+                ? 'All projects · AUD'
+                : row.kind === 'fund'
+                  ? `${row.children.length} projects`
+                  : row.kind === 'project'
+                    ? 'Project'
+                    : row.kind === 'allocation'
+                      ? 'Allocation'
+                      : row.kind === 'payment'
+                        ? row.record?.status === 'paid'
+                          ? 'Paid expense'
+                          : 'Unpaid expense'
+                        : row.record?.status === 'paid'
+                          ? 'Paid'
+                          : row.actual > 0 && row.paid === 0
+                            ? 'Unpaid'
+                            : row.record?.status === 'committed'
+                              ? row.estimatedCount
+                                ? 'Planned cost'
+                                : 'Unpaid'
+                              : row.record?.status === 'part paid'
+                                ? 'Part paid'
+                                : 'Planned cost'}
           </span>
         </th>
         <td className="budget-money">
           {row.kind === 'cost' ? (
             <button
               className="budget-edit"
+              disabled={row.pending}
               aria-label={`Edit cost ${row.name}`}
               onClick={() => {
                 setEditing(row.record!)
@@ -346,6 +351,7 @@ export function BudgetLedger({
           {row.record && (
             <AppButton
               variant="ghost"
+              disabled={row.pending}
               aria-label={`Details for ${row.name}`}
               aria-expanded={details === row.id}
               onClick={() => {

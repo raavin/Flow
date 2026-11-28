@@ -1,3 +1,4 @@
+import { optimisticWrite, editRows, removeRows } from './optimistic'
 import type { CartItem } from '@superapp/types'
 import { supabase } from './supabase'
 import { computeCheckoutSummary } from './commerce'
@@ -134,20 +135,33 @@ export async function updateCartItem(input: {
   bookingDate?: string | null
   bookingNote?: string | null
 }) {
-  if (!supabase) throw new Error('Supabase is not configured.')
-  const payload: Record<string, unknown> = {}
-  if (typeof input.quantity === 'number') payload.quantity = Math.max(1, Math.floor(input.quantity))
-  if (input.linkedProjectId !== undefined) payload.linked_project_id = input.linkedProjectId
-  if (input.bookingDate !== undefined) payload.booking_date = input.bookingDate
-  if (input.bookingNote !== undefined) payload.booking_note = input.bookingNote
-  const { error } = await supabase.from('cart_items').update(payload).eq('id', input.cartItemId)
-  if (error) throw error
+  return optimisticWrite(
+    'cart:' + input.cartItemId,
+    [
+      editRows(['cart'], input.cartItemId, {
+        ...input,
+        quantity: input.quantity === undefined ? undefined : Math.max(1, Math.floor(input.quantity)),
+      }),
+    ],
+    async () => {
+      if (!supabase) throw new Error('Supabase is not configured.')
+      const payload: Record<string, unknown> = {}
+      if (typeof input.quantity === 'number') payload.quantity = Math.max(1, Math.floor(input.quantity))
+      if (input.linkedProjectId !== undefined) payload.linked_project_id = input.linkedProjectId
+      if (input.bookingDate !== undefined) payload.booking_date = input.bookingDate
+      if (input.bookingNote !== undefined) payload.booking_note = input.bookingNote
+      const { error } = await supabase.from('cart_items').update(payload).eq('id', input.cartItemId)
+      if (error) throw error
+    },
+  )
 }
 
 export async function removeCartItem(cartItemId: string) {
-  if (!supabase) throw new Error('Supabase is not configured.')
-  const { error } = await supabase.from('cart_items').update({ status: 'removed' }).eq('id', cartItemId)
-  if (error) throw error
+  return optimisticWrite('cart:' + cartItemId, [removeRows(['cart'], cartItemId)], async () => {
+    if (!supabase) throw new Error('Supabase is not configured.')
+    const { error } = await supabase.from('cart_items').update({ status: 'removed' }).eq('id', cartItemId)
+    if (error) throw error
+  })
 }
 
 export async function placeOrderFromCart(input?: { cartItemIds?: string[] }) {
@@ -173,7 +187,9 @@ export function summarizeCart(items: CartItem[]) {
 }
 
 function mapCartItem(item: CartItemRow): CartItem {
-  const listing = Array.isArray(item.marketplace_listings) ? item.marketplace_listings[0] ?? null : item.marketplace_listings
+  const listing = Array.isArray(item.marketplace_listings)
+    ? (item.marketplace_listings[0] ?? null)
+    : item.marketplace_listings
   return {
     id: item.id,
     listingId: item.listing_id,

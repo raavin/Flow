@@ -1,4 +1,13 @@
-import type { BrowseListing, BusinessProfileRecord, ListingImage, MarketplaceKind, MarketplaceListing, SellerPublicProfile, TemplatePayload } from '@superapp/types'
+import { optimisticWrite, editRows, removeRows } from './optimistic'
+import type {
+  BrowseListing,
+  BusinessProfileRecord,
+  ListingImage,
+  MarketplaceKind,
+  MarketplaceListing,
+  SellerPublicProfile,
+  TemplatePayload,
+} from '@superapp/types'
 import { supabase } from './supabase'
 import { buildListingSku, parsePriceLabelToCents } from './commerce'
 import { setProjectKind } from './projects'
@@ -24,7 +33,14 @@ type MarketplaceRow = {
 
 type PublicBusinessProfile = Pick<
   BusinessProfileRecord,
-  'id' | 'business_name' | 'category' | 'service_area' | 'offerings' | 'booking_model' | 'availability_notes' | 'visibility_mode'
+  | 'id'
+  | 'business_name'
+  | 'category'
+  | 'service_area'
+  | 'offerings'
+  | 'booking_model'
+  | 'availability_notes'
+  | 'visibility_mode'
 >
 
 export async function fetchMarketplaceListings(kind: MarketplaceKind): Promise<MarketplaceListing[]> {
@@ -186,7 +202,9 @@ export async function fetchPublicBusinessProfile(ownerId: string): Promise<Publi
   if (!supabase) return null
   const { data, error } = await supabase
     .from('business_profiles')
-    .select('id, business_name, category, service_area, offerings, booking_model, availability_notes, visibility_mode')
+    .select(
+      'id, business_name, category, service_area, offerings, booking_model, availability_notes, visibility_mode',
+    )
     .eq('id', ownerId)
     .maybeSingle<PublicBusinessProfile>()
   if (error) throw error
@@ -240,18 +258,43 @@ export async function updateListing(input: {
   if (typeof input.fulfillmentNotes === 'string') payload.fulfillment_notes = input.fulfillmentNotes
   if (input.templatePayload) payload.template_payload = input.templatePayload
 
-  const { error } = await supabase.from('marketplace_listings').update(payload).eq('id', input.listingId)
-  if (error) throw error
+  return optimisticWrite(
+    'listing:' + input.listingId,
+    [
+      editRows(['project-listings', 'business-listings', 'listing'], input.listingId, payload),
+      editRows(['marketplace-browse', 'category-browse'], input.listingId, {
+        ...input,
+        priceCents:
+          typeof input.priceLabel === 'string' ? parsePriceLabelToCents(input.priceLabel) : undefined,
+      }),
+    ],
+    async () => {
+      if (!supabase) throw new Error('Supabase is not configured.')
+      const { error } = await supabase.from('marketplace_listings').update(payload).eq('id', input.listingId)
+      if (error) throw error
 
-  if (input.workspaceProjectId && input.kind) {
-    await setProjectKind(input.workspaceProjectId, toWorkspaceProjectKind(input.kind))
-  }
+      if (input.workspaceProjectId && input.kind) {
+        await setProjectKind(input.workspaceProjectId, toWorkspaceProjectKind(input.kind))
+      }
+    },
+  )
 }
 
 export async function deleteMarketplaceListing(listingId: string) {
-  if (!supabase) throw new Error('Supabase is not configured.')
-  const { error } = await supabase.from('marketplace_listings').delete().eq('id', listingId)
-  if (error) throw error
+  return optimisticWrite(
+    'listing:' + listingId,
+    [
+      removeRows(
+        ['project-listings', 'business-listings', 'marketplace-browse', 'category-browse'],
+        listingId,
+      ),
+    ],
+    async () => {
+      if (!supabase) throw new Error('Supabase is not configured.')
+      const { error } = await supabase.from('marketplace_listings').delete().eq('id', listingId)
+      if (error) throw error
+    },
+  )
 }
 
 export async function duplicateListing(listingId: string) {
@@ -267,7 +310,9 @@ export async function duplicateListing(listingId: string) {
     price_label: detail.price_label,
     price_cents: detail.price_cents ?? parsePriceLabelToCents(detail.price_label),
     currency_code: detail.currency_code ?? 'AUD',
-    sku: detail.sku ? `${detail.sku}-COPY` : buildListingSku({ title: `${detail.title} Copy`, kind: detail.kind }),
+    sku: detail.sku
+      ? `${detail.sku}-COPY`
+      : buildListingSku({ title: `${detail.title} Copy`, kind: detail.kind }),
     tax_rate_basis_points: detail.tax_rate_basis_points ?? 1000,
     workspace_project_id: detail.workspace_project_id ?? null,
     fulfillment_notes: detail.fulfillment_notes ?? '',
@@ -278,11 +323,13 @@ export async function duplicateListing(listingId: string) {
   if (error) throw error
 }
 
-export async function fetchMarketplaceListingsBrowse(filters: {
-  kind?: MarketplaceKind
-  category?: string
-  sort?: 'newest' | 'rating' | 'price_asc' | 'price_desc'
-} = {}): Promise<BrowseListing[]> {
+export async function fetchMarketplaceListingsBrowse(
+  filters: {
+    kind?: MarketplaceKind
+    category?: string
+    sort?: 'newest' | 'rating' | 'price_asc' | 'price_desc'
+  } = {},
+): Promise<BrowseListing[]> {
   if (!supabase) return []
 
   // Select base columns — avoid joining to business_profiles (no direct FK from owner_id).
@@ -355,7 +402,11 @@ export async function fetchListingImages(listingId: string): Promise<ListingImag
   })
 }
 
-export async function fetchMoreFromSeller(sellerId: string, excludeListingId: string, limit = 4): Promise<BrowseListing[]> {
+export async function fetchMoreFromSeller(
+  sellerId: string,
+  excludeListingId: string,
+  limit = 4,
+): Promise<BrowseListing[]> {
   if (!supabase) return []
   const { data, error } = await supabase
     .from('marketplace_listings')
@@ -389,15 +440,13 @@ export async function fetchMoreFromSeller(sellerId: string, excludeListingId: st
   })
 }
 
-export async function uploadListingImage(
-  listingId: string,
-  file: File,
-  sortOrder: number,
-): Promise<string> {
+export async function uploadListingImage(listingId: string, file: File, sortOrder: number): Promise<string> {
   if (!supabase) throw new Error('Supabase not configured')
   const ext = file.name.split('.').pop() ?? 'jpg'
   const path = `${listingId}/${Date.now()}-${sortOrder}.${ext}`
-  const { error: uploadError } = await supabase.storage.from('listing-images').upload(path, file, { upsert: false })
+  const { error: uploadError } = await supabase.storage
+    .from('listing-images')
+    .upload(path, file, { upsert: false })
   if (uploadError) throw uploadError
 
   const { error: insertError } = await supabase.from('listing_images').insert({
@@ -484,9 +533,22 @@ export async function hasPurchasedListing(listingId: string): Promise<boolean> {
 }
 
 export async function updateListingPublished(listingId: string, isPublished: boolean) {
-  if (!supabase) throw new Error('Supabase is not configured.')
-  const { error } = await supabase.from('marketplace_listings').update({ is_published: isPublished }).eq('id', listingId)
-  if (error) throw error
+  return optimisticWrite(
+    'listing:' + listingId,
+    [
+      editRows(['project-listings', 'business-listings', 'listing'], listingId, {
+        is_published: isPublished,
+      }),
+    ],
+    async () => {
+      if (!supabase) throw new Error('Supabase is not configured.')
+      const { error } = await supabase
+        .from('marketplace_listings')
+        .update({ is_published: isPublished })
+        .eq('id', listingId)
+      if (error) throw error
+    },
+  )
 }
 
 export async function updateListingContent(input: {
@@ -504,8 +566,16 @@ export async function updateListingContent(input: {
   if (typeof input.locationLabel === 'string') payload.location_label = input.locationLabel
   if (input.fulfillmentDaysMin !== undefined) payload.fulfillment_days_min = input.fulfillmentDaysMin
   if (input.fulfillmentDaysMax !== undefined) payload.fulfillment_days_max = input.fulfillmentDaysMax
-  const { error } = await supabase.from('marketplace_listings').update(payload).eq('id', input.listingId)
-  if (error) throw error
+
+  return optimisticWrite(
+    'listing:' + input.listingId,
+    [editRows(['project-listings', 'business-listings', 'listing'], input.listingId, payload)],
+    async () => {
+      if (!supabase) throw new Error('Supabase is not configured.')
+      const { error } = await supabase.from('marketplace_listings').update(payload).eq('id', input.listingId)
+      if (error) throw error
+    },
+  )
 }
 
 function toWorkspaceProjectKind(kind: MarketplaceKind) {

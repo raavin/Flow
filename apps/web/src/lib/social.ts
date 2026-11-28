@@ -1,3 +1,5 @@
+import { queryClient } from './query-client'
+import { optimisticWrite, editRows, removeRows, cachedRow, setFlag, isObject } from './optimistic'
 import { supabase } from './supabase'
 import { rankFeedItems, type FeedMode } from './feed-ranking'
 
@@ -456,42 +458,57 @@ export async function togglePostEngagement(input: {
   userId: string
   field: 'liked' | 'reposted' | 'bookmarked'
 }) {
-  if (!supabase) throw new Error('Supabase is not configured.')
-  const { data: existing, error: existingError } = await supabase
-    .from('post_engagements')
-    .select('id, liked, reposted, bookmarked')
-    .eq('post_id', input.postId)
-    .eq('user_id', input.userId)
-    .maybeSingle()
-  if (existingError) throw existingError
+  const field = { liked: 'viewerLiked', reposted: 'viewerReposted', bookmarked: 'viewerBookmarked' }[
+    input.field
+  ]
+  const count = { liked: 'likeCount', reposted: 'repostCount', bookmarked: 'bookmarkCount' }[input.field]
+  const row = cachedRow(['social-feed', 'post', 'profile-posts', 'topic-feed'], input.postId)
+  const next = !row?.[field]
 
-  const payload = {
-    liked: existing?.liked ?? false,
-    reposted: existing?.reposted ?? false,
-    bookmarked: existing?.bookmarked ?? false,
-    [input.field]: !(existing?.[input.field] ?? false),
-  }
-  const shouldRefreshRepostTime = input.field === 'reposted' && payload.reposted
+  return optimisticWrite(
+    'engagement:' + input.postId,
+    row
+      ? [setFlag(['social-feed', 'post', 'profile-posts', 'topic-feed'], input.postId, field, next, count)]
+      : [],
+    async () => {
+      if (!supabase) throw new Error('Supabase is not configured.')
+      const { data: existing, error: existingError } = await supabase
+        .from('post_engagements')
+        .select('id, liked, reposted, bookmarked')
+        .eq('post_id', input.postId)
+        .eq('user_id', input.userId)
+        .maybeSingle()
+      if (existingError) throw existingError
 
-  if (existing?.id) {
-    const { error } = await supabase
-      .from('post_engagements')
-      .update({
+      const payload = {
+        liked: existing?.liked ?? false,
+        reposted: existing?.reposted ?? false,
+        bookmarked: existing?.bookmarked ?? false,
+        [input.field]: !(existing?.[input.field] ?? false),
+      }
+      const shouldRefreshRepostTime = input.field === 'reposted' && payload.reposted
+
+      if (existing?.id) {
+        const { error } = await supabase
+          .from('post_engagements')
+          .update({
+            ...payload,
+            ...(shouldRefreshRepostTime ? { created_at: new Date().toISOString() } : {}),
+          })
+          .eq('id', existing.id)
+        if (error) throw error
+        return
+      }
+
+      const { error } = await supabase.from('post_engagements').insert({
+        post_id: input.postId,
+        user_id: input.userId,
         ...payload,
         ...(shouldRefreshRepostTime ? { created_at: new Date().toISOString() } : {}),
       })
-      .eq('id', existing.id)
-    if (error) throw error
-    return
-  }
-
-  const { error } = await supabase.from('post_engagements').insert({
-    post_id: input.postId,
-    user_id: input.userId,
-    ...payload,
-    ...(shouldRefreshRepostTime ? { created_at: new Date().toISOString() } : {}),
-  })
-  if (error) throw error
+      if (error) throw error
+    },
+  )
 }
 
 export async function flagPostLabel(input: {
@@ -558,45 +575,63 @@ export async function updateOwnPostLabel(input: {
   userId: string
   contentKind: 'update' | 'product' | 'opinion' | 'claim'
 }) {
-  if (!supabase) throw new Error('Supabase is not configured.')
+  return optimisticWrite(
+    'post:' + input.postId,
+    [
+      editRows(
+        ['social-feed', 'post', 'profile-posts', 'topic-feed', 'coordination-source-post'],
+        input.postId,
+        { content_kind: input.contentKind },
+      ),
+    ],
+    async () => {
+      if (!supabase) throw new Error('Supabase is not configured.')
 
-  const { data: post, error: postError } = await supabase
-    .from('posts')
-    .select('author_id, metadata')
-    .eq('id', input.postId)
-    .maybeSingle()
-  if (postError) throw postError
-  if (!post) throw new Error('Post not found.')
-  if (post.author_id !== input.userId) throw new Error('You can only relabel your own post.')
+      const { data: post, error: postError } = await supabase
+        .from('posts')
+        .select('author_id, metadata')
+        .eq('id', input.postId)
+        .maybeSingle()
+      if (postError) throw postError
+      if (!post) throw new Error('Post not found.')
+      if (post.author_id !== input.userId) throw new Error('You can only relabel your own post.')
 
-  const supportingLinks =
-    post.metadata &&
-    typeof post.metadata === 'object' &&
-    'supportingLinks' in post.metadata &&
-    Array.isArray(post.metadata.supportingLinks)
-      ? post.metadata.supportingLinks.filter(
-          (item: unknown): item is string => typeof item === 'string' && item.length > 0,
-        )
-      : []
+      const supportingLinks =
+        post.metadata &&
+        typeof post.metadata === 'object' &&
+        'supportingLinks' in post.metadata &&
+        Array.isArray(post.metadata.supportingLinks)
+          ? post.metadata.supportingLinks.filter(
+              (item: unknown): item is string => typeof item === 'string' && item.length > 0,
+            )
+          : []
 
-  if (input.contentKind === 'claim' && supportingLinks.length === 0) {
-    throw new Error('Add one or two supporting links before changing this post to a fact claim.')
-  }
+      if (input.contentKind === 'claim' && supportingLinks.length === 0) {
+        throw new Error('Add one or two supporting links before changing this post to a fact claim.')
+      }
 
-  const { error } = await supabase
-    .from('posts')
-    .update({
-      content_kind: input.contentKind,
-    })
-    .eq('id', input.postId)
-    .eq('author_id', input.userId)
-  if (error) throw error
+      const { error } = await supabase
+        .from('posts')
+        .update({
+          content_kind: input.contentKind,
+        })
+        .eq('id', input.postId)
+        .eq('author_id', input.userId)
+      if (error) throw error
+    },
+  )
 }
 
 export async function deletePost(postId: string) {
-  if (!supabase) throw new Error('Supabase is not configured.')
-  const { error } = await supabase.rpc('delete_own_post', { p_id: postId })
-  if (error) throw error
+  return optimisticWrite(
+    'post:' + postId,
+    [removeRows(['social-feed', 'profile-posts', 'topic-feed'], postId)],
+    async () => {
+      if (!supabase) throw new Error('Supabase is not configured.')
+      const { error } = await supabase.rpc('delete_own_post', { p_id: postId })
+      if (error) throw error
+    },
+  )
 }
 
 export async function updateOwnPost(input: {
@@ -609,126 +644,179 @@ export async function updateOwnPost(input: {
   supportingLinks?: string[]
   mediaPaths?: string[]
 }) {
-  if (!supabase) throw new Error('Supabase is not configured.')
+  return optimisticWrite(
+    'post:' + input.postId,
+    [
+      editRows(
+        ['social-feed', 'post', 'profile-posts', 'topic-feed', 'coordination-source-post'],
+        input.postId,
+        {
+          body: input.body,
+          content_kind: input.contentKind,
+          visibility: input.visibility,
+          linked_project_id: input.linkedProjectId,
+          mediaPaths: input.mediaPaths,
+        },
+      ),
+    ],
+    async () => {
+      if (!supabase) throw new Error('Supabase is not configured.')
 
-  const trimmedBody = input.body.trim()
-  if (!trimmedBody) throw new Error('Post text cannot be empty.')
+      const trimmedBody = input.body.trim()
+      if (!trimmedBody) throw new Error('Post text cannot be empty.')
 
-  const supportingLinks = (input.supportingLinks ?? []).filter(Boolean)
-  if (input.contentKind === 'claim' && supportingLinks.length === 0) {
-    throw new Error('Fact claims need at least one supporting link.')
-  }
-  if (supportingLinks.length > 2) {
-    throw new Error('Fact claims can include up to two supporting links.')
-  }
+      const supportingLinks = (input.supportingLinks ?? []).filter(Boolean)
+      if (input.contentKind === 'claim' && supportingLinks.length === 0) {
+        throw new Error('Fact claims need at least one supporting link.')
+      }
+      if (supportingLinks.length > 2) {
+        throw new Error('Fact claims can include up to two supporting links.')
+      }
 
-  const { data: existingPost, error: existingPostError } = await supabase
-    .from('posts')
-    .select('author_id, metadata')
-    .eq('id', input.postId)
-    .maybeSingle()
-  if (existingPostError) throw existingPostError
-  if (!existingPost) throw new Error('Post not found.')
-  if (existingPost.author_id !== input.userId) throw new Error('You can only edit your own post.')
+      const { data: existingPost, error: existingPostError } = await supabase
+        .from('posts')
+        .select('author_id, metadata')
+        .eq('id', input.postId)
+        .maybeSingle()
+      if (existingPostError) throw existingPostError
+      if (!existingPost) throw new Error('Post not found.')
+      if (existingPost.author_id !== input.userId) throw new Error('You can only edit your own post.')
 
-  const existingMetadata =
-    existingPost.metadata && typeof existingPost.metadata === 'object' ? existingPost.metadata : {}
-  const nextMetadata: Record<string, unknown> = {
-    ...existingMetadata,
-    editedAt: new Date().toISOString(),
-    editCount:
-      typeof existingMetadata.editCount === 'number' && Number.isFinite(existingMetadata.editCount)
-        ? existingMetadata.editCount + 1
-        : 1,
-  }
-  if (supportingLinks.length) {
-    nextMetadata.supportingLinks = supportingLinks
-  } else {
-    delete nextMetadata.supportingLinks
-  }
+      const existingMetadata =
+        existingPost.metadata && typeof existingPost.metadata === 'object' ? existingPost.metadata : {}
+      const nextMetadata: Record<string, unknown> = {
+        ...existingMetadata,
+        editedAt: new Date().toISOString(),
+        editCount:
+          typeof existingMetadata.editCount === 'number' && Number.isFinite(existingMetadata.editCount)
+            ? existingMetadata.editCount + 1
+            : 1,
+      }
+      if (supportingLinks.length) {
+        nextMetadata.supportingLinks = supportingLinks
+      } else {
+        delete nextMetadata.supportingLinks
+      }
 
-  const updatePayload: Record<string, unknown> = {
-    body: trimmedBody,
-    content_kind: input.contentKind,
-    linked_project_id: input.linkedProjectId ?? null,
-    visibility: input.visibility ?? (input.linkedProjectId ? 'project' : 'followers'),
-    metadata: nextMetadata,
-  }
-  const { error } = await supabase
-    .from('posts')
-    .update(updatePayload)
-    .eq('id', input.postId)
-    .eq('author_id', input.userId)
-  if (error) throw error
+      const updatePayload: Record<string, unknown> = {
+        body: trimmedBody,
+        content_kind: input.contentKind,
+        linked_project_id: input.linkedProjectId ?? null,
+        visibility: input.visibility ?? (input.linkedProjectId ? 'project' : 'followers'),
+        metadata: nextMetadata,
+      }
+      const { error } = await supabase
+        .from('posts')
+        .update(updatePayload)
+        .eq('id', input.postId)
+        .eq('author_id', input.userId)
+      if (error) throw error
 
-  if (input.mediaPaths !== undefined) {
-    const { error: delError } = await supabase.from('post_media').delete().eq('post_id', input.postId)
-    if (delError) throw delError
+      if (input.mediaPaths !== undefined) {
+        const { error: delError } = await supabase.from('post_media').delete().eq('post_id', input.postId)
+        if (delError) throw delError
 
-    if (input.mediaPaths.length) {
-      const { error: mediaError } = await supabase.from('post_media').insert(
-        input.mediaPaths.map((storagePath, index) => ({
-          post_id: input.postId,
-          owner_id: input.userId,
-          storage_path: storagePath,
-          sort_order: index,
-        })),
-      )
-      if (mediaError) throw mediaError
-    }
-  }
+        if (input.mediaPaths.length) {
+          const { error: mediaError } = await supabase.from('post_media').insert(
+            input.mediaPaths.map((storagePath, index) => ({
+              post_id: input.postId,
+              owner_id: input.userId,
+              storage_path: storagePath,
+              sort_order: index,
+            })),
+          )
+          if (mediaError) throw mediaError
+        }
+      }
 
-  const topicLabels = extractTopics(trimmedBody)
-  const { error: deleteTopicsError } = await supabase.from('post_topics').delete().eq('post_id', input.postId)
-  if (deleteTopicsError) throw deleteTopicsError
-
-  if (topicLabels.length) {
-    for (const label of topicLabels) {
-      const slug = label.toLowerCase()
-      const { data: topic, error: topicError } = await supabase
-        .from('topics')
-        .upsert({ slug, label }, { onConflict: 'slug' })
-        .select('id')
-        .single()
-      if (topicError) throw topicError
-      const { error: linkError } = await supabase
+      const topicLabels = extractTopics(trimmedBody)
+      const { error: deleteTopicsError } = await supabase
         .from('post_topics')
-        .upsert({ post_id: input.postId, topic_id: topic.id })
-      if (linkError) throw linkError
-    }
-  }
+        .delete()
+        .eq('post_id', input.postId)
+      if (deleteTopicsError) throw deleteTopicsError
+
+      if (topicLabels.length) {
+        for (const label of topicLabels) {
+          const slug = label.toLowerCase()
+          const { data: topic, error: topicError } = await supabase
+            .from('topics')
+            .upsert({ slug, label }, { onConflict: 'slug' })
+            .select('id')
+            .single()
+          if (topicError) throw topicError
+          const { error: linkError } = await supabase
+            .from('post_topics')
+            .upsert({ post_id: input.postId, topic_id: topic.id })
+          if (linkError) throw linkError
+        }
+      }
+    },
+  )
 }
 
 export async function promotePost(postId: string, userId: string) {
-  if (!supabase) throw new Error('Supabase is not configured.')
-  const { error } = await supabase
-    .from('posts')
-    .update({ is_promoted: true, visibility: 'public' })
-    .eq('id', postId)
-    .eq('author_id', userId)
-  if (error) throw error
+  return optimisticWrite(
+    'post:' + postId,
+    [
+      editRows(['social-feed', 'post', 'profile-posts', 'topic-feed'], postId, {
+        is_promoted: true,
+        visibility: 'public',
+      }),
+    ],
+    async () => {
+      if (!supabase) throw new Error('Supabase is not configured.')
+      const { error } = await supabase
+        .from('posts')
+        .update({ is_promoted: true, visibility: 'public' })
+        .eq('id', postId)
+        .eq('author_id', userId)
+      if (error) throw error
+    },
+  )
 }
 
 export async function demotePost(postId: string, userId: string) {
-  if (!supabase) throw new Error('Supabase is not configured.')
-  const { error } = await supabase
-    .from('posts')
-    .update({ is_promoted: false, visibility: 'project' })
-    .eq('id', postId)
-    .eq('author_id', userId)
-  if (error) throw error
+  return optimisticWrite(
+    'post:' + postId,
+    [
+      editRows(['social-feed', 'post', 'profile-posts', 'topic-feed'], postId, {
+        is_promoted: false,
+        visibility: 'project',
+      }),
+    ],
+    async () => {
+      if (!supabase) throw new Error('Supabase is not configured.')
+      const { error } = await supabase
+        .from('posts')
+        .update({ is_promoted: false, visibility: 'project' })
+        .eq('id', postId)
+        .eq('author_id', userId)
+      if (error) throw error
+    },
+  )
 }
 
 export async function linkPostToProject(input: { postId: string; userId: string; projectId: string | null }) {
-  if (!supabase) throw new Error('Supabase is not configured.')
+  return optimisticWrite(
+    'post:' + input.postId,
+    [
+      editRows(['social-feed', 'post', 'profile-posts', 'topic-feed'], input.postId, {
+        linked_project_id: input.projectId,
+      }),
+    ],
+    async () => {
+      if (!supabase) throw new Error('Supabase is not configured.')
 
-  const { error } = await supabase
-    .from('posts')
-    .update({ linked_project_id: input.projectId })
-    .eq('id', input.postId)
-    .eq('author_id', input.userId)
+      const { error } = await supabase
+        .from('posts')
+        .update({ linked_project_id: input.projectId })
+        .eq('id', input.postId)
+        .eq('author_id', input.userId)
 
-  if (error) throw error
+      if (error) throw error
+    },
+  )
 }
 
 export async function fetchSocialProfile(profileId: string, viewerId: string) {
@@ -780,26 +868,49 @@ export async function fetchPeopleDirectory(viewerId: string) {
 }
 
 export async function toggleFollow(input: { followerId: string; followeeId: string }) {
-  if (!supabase) throw new Error('Supabase is not configured.')
-  const { data: existing, error: existingError } = await supabase
-    .from('social_follows')
-    .select('id')
-    .eq('follower_id', input.followerId)
-    .eq('followee_id', input.followeeId)
-    .maybeSingle()
-  if (existingError) throw existingError
+  const profile = queryClient.getQueryData(['social-profile', input.followeeId, input.followerId])
+  const row = cachedRow(['people-directory'], input.followeeId)
+  const next = !(isObject(profile) ? profile.viewerFollows : row?.viewerFollows)
 
-  if (existing?.id) {
-    const { error } = await supabase.from('social_follows').delete().eq('id', existing.id)
-    if (error) throw error
-    return
-  }
+  return optimisticWrite(
+    'follow:' + input.followeeId,
+    [
+      setFlag(['people-directory'], input.followeeId, 'viewerFollows', next),
+      {
+        keys: ['social-profile'],
+        apply: (data, key) =>
+          !isObject(data) || key[1] !== input.followeeId || data.viewerFollows === next
+            ? data
+            : {
+                ...data,
+                viewerFollows: next,
+                followerCount: Math.max(0, Number(data.followerCount ?? 0) + (next ? 1 : -1)),
+              },
+      },
+    ],
+    async () => {
+      if (!supabase) throw new Error('Supabase is not configured.')
+      const { data: existing, error: existingError } = await supabase
+        .from('social_follows')
+        .select('id')
+        .eq('follower_id', input.followerId)
+        .eq('followee_id', input.followeeId)
+        .maybeSingle()
+      if (existingError) throw existingError
 
-  const { error } = await supabase.from('social_follows').insert({
-    follower_id: input.followerId,
-    followee_id: input.followeeId,
-  })
-  if (error) throw error
+      if (existing?.id) {
+        const { error } = await supabase.from('social_follows').delete().eq('id', existing.id)
+        if (error) throw error
+        return
+      }
+
+      const { error } = await supabase.from('social_follows').insert({
+        follower_id: input.followerId,
+        followee_id: input.followeeId,
+      })
+      if (error) throw error
+    },
+  )
 }
 
 export async function fetchTopics(userId?: string) {
@@ -841,24 +952,32 @@ export async function fetchTopicFeed(slug: string, userId: string) {
 }
 
 export async function toggleTopicSubscription(input: { topicId: string; userId: string }) {
-  if (!supabase) throw new Error('Supabase is not configured.')
-  const { data: existing, error: existingError } = await supabase
-    .from('topic_subscriptions')
-    .select('id')
-    .eq('topic_id', input.topicId)
-    .eq('user_id', input.userId)
-    .maybeSingle()
-  if (existingError) throw existingError
-  if (existing?.id) {
-    const { error } = await supabase.from('topic_subscriptions').delete().eq('id', existing.id)
-    if (error) throw error
-    return
-  }
-  const { error } = await supabase.from('topic_subscriptions').insert({
-    topic_id: input.topicId,
-    user_id: input.userId,
-  })
-  if (error) throw error
+  const row = cachedRow(['topics'], input.topicId)
+
+  return optimisticWrite(
+    'topic:' + input.topicId,
+    row ? [setFlag(['topics'], input.topicId, 'viewerSubscribed', !row.viewerSubscribed)] : [],
+    async () => {
+      if (!supabase) throw new Error('Supabase is not configured.')
+      const { data: existing, error: existingError } = await supabase
+        .from('topic_subscriptions')
+        .select('id')
+        .eq('topic_id', input.topicId)
+        .eq('user_id', input.userId)
+        .maybeSingle()
+      if (existingError) throw existingError
+      if (existing?.id) {
+        const { error } = await supabase.from('topic_subscriptions').delete().eq('id', existing.id)
+        if (error) throw error
+        return
+      }
+      const { error } = await supabase.from('topic_subscriptions').insert({
+        topic_id: input.topicId,
+        user_id: input.userId,
+      })
+      if (error) throw error
+    },
+  )
 }
 
 function extractTopics(body: string) {

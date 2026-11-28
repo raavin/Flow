@@ -1,55 +1,58 @@
-import { requestsRoute, requestDetailRoute } from '@/pages/supplier-requests'
-import { budgetsRoute } from '@/pages/budgets'
-import { createRouter } from '@tanstack/react-router'
-import { rootRoute, appRoute } from '@/components/layout'
-import { landingRoute } from '@/pages/landing'
-import { onboardingRoute } from '@/pages/onboarding'
-import { homeRoute } from '@/pages/home'
-import { coordinationDetailRoute, coordinationRoute } from '@/pages/coordination'
-import { calendarRoute } from '@/pages/calendar'
-import { ganttRoute } from '@/pages/gantt'
+import { PageLoading } from '@/components/page-loading'
 import {
+  templateEditorRoute,
+  aiRoute,
+  budgetsRoute,
+  jobDetailRoute,
+  calendarRoute,
+  coordinationRoute,
+  coordinationDetailRoute,
+  ganttRoute,
+  homeRoute,
+  integrationsRoute,
+  jobsRoute,
+  landingRoute,
+  listingDetailRoute,
+  sellerProfileRoute,
+  businessProfileRoute,
+  listingsManagementRoute,
+  legacyListingsManagementRoute,
   marketplaceBrowseRoute,
-  servicesMarketplaceRoute,
   templateMarketplaceRoute,
-} from '@/pages/marketplace'
-import {
-  projectTasksRoute,
-  projectCalendarRoute,
-  projectConversationRoute,
-  projectDetailRoute,
-  projectNotesRoute,
-  projectPeopleRoute,
-  projectStoreRoute,
-  projectTimelineRoute,
-  projectsRoute,
-} from '@/pages/projects'
-import { jobsRoute } from '@/pages/jobs'
-import {
-  dmInboxRoute,
-  dmThreadRoute,
+  servicesMarketplaceRoute,
   messagesRoute,
-  postRoute,
   projectMessagesRoute,
+  postRoute,
   socialProfileRoute,
   topicRoute,
-} from '@/pages/messages'
-import { walletRoute } from '@/pages/wallet'
-import { notificationsRoute } from '@/pages/notifications'
-import {
-  businessProfileRoute,
-  legacyListingsManagementRoute,
-  listingDetailRoute,
-  listingsManagementRoute,
-  sellerProfileRoute,
-} from '@/pages/listings'
-import { participantsRoute } from '@/pages/participants'
-import { availabilityRoute, budgetRoute, structuredUpdatesRoute } from '@/pages/planning'
-import { cartRoute, categoryBrowseRoute, searchRoute, settingsRoute } from '@/pages/tools'
-import { jobDetailRoute } from '@/pages/business'
-import { aiRoute, templateEditorRoute } from '@/pages/ai'
-import { supportRoute } from '@/pages/support'
-import { integrationsRoute } from '@/pages/integrations'
+  dmInboxRoute,
+  dmThreadRoute,
+  notificationsRoute,
+  onboardingRoute,
+  participantsRoute,
+  availabilityRoute,
+  budgetRoute,
+  structuredUpdatesRoute,
+  projectTasksRoute,
+  projectsRoute,
+  projectDetailRoute,
+  projectConversationRoute,
+  projectCalendarRoute,
+  projectTimelineRoute,
+  projectNotesRoute,
+  projectStoreRoute,
+  projectPeopleRoute,
+  requestsRoute,
+  requestDetailRoute,
+  supportRoute,
+  categoryBrowseRoute,
+  cartRoute,
+  searchRoute,
+  settingsRoute,
+  walletRoute,
+} from './route-definitions'
+import { createRouter } from '@tanstack/react-router'
+import { rootRoute, appRoute } from '@/components/layout'
 import { PageError } from '@/components/page-error'
 
 const routeTree = rootRoute.addChildren([
@@ -107,7 +110,15 @@ const routeTree = rootRoute.addChildren([
   ]),
 ])
 
-export const router = createRouter({ routeTree, defaultErrorComponent: PageError })
+export const router = createRouter({
+  routeTree,
+  defaultErrorComponent: PageError,
+  defaultPreload: 'intent',
+  defaultPreloadDelay: 80,
+  defaultPendingMs: 120,
+  defaultPendingMinMs: 150,
+  defaultPendingComponent: PageLoading,
+})
 
 declare module '@tanstack/react-router' {
   interface Register {

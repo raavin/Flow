@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
 }))
 vi.mock('@/components/layout', () => ({ appRoute: {} }))
 vi.mock('@tanstack/react-router', () => ({
+  lazyRouteComponent: () => () => null,
   createRoute: () => ({ useParams: () => ({ projectId: 'project' }) }),
   useNavigate: () => vi.fn(),
   Link: ({ children }: { children: ReactNode }) => <a>{children}</a>,

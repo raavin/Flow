@@ -1,3 +1,4 @@
+import { coordinationDetailRoute } from '@/route-definitions'
 import { calendarDay, coordinationDays } from '@/lib/coordination-dates'
 import { QueryFeedback, MutationFeedback } from '@/components/request-feedback'
 import { TaskList } from '@/components/task-list'
@@ -6,7 +7,7 @@ import { groupCoordinationObjects } from '@/lib/task-groups'
 import { TemplatePreview } from '@/components/template-preview'
 import { templateSchedule } from '@/lib/template-planning'
 import { useMemo, useRef, useState } from 'react'
-import { Link, createRoute, useNavigate } from '@tanstack/react-router'
+import { Link, useNavigate } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type {
   CoordinationDisplayKind,
@@ -30,7 +31,7 @@ import {
   FieldLabel,
   SectionHeading,
 } from '@superapp/ui'
-import { appRoute } from '@/components/layout'
+
 import { useAppStore } from '@/hooks/useAppStore'
 import {
   addCoordinationParticipant,
@@ -939,7 +940,7 @@ function TemplatePanel({
   )
 }
 
-function CoordinationDetailPage() {
+export function CoordinationDetailPage() {
   const { coordinationId } = coordinationDetailRoute.useParams()
   const { session } = useAppStore()
   const queryClient = useQueryClient()
@@ -1283,14 +1284,4 @@ function toDueIso(day: string) {
   return `${day}T17:00:00.000Z`
 }
 
-export const coordinationRoute = createRoute({
-  getParentRoute: () => appRoute,
-  path: 'coordination',
-  component: () => <TemplateEditorPage title="Plans" />,
-})
-
-export const coordinationDetailRoute = createRoute({
-  getParentRoute: () => appRoute,
-  path: 'coordination/$coordinationId',
-  component: CoordinationDetailPage,
-})
+export const CoordinationRoutePage = () => <TemplateEditorPage title="Plans" />

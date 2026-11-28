@@ -1,18 +1,30 @@
+import { isPendingRecord } from '@/lib/optimistic'
+import {
+  projectTasksRoute,
+  projectDetailRoute,
+  projectConversationRoute,
+  projectCalendarRoute,
+  projectTimelineRoute,
+  projectNotesRoute,
+  projectStoreRoute,
+  projectPeopleRoute,
+} from '@/route-definitions'
 import { AppDialog } from '@/components/app-dialog'
 import { TaskList } from '@/components/task-list'
 import { SourceLinks } from '@/components/source-action'
 import { QueryFeedback, MutationFeedback } from '@/components/request-feedback'
 import { supabase } from '@/lib/supabase'
-import { useEffect, useState } from 'react'
-import { Link, createRoute, useNavigate } from '@tanstack/react-router'
+import { lazy, Suspense, useEffect, useState } from 'react'
+import { PageLoading } from '@/components/page-loading'
+import { Link, useNavigate } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { AppButton, AppCard, AppInput, AppPanel, AppSelect, AppTextarea, SectionHeading } from '@superapp/ui'
-import { appRoute } from '@/components/layout'
+
 import { ProjectShell } from '@/components/project-shell'
 import { useAppStore } from '@/hooks/useAppStore'
-import { CalendarPage } from '@/pages/calendar'
-import { GanttPage } from '@/pages/gantt'
-import { MessagesFeedPage } from '@/pages/messages'
+const CalendarPage = lazy(() => import('@/pages/calendar').then((m) => ({ default: m.CalendarPage })))
+const GanttPage = lazy(() => import('@/pages/gantt').then((m) => ({ default: m.GanttPage })))
+const MessagesFeedPage = lazy(() => import('@/pages/messages').then((m) => ({ default: m.MessagesFeedPage })))
 import {
   createProject,
   createProjectNote,
@@ -26,7 +38,7 @@ import { fetchPeopleDirectory } from '@/lib/social'
 import { fetchListingsByProject, updateListingPublished } from '@/lib/marketplace'
 import { fetchParticipants, inviteParticipant, removeParticipant } from '@/lib/participants'
 
-function ProjectsPage() {
+export function ProjectsPage() {
   const { session } = useAppStore()
   const navigate = useNavigate()
   const client = useQueryClient()
@@ -159,13 +171,19 @@ function ProjectsPage() {
               {rows.map((p) => (
                 <tr key={p.id}>
                   <td className="py-4 pr-3">
-                    <Link
-                      className="font-semibold hover:underline"
-                      to="/app/projects/$projectId"
-                      params={{ projectId: p.id }}
-                    >
-                      {p.title}
-                    </Link>
+                    {isPendingRecord(p) ? (
+                      <span className="font-semibold">
+                        {p.title} <span className="text-xs font-normal">Saving…</span>
+                      </span>
+                    ) : (
+                      <Link
+                        className="font-semibold hover:underline"
+                        to="/app/projects/$projectId"
+                        params={{ projectId: p.id }}
+                      >
+                        {p.title}
+                      </Link>
+                    )}
                     <p className="mt-1 text-xs text-ink/60">{p.category}</p>
                   </td>
                   <td className="py-4 pr-3">
@@ -217,7 +235,7 @@ function ProjectsPage() {
     </div>
   )
 }
-function ProjectTasksPage() {
+export function ProjectTasksPage() {
   const { projectId } = projectTasksRoute.useParams()
   return (
     <ProjectShell projectId={projectId} activeTab="tasks">
@@ -225,41 +243,42 @@ function ProjectTasksPage() {
     </ProjectShell>
   )
 }
-export const projectTasksRoute = createRoute({
-  getParentRoute: () => appRoute,
-  path: 'projects/$projectId/tasks',
-  component: ProjectTasksPage,
-})
 
-function ProjectConversationPage() {
+export function ProjectConversationPage() {
   const { projectId } = projectConversationRoute.useParams()
   return (
     <ProjectShell projectId={projectId} activeTab="conversation">
       <SourceLinks projectId={projectId} />
-      <MessagesFeedPage linkedProjectId={projectId} />
+      <Suspense fallback={<PageLoading />}>
+        <MessagesFeedPage linkedProjectId={projectId} />
+      </Suspense>
     </ProjectShell>
   )
 }
 
-function ProjectCalendarPage() {
+export function ProjectCalendarPage() {
   const { projectId } = projectCalendarRoute.useParams()
   return (
     <ProjectShell projectId={projectId} activeTab="calendar">
-      <CalendarPage linkedProjectId={projectId} />
+      <Suspense fallback={<PageLoading />}>
+        <CalendarPage linkedProjectId={projectId} />
+      </Suspense>
     </ProjectShell>
   )
 }
 
-function ProjectTimelinePage() {
+export function ProjectTimelinePage() {
   const { projectId } = projectTimelineRoute.useParams()
   return (
     <ProjectShell projectId={projectId} activeTab="timeline">
-      <GanttPage linkedProjectId={projectId} />
+      <Suspense fallback={<PageLoading />}>
+        <GanttPage linkedProjectId={projectId} />
+      </Suspense>
     </ProjectShell>
   )
 }
 
-function ProjectNotesPage() {
+export function ProjectNotesPage() {
   const { projectId } = projectNotesRoute.useParams()
   const { session } = useAppStore()
   const queryClient = useQueryClient()
@@ -584,7 +603,7 @@ export function ProjectPeoplePage() {
   )
 }
 
-function ProjectEntryPage() {
+export function ProjectEntryPage() {
   const { projectId } = projectDetailRoute.useParams()
   const navigate = useNavigate()
 
@@ -599,43 +618,7 @@ function ProjectEntryPage() {
   return <AppCard>Opening project...</AppCard>
 }
 
-export const projectsRoute = createRoute({
-  getParentRoute: () => appRoute,
-  path: 'projects',
-  component: ProjectsPage,
-})
-
-export const projectDetailRoute = createRoute({
-  getParentRoute: () => appRoute,
-  path: 'projects/$projectId',
-  component: ProjectEntryPage,
-})
-
-export const projectConversationRoute = createRoute({
-  getParentRoute: () => appRoute,
-  path: 'projects/$projectId/conversation',
-  component: ProjectConversationPage,
-})
-
-export const projectCalendarRoute = createRoute({
-  getParentRoute: () => appRoute,
-  path: 'projects/$projectId/calendar',
-  component: ProjectCalendarPage,
-})
-
-export const projectTimelineRoute = createRoute({
-  getParentRoute: () => appRoute,
-  path: 'projects/$projectId/timeline',
-  component: ProjectTimelinePage,
-})
-
-export const projectNotesRoute = createRoute({
-  getParentRoute: () => appRoute,
-  path: 'projects/$projectId/notes',
-  component: ProjectNotesPage,
-})
-
-function ProjectStorePage() {
+export function ProjectStorePage() {
   const { projectId } = projectStoreRoute.useParams()
   const queryClient = useQueryClient()
   const listingsQuery = useQuery({
@@ -698,15 +681,3 @@ function ProjectStorePage() {
     </ProjectShell>
   )
 }
-
-export const projectStoreRoute = createRoute({
-  getParentRoute: () => appRoute,
-  path: 'projects/$projectId/store',
-  component: ProjectStorePage,
-})
-
-export const projectPeopleRoute = createRoute({
-  getParentRoute: () => appRoute,
-  path: 'projects/$projectId/people',
-  component: ProjectPeoplePage,
-})

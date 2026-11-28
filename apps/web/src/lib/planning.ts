@@ -1,3 +1,4 @@
+import { optimisticWrite, editRows, removeRows, insertRow } from './optimistic'
 import { assertBudgetAmount } from './budget'
 import { supabase } from './supabase'
 import { createActivity, createNotification } from './coordination'
@@ -87,29 +88,55 @@ export async function createExpense(input: {
   assertBudgetAmount(input.estimateCents)
   assertBudgetAmount(input.actualCents)
   const id = crypto.randomUUID()
-  const { error } = await supabase.from('project_expenses').insert({
-    id,
-    incurred_on: input.incurredOn ?? null,
-    counterparty_label: input.counterparty ?? '',
-    owner_id: input.ownerId,
-    project_id: input.projectId,
-    category: input.category,
-    title: input.title,
-    estimate_cents: input.estimateCents,
-    actual_cents: input.actualCents,
-    payment_status: input.paymentStatus,
-    linked_listing_id: input.linkedListingId ?? null,
-    ...(input.allocationId ? { allocation_id: input.allocationId } : {}),
-  })
-  if (error) throw error
-  await createActivity({
-    ownerId: input.ownerId,
-    projectId: input.projectId,
-    activityType: 'expense_added',
-    title: 'Expense added',
-    detail: `${input.title} added under ${input.category}.`,
-  }).catch(() => {})
-  return id
+  return optimisticWrite(
+    `expense:${id}`,
+    [
+      insertRow(
+        ['expenses'],
+        {
+          id,
+          project_id: input.projectId,
+          category: input.category,
+          title: input.title,
+          estimate_cents: input.estimateCents,
+          actual_cents: input.actualCents,
+          payment_status: input.paymentStatus,
+          allocation_id: input.allocationId ?? null,
+          linked_listing_id: input.linkedListingId ?? null,
+          incurred_on: input.incurredOn ?? null,
+          counterparty_label: input.counterparty ?? '',
+          _pending: true,
+        },
+        (key) => key.includes(input.projectId) || key.includes('all'),
+      ),
+    ],
+    async () => {
+      if (!supabase) throw new Error('Supabase is not configured.')
+      const { error } = await supabase.from('project_expenses').insert({
+        id,
+        incurred_on: input.incurredOn ?? null,
+        counterparty_label: input.counterparty ?? '',
+        owner_id: input.ownerId,
+        project_id: input.projectId,
+        category: input.category,
+        title: input.title,
+        estimate_cents: input.estimateCents,
+        actual_cents: input.actualCents,
+        payment_status: input.paymentStatus,
+        linked_listing_id: input.linkedListingId ?? null,
+        ...(input.allocationId ? { allocation_id: input.allocationId } : {}),
+      })
+      if (error) throw error
+      await createActivity({
+        ownerId: input.ownerId,
+        projectId: input.projectId,
+        activityType: 'expense_added',
+        title: 'Expense added',
+        detail: `${input.title} added under ${input.category}.`,
+      }).catch(() => {})
+      return id
+    },
+  )
 }
 
 export async function updateExpense(
@@ -141,14 +168,20 @@ export async function updateExpense(
     payload.actual_cents = input.actualCents
   }
   if (input.paymentStatus !== undefined) payload.payment_status = input.paymentStatus
-  const { error } = await supabase.from('project_expenses').update(payload).eq('id', expenseId)
-  if (error) throw error
+
+  return optimisticWrite('expense:' + expenseId, [editRows(['expenses'], expenseId, payload)], async () => {
+    if (!supabase) throw new Error('Supabase is not configured.')
+    const { error } = await supabase.from('project_expenses').update(payload).eq('id', expenseId)
+    if (error) throw error
+  })
 }
 
 export async function deleteExpense(expenseId: string) {
-  if (!supabase) throw new Error('Supabase is not configured.')
-  const { error } = await supabase.from('project_expenses').delete().eq('id', expenseId)
-  if (error) throw error
+  return optimisticWrite('expense:' + expenseId, [removeRows(['expenses'], expenseId)], async () => {
+    if (!supabase) throw new Error('Supabase is not configured.')
+    const { error } = await supabase.from('project_expenses').delete().eq('id', expenseId)
+    if (error) throw error
+  })
 }
 
 export async function fetchStructuredUpdates(projectId: string) {
@@ -163,9 +196,15 @@ export async function fetchStructuredUpdates(projectId: string) {
 }
 
 export async function deleteStructuredUpdate(updateId: string) {
-  if (!supabase) throw new Error('Supabase is not configured.')
-  const { error } = await supabase.from('structured_updates').delete().eq('id', updateId)
-  if (error) throw error
+  return optimisticWrite(
+    'update:' + updateId,
+    [removeRows(['structured-updates', 'job-structured-updates'], updateId)],
+    async () => {
+      if (!supabase) throw new Error('Supabase is not configured.')
+      const { error } = await supabase.from('structured_updates').delete().eq('id', updateId)
+      if (error) throw error
+    },
+  )
 }
 
 export function previewStructuredImpact(input: {

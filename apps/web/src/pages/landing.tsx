@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react'
-import { createRoute, useNavigate } from '@tanstack/react-router'
+import { useNavigate } from '@tanstack/react-router'
 import { MessageCircle, CalendarDays, FolderKanban } from 'lucide-react'
 import { AppButton, AppCard, AppInput, FieldLabel, SectionHeading } from '@superapp/ui'
-import { rootRoute } from '@/components/layout'
+
 import { HeroPanel } from '@/components/page-primitives'
 import { useAppStore } from '@/hooks/useAppStore'
 
-function LandingPage() {
+export function LandingPage() {
   const { signIn, signUp, session, profile, loading } = useAppStore()
   const navigate = useNavigate()
   const [email, setEmail] = useState('')
@@ -129,9 +129,3 @@ function LandingPage() {
     </div>
   )
 }
-
-export const landingRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: '/',
-  component: LandingPage,
-})

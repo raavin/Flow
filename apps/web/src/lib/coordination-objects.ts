@@ -1,3 +1,4 @@
+import { optimisticWrite, editRows, removeRows, insertRow, mapRecords, isObject } from './optimistic'
 import { applyTemplate } from './apply-template'
 import type {
   CoordinationObject,
@@ -282,80 +283,135 @@ export async function createCoordinationMessage(input: {
 }
 
 export async function createManualCoordinationObject(input: ManualCoordinationInput) {
-  if (!supabase) throw new Error('Supabase is not configured.')
+  const id = crypto.randomUUID()
 
-  const { data, error } = await supabase
-    .from('coordination_objects')
-    .insert({
-      owner_id: input.ownerId,
-      kind: input.kind,
-      display_kind: input.displayKind,
-      title: input.title,
-      summary: input.summary ?? null,
-      intent: input.intent,
-      state: input.state ?? 'draft',
-      starts_at: input.startsAt ?? null,
-      ends_at: input.endsAt ?? null,
-      due_at: input.dueAt ?? null,
-      is_all_day: input.isAllDay ?? false,
-      flexibility: input.flexibility ?? 'shiftable',
-      linked_project_id: input.linkedProjectId ?? null,
-      parent_id: input.parentId ?? null,
-      metadata: input.metadata ?? {},
-    })
-    .select('id')
-    .single()
+  return optimisticWrite(
+    'new-coordination:' + id,
+    [
+      insertRow(
+        ['coordination-objects'],
+        {
+          id,
+          ...input,
+          state: input.state ?? 'draft',
+          participants: [],
+          metadata: input.metadata ?? {},
+          time: {
+            startsAt: input.startsAt ?? null,
+            endsAt: input.endsAt ?? null,
+            dueAt: input.dueAt ?? null,
+            isAllDay: input.isAllDay ?? false,
+            flexibility: input.flexibility ?? 'shiftable',
+          },
+          createdAt: new Date().toISOString(),
+          _pending: true,
+        },
+        (key) => {
+          const timed = Boolean(input.startsAt || input.endsAt || input.dueAt)
+          if ((key.includes('timeline') || key.includes('calendar') || key[1] === 'project') && !timed)
+            return false
+          return (
+            key.length === 1 ||
+            key.includes('all') ||
+            key.includes('timeline') ||
+            key.includes('calendar') ||
+            (!!input.linkedProjectId && key.includes(input.linkedProjectId))
+          )
+        },
+      ),
+    ],
+    async () => {
+      if (!supabase) throw new Error('Supabase is not configured.')
 
-  if (error) throw error
+      const { data, error } = await supabase
+        .from('coordination_objects')
+        .insert({
+          id,
+          owner_id: input.ownerId,
+          kind: input.kind,
+          display_kind: input.displayKind,
+          title: input.title,
+          summary: input.summary ?? null,
+          intent: input.intent,
+          state: input.state ?? 'draft',
+          starts_at: input.startsAt ?? null,
+          ends_at: input.endsAt ?? null,
+          due_at: input.dueAt ?? null,
+          is_all_day: input.isAllDay ?? false,
+          flexibility: input.flexibility ?? 'shiftable',
+          linked_project_id: input.linkedProjectId ?? null,
+          parent_id: input.parentId ?? null,
+          metadata: input.metadata ?? {},
+        })
+        .select('id')
+        .single()
 
-  const participantRows = [
-    {
-      coordination_object_id: data.id,
-      profile_id: input.ownerId,
-      participant_name: 'Owner',
-      role: 'owner',
-      state: 'active',
+      if (error) throw error
+
+      const participantRows = [
+        {
+          coordination_object_id: data.id,
+          profile_id: input.ownerId,
+          participant_name: 'Owner',
+          role: 'owner',
+          state: 'active',
+        },
+        ...(input.participantNames ?? [])
+          .map((participantName) => participantName.trim())
+          .filter(Boolean)
+          .map((participantName) => ({
+            coordination_object_id: data.id,
+            profile_id: null,
+            participant_name: participantName,
+            role: 'participant' as const,
+            state: 'invited' as const,
+          })),
+      ]
+
+      const { error: participantError } = await supabase
+        .from('coordination_object_participants')
+        .insert(participantRows)
+      if (participantError) throw participantError
+
+      return data.id as string
     },
-    ...(input.participantNames ?? [])
-      .map((participantName) => participantName.trim())
-      .filter(Boolean)
-      .map((participantName) => ({
-        coordination_object_id: data.id,
-        profile_id: null,
-        participant_name: participantName,
-        role: 'participant' as const,
-        state: 'invited' as const,
-      })),
-  ]
-
-  const { error: participantError } = await supabase
-    .from('coordination_object_participants')
-    .insert(participantRows)
-  if (participantError) throw participantError
-
-  return data.id as string
+  )
 }
 
 export async function updateCoordinationObjectTitle(id: string, title: string) {
-  if (!supabase) throw new Error('Supabase is not configured.')
-  const { error } = await supabase
-    .from('coordination_objects')
-    .update({ title: title.trim() || 'Untitled' })
-    .eq('id', id)
-  if (error) throw error
+  return optimisticWrite(
+    'coordination:' + id,
+    [editRows(['coordination-objects', 'coordination-object'], id, { title: title.trim() || 'Untitled' })],
+    async () => {
+      if (!supabase) throw new Error('Supabase is not configured.')
+      const { error } = await supabase
+        .from('coordination_objects')
+        .update({ title: title.trim() || 'Untitled' })
+        .eq('id', id)
+      if (error) throw error
+    },
+  )
 }
 
 export async function deleteCoordinationObject(id: string) {
-  if (!supabase) throw new Error('Supabase is not configured.')
-  const { error } = await supabase.from('coordination_objects').delete().eq('id', id)
-  if (error) throw error
+  return optimisticWrite('coordination:' + id, [removeRows(['coordination-objects'], id)], async () => {
+    if (!supabase) throw new Error('Supabase is not configured.')
+    const { error } = await supabase.from('coordination_objects').delete().eq('id', id)
+    if (error) throw error
+  })
 }
 
 export async function updateCoordinationObjectState(id: string, state: CoordinationObjectState) {
-  if (!supabase) throw new Error('Supabase is not configured.')
+  return optimisticWrite(
+    'coordination:' + id,
+    [editRows(['coordination-objects', 'coordination-object'], id, { state })],
+    async () => {
+      if (!supabase) throw new Error('Supabase is not configured.')
 
-  const { error } = await supabase.from('coordination_objects').update({ state }).eq('id', id)
-  if (error) throw error
+      const { error } = await supabase.from('coordination_objects').update({ state }).eq('id', id)
+      if (error) throw error
+    },
+  )
 }
 
 export async function updateCoordinationObjectSchedule(input: {
@@ -364,28 +420,58 @@ export async function updateCoordinationObjectSchedule(input: {
   endsAt?: string | null
   dueAt?: string | null
 }) {
-  if (!supabase) throw new Error('Supabase is not configured.')
+  return optimisticWrite(
+    'coordination:' + input.id,
+    [
+      {
+        keys: ['coordination-objects', 'coordination-object'],
+        apply: (data) =>
+          mapRecords(data, (row) =>
+            row.id !== input.id
+              ? row
+              : {
+                  ...row,
+                  time: {
+                    ...(isObject(row.time) ? row.time : {}),
+                    startsAt: input.startsAt ?? null,
+                    endsAt: input.endsAt ?? null,
+                    dueAt: input.dueAt ?? null,
+                  },
+                },
+          ),
+      },
+    ],
+    async () => {
+      if (!supabase) throw new Error('Supabase is not configured.')
 
-  const { error } = await supabase
-    .from('coordination_objects')
-    .update({
-      starts_at: input.startsAt ?? null,
-      ends_at: input.endsAt ?? null,
-      due_at: input.dueAt ?? null,
-    })
-    .eq('id', input.id)
+      const { error } = await supabase
+        .from('coordination_objects')
+        .update({
+          starts_at: input.startsAt ?? null,
+          ends_at: input.endsAt ?? null,
+          due_at: input.dueAt ?? null,
+        })
+        .eq('id', input.id)
 
-  if (error) throw error
+      if (error) throw error
+    },
+  )
 }
 
 export async function updateCoordinationObjectProjectLink(id: string, linkedProjectId: string | null) {
-  if (!supabase) throw new Error('Supabase is not configured.')
+  return optimisticWrite(
+    'coordination:' + id,
+    [editRows(['coordination-objects', 'coordination-object'], id, { linkedProjectId })],
+    async () => {
+      if (!supabase) throw new Error('Supabase is not configured.')
 
-  const { error } = await supabase
-    .from('coordination_objects')
-    .update({ linked_project_id: linkedProjectId })
-    .eq('id', id)
-  if (error) throw error
+      const { error } = await supabase
+        .from('coordination_objects')
+        .update({ linked_project_id: linkedProjectId })
+        .eq('id', id)
+      if (error) throw error
+    },
+  )
 }
 
 export async function addCoordinationParticipant(input: {
@@ -463,18 +549,26 @@ export async function createCoordinationTemplate(input: {
 }
 
 export async function updateCoordinationTemplate(id: string, title: string) {
-  if (!supabase) throw new Error('Supabase is not configured.')
-  const { error } = await supabase
-    .from('coordination_templates')
-    .update({ title: title.trim() || 'Untitled' })
-    .eq('id', id)
-  if (error) throw error
+  return optimisticWrite(
+    'template:' + id,
+    [editRows(['coordination-templates'], id, { title: title.trim() || 'Untitled' })],
+    async () => {
+      if (!supabase) throw new Error('Supabase is not configured.')
+      const { error } = await supabase
+        .from('coordination_templates')
+        .update({ title: title.trim() || 'Untitled' })
+        .eq('id', id)
+      if (error) throw error
+    },
+  )
 }
 
 export async function deleteCoordinationTemplate(id: string) {
-  if (!supabase) throw new Error('Supabase is not configured.')
-  const { error } = await supabase.from('coordination_templates').delete().eq('id', id)
-  if (error) throw error
+  return optimisticWrite('template:' + id, [removeRows(['coordination-templates'], id)], async () => {
+    if (!supabase) throw new Error('Supabase is not configured.')
+    const { error } = await supabase.from('coordination_templates').delete().eq('id', id)
+    if (error) throw error
+  })
 }
 
 export async function seedStarterCoordinationTemplates(ownerId: string) {
